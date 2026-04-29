@@ -38,7 +38,7 @@ function commTrips(comm) {
   const out = [];
   for (let i=0;i<comm.length-2;i++)
     for (let j=i+1;j<comm.length-1;j++)
-      for (let k=j+2;k<comm.length;k++) out.push([comm[i],comm[j],comm[k]]);
+      for (let k=j+1;k<comm.length;k++) out.push([comm[i],comm[j],comm[k]]);
   return out;
 }
 

@@ -1,7 +1,7 @@
 // src/hooks/usePokerWallet.js
 // wagmi v2 + viem — real EVM wallet integration
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createConfig, http, useAccount, useConnect, useDisconnect,
          useReadContract, useWriteContract, useWaitForTransactionReceipt,
          useBalance } from "wagmi";
