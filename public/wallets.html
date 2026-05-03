@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PokerPartyPals — Wallet Keys</title>
+<style>
+  body { font-family: monospace; max-width: 800px; margin: 40px auto; padding: 20px; background: #fff; color: #000; }
+  h1 { font-size: 20px; border-bottom: 3px solid #000; padding-bottom: 8px; }
+  .warning { background: #fff3cd; border: 2px solid #f00; padding: 12px; margin: 16px 0; font-weight: bold; }
+  .wallet { border: 2px solid #000; margin: 20px 0; padding: 16px; page-break-inside: avoid; }
+  .wallet h2 { margin: 0 0 10px 0; font-size: 16px; background: #000; color: #fff; padding: 6px 10px; }
+  .role { color: #555; margin-bottom: 10px; font-size: 13px; }
+  .field { margin: 8px 0; }
+  .label { font-weight: bold; display: inline-block; width: 80px; }
+  .value { word-break: break-all; background: #f5f5f5; padding: 4px 8px; display: inline-block; max-width: calc(100% - 100px); vertical-align: top; }
+  .steps { border: 2px solid #000; padding: 16px; margin-top: 20px; }
+  .steps h2 { margin: 0 0 12px 0; }
+  .steps ol { margin: 0; padding-left: 20px; }
+  .steps li { margin: 6px 0; }
+  @media print {
+    .no-print { display: none; }
+    body { margin: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>♠ PokerPartyPals — Wallet Keys</h1>
+<p>Generated: 5/3/2026, 5:29:57 AM</p>
+
+<div class="warning">
+  ⚠ KEEP THIS SAFE — DO NOT SHARE WITH ANYONE — DO NOT LOSE
+</div>
+
+<div class="wallet">
+  <h2>DEPLOYER</h2>
+  <div class="role">Contract owner — fund with ETH on Arbitrum before deploying</div>
+  <div class="field"><span class="label">Address:</span> <span class="value">0xF0A19771C40B1a5C68EfB8Ba167C6B9a9B19F5b5</span></div>
+  <div class="field"><span class="label">Key:</span> <span class="value">0x2f3672464e68b1cdfbb915e168326d5d7b2deedba033ec27a0aeaa6af1f02387</span></div>
+  <div class="field"><span class="label">.env var:</span> <span class="value">DEPLOYER_KEY</span></div>
+</div>
+
+<div class="wallet">
+  <h2>OPERATOR SIGNER</h2>
+  <div class="role">Signs every hand settlement — keep this key on the game server</div>
+  <div class="field"><span class="label">Address:</span> <span class="value">0x71155909E022D1EfDd4D42ebBc7F85c80fD57C41</span></div>
+  <div class="field"><span class="label">Key:</span> <span class="value">0x97bc8b9ae3f8ea3fe3c0eb05e207afbd62e17becf3827a995b266f4f62c083c1</span></div>
+  <div class="field"><span class="label">.env var:</span> <span class="value">OPERATOR_PRIVATE_KEY / OPERATOR_SIGNER</span></div>
+</div>
+
+<div class="wallet">
+  <h2>RAKE WALLET</h2>
+  <div class="role">Receives all rake revenue</div>
+  <div class="field"><span class="label">Address:</span> <span class="value">0x458f5D0f53181F861b436C88C41aba6f410aad4C</span></div>
+  <div class="field"><span class="label">Key:</span> <span class="value">0x3bd324cfaf220b55d918eba3c1e78e1a3848b1d31a1626c0db7b7e1e74eaa1d0</span></div>
+  <div class="field"><span class="label">.env var:</span> <span class="value">RAKE_WALLET / RAKE_WALLET_KEY</span></div>
+</div>
+
+<div class="wallet">
+  <h2>ANTIBOT ORACLE</h2>
+  <div class="role">Calls markHuman() on-chain</div>
+  <div class="field"><span class="label">Address:</span> <span class="value">0xcB9068e9fA06bbD6810688a551ff30D257e1a8eF</span></div>
+  <div class="field"><span class="label">Key:</span> <span class="value">0x65c850df4cf64dea92db9ff581753e4fd6a16ad3d27e72ead6755aaf2c86f605</span></div>
+  <div class="field"><span class="label">.env var:</span> <span class="value">ANTIBOT_ORACLE / ANTIBOT_ORACLE_KEY</span></div>
+</div>
+
+<div class="wallet">
+  <h2>DEV WALLET</h2>
+  <div class="role">Receives 10% of token supply (100M PPP)</div>
+  <div class="field"><span class="label">Address:</span> <span class="value">0x589CF5A4AF749aD4F002Ab6D183f414091f94cAc</span></div>
+  <div class="field"><span class="label">Key:</span> <span class="value">0x5ff5cafbde53dcc8357e433b0757e213de9c910d603577903e78a00337d71e10</span></div>
+  <div class="field"><span class="label">.env var:</span> <span class="value">DEV_WALLET / DEV_WALLET_KEY</span></div>
+</div>
+
+<div class="wallet">
+  <h2>COMMUNITY WALLET</h2>
+  <div class="role">Receives 40% of token supply (400M PPP)</div>
+  <div class="field"><span class="label">Address:</span> <span class="value">0x405295990A1264d3Fd06c47caE1fB2cEA3C14f00</span></div>
+  <div class="field"><span class="label">Key:</span> <span class="value">0x7fa639635e8d232a923a1676976a5123d8a44df9dff8ffb8d363358c727609c3</span></div>
+  <div class="field"><span class="label">.env var:</span> <span class="value">COMMUNITY_WALLET / COMMUNITY_WALLET_KEY</span></div>
+</div>
+
+<div class="wallet">
+  <h2>LIQUIDITY WALLET</h2>
+  <div class="role">Receives 50% of token supply (500M PPP)</div>
+  <div class="field"><span class="label">Address:</span> <span class="value">0x9f0276Af1d8313B92eaaF8b2DFb3C14bdB903E4D</span></div>
+  <div class="field"><span class="label">Key:</span> <span class="value">0x69ecf1d2d32300062f3bbabb4236d37b40ebcfa209f76f69294e080bc276b93a</span></div>
+  <div class="field"><span class="label">.env var:</span> <span class="value">LIQUIDITY_WALLET / LIQUIDITY_WALLET_KEY</span></div>
+</div>
+
+<div class="steps">
+  <h2>Next Steps After Printing</h2>
+  <ol>
+    <li>Import each Key into MetaMask: Account → Import Account → paste the Key</li>
+    <li>Label each MetaMask account with the role name above</li>
+    <li>Send ETH to the DEPLOYER address on Arbitrum for gas (~0.05 ETH)</li>
+    <li>Run: <strong>npm run deploy:mainnet</strong></li>
+  </ol>
+</div>
+
+<br>
+<button class="no-print" onclick="window.print()" style="font-size:18px;padding:12px 24px;cursor:pointer;">🖨 Print This Page</button>
+
+</body>
+</html>
