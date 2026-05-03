@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createConfig, http, useAccount, useConnect, useDisconnect,
          useReadContract, useWriteContract, useWaitForTransactionReceipt,
-         useBalance } from "wagmi";
+         useBalance, useSignMessage } from "wagmi";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 import { parseUnits, formatUnits } from "viem";
@@ -156,7 +156,93 @@ export function useEscrow(tableId) {
   return { buyIn, refund, txHash, status, confirmed, tableInfo };
 }
 
-// ─── HOOK: WEBSOCKET ──────────────────────────────────────────────────────────
+// ─── HOOK: TABLE WEBSOCKET ────────────────────────────────────────────────────
+// Connects, authenticates, and manages real-time game state for a single table.
+export function useTableSocket(tableId) {
+  const { address }          = useAccount();
+  const { signMessageAsync } = useSignMessage();
+  const serverUrl            = process.env.NEXT_PUBLIC_WS_URL;
+
+  const [gameState, setGameState] = useState(null);
+  const [handOver,  setHandOver]  = useState(null);
+  const [tableList, setTableList] = useState([]);
+  const [wsStatus,  setWsStatus]  = useState('disconnected');
+  const [wsError,   setWsError]   = useState(null);
+  const wsRef = useRef(null);
+
+  useEffect(() => {
+    if (!serverUrl || !address) return;
+
+    setWsStatus('connecting');
+    const ws = new WebSocket(serverUrl);
+    wsRef.current = ws;
+
+    ws.onopen = async () => {
+      setWsStatus('connected');
+      try {
+        const nonce     = Date.now().toString();
+        const signature = await signMessageAsync({ message: `PPP-AUTH:${nonce}` });
+        ws.send(JSON.stringify({ type: 'AUTH', payload: { address, signature, nonce } }));
+      } catch {
+        setWsError('Wallet signature required to connect');
+        ws.close();
+      }
+    };
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        switch (msg.type) {
+          case 'AUTH_OK':
+            setWsStatus('authed');
+            if (tableId) ws.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId } }));
+            else         ws.send(JSON.stringify({ type: 'LIST_TABLES' }));
+            break;
+          case 'AUTH_FAIL':
+            setWsError('Authentication failed — check wallet signature');
+            break;
+          case 'GAME_STATE':
+            setGameState(msg.state);
+            setHandOver(null);
+            break;
+          case 'HAND_OVER':
+            setHandOver(msg);
+            break;
+          case 'TABLE_LIST':
+            setTableList(msg.tables || []);
+            break;
+          case 'ERROR':
+            setWsError(msg.error);
+            break;
+        }
+      } catch {}
+    };
+
+    ws.onclose  = () => { setWsStatus('disconnected'); wsRef.current = null; };
+    ws.onerror  = () => setWsError('Connection error');
+
+    return () => { ws.close(); };
+  }, [serverUrl, address, tableId]);
+
+  const sendAction = useCallback((action, amount) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN)
+      wsRef.current.send(JSON.stringify({ type: 'ACTION', payload: { tableId, action, amount } }));
+  }, [tableId]);
+
+  const leaveTable = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN)
+      wsRef.current.send(JSON.stringify({ type: 'LEAVE_TABLE', payload: { tableId } }));
+  }, [tableId]);
+
+  const refreshTables = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN)
+      wsRef.current.send(JSON.stringify({ type: 'LIST_TABLES' }));
+  }, []);
+
+  return { gameState, handOver, tableList, wsStatus, wsError, sendAction, leaveTable, refreshTables };
+}
+
+// Legacy hook kept for backwards compatibility
 export function useGameSocket(serverUrl, address, onMessage) {
   const wsRef   = useRef(null);
   const [ready, setReady] = useState(false);
@@ -165,23 +251,9 @@ export function useGameSocket(serverUrl, address, onMessage) {
     if (!serverUrl || !address) return;
     const ws = new WebSocket(serverUrl);
     wsRef.current = ws;
-
-    ws.onopen = async () => {
-      // Auth: sign a nonce
-      const nonce = Date.now().toString();
-      // In real app, use ethers/viem to sign — here we show the pattern
-      // const sig = await signer.signMessage(`PPP-AUTH:${nonce}`);
-      // ws.send(JSON.stringify({ type:'AUTH', payload:{ address, signature:sig, nonce } }));
-      setReady(true);
-    };
-
-    ws.onmessage = (e) => {
-      try { onMessage(JSON.parse(e.data)); } catch {}
-    };
-
-    ws.onclose  = () => setReady(false);
-    ws.onerror  = (e) => console.error("WS error:", e);
-
+    ws.onopen    = () => setReady(true);
+    ws.onmessage = (e) => { try { onMessage(JSON.parse(e.data)); } catch {} };
+    ws.onclose   = () => setReady(false);
     return () => ws.close();
   }, [serverUrl, address]);
 

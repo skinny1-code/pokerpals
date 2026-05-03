@@ -187,9 +187,36 @@ class PokerTable {
     this.sideLog.push({ event:'hand_start', handHash, nonce:this.handNonce });
   }
 
+  // Advance actionIdx to the next player who can act (not folded, not all-in)
+  _nextActionIdx() {
+    const n = this.players.length;
+    let next = (this.actionIdx + 1) % n;
+    let iters = 0;
+    while ((this.players[next].folded || this.players[next].allIn) && iters < n) {
+      next = (next + 1) % n;
+      iters++;
+    }
+    this.actionIdx = next;
+  }
+
+  // First active player after dealer (for new streets)
+  _resetActionIdxForStreet() {
+    const n = this.players.length;
+    let next = (this.dealerIdx + 1) % n;
+    let iters = 0;
+    while ((this.players[next].folded || this.players[next].allIn) && iters < n) {
+      next = (next + 1) % n;
+      iters++;
+    }
+    this.actionIdx = next;
+  }
+
   applyAction(addr, action, amount = 0) {
-    const p = this.players.find(x => x.addr === addr);
-    if (!p || p.folded || this.phase === 'showdown') return null;
+    const idx = this.players.findIndex(x => x.addr === addr);
+    // Only the player whose turn it is may act
+    if (idx < 0 || idx !== this.actionIdx) return { error: 'Not your turn' };
+    const p = this.players[idx];
+    if (p.folded || this.phase === 'showdown') return null;
 
     const due = Math.max(0, this.maxBet - p.bet);
 
@@ -217,6 +244,7 @@ class PokerTable {
       p.allIn = true; p.actionLabel = 'ALL IN';
     }
 
+    this._nextActionIdx();
     return this.advance();
   }
 
@@ -243,6 +271,8 @@ class PokerTable {
     } else if (this.phase === 'river') {
       return this.doShowdown(alive);
     }
+
+    this._resetActionIdxForStreet();
     return null;
   }
 
@@ -272,12 +302,18 @@ class PokerTable {
   }
 
   pubState(forAddr) {
+    const activePlayer = this.phase !== 'waiting' && this.phase !== 'showdown'
+      ? this.players[this.actionIdx]
+      : null;
     return {
-      tableId:   this.id,
-      phase:     this.phase,
-      pot:       this.pot,
-      maxBet:    this.maxBet,
-      community: this.community,
+      tableId:    this.id,
+      phase:      this.phase,
+      pot:        this.pot,
+      maxBet:     this.maxBet,
+      community:  this.community,
+      activeAddr: activePlayer?.addr || null,
+      dealerAddr: this.players[this.dealerIdx]?.addr || null,
+      config:     this.config,
       players: this.players.map(p => ({
         addr:        p.addr,
         chips:       p.chips,
