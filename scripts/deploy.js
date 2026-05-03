@@ -61,6 +61,13 @@ async function main() {
   const registryAddr = await registry.getAddress();
   console.log("✅ TableRegistry:", registryAddr);
 
+  // 7. PokerHandle — username NFT (burn 500 CHIPS to mint)
+  const Handle = await ethers.getContractFactory("PokerHandle");
+  const handle = await Handle.deploy(tokenAddr);
+  await handle.waitForDeployment();
+  const handleAddr = await handle.getAddress();
+  console.log("✅ PokerHandle:", handleAddr);
+
   // 7. Seed staking yield pool: transfer 200M CHIPS from deployer → staking
   const STAKING_POOL = ethers.parseUnits("200000000", 18);
   await token.transfer(stakingAddr, STAKING_POOL);
@@ -105,6 +112,9 @@ async function main() {
   console.log("  35% burned | 35% staking yield | 20% treasury | 10% referral");
   console.log("\n── Room lease fee split ──────────────────────────────");
   console.log("  35% burned | 35% staking yield | 30% treasury");
+  console.log("\n── Handle NFT ────────────────────────────────────────");
+  console.log("  Mint cost: 500 CHIPS burned (fully deflationary)");
+  console.log("  Fully on-chain SVG — no IPFS needed");
   console.log("\n── Paste into .env ───────────────────────────────────");
   console.log(`NEXT_PUBLIC_CHIPS_TOKEN=${tokenAddr}`);
   console.log(`NEXT_PUBLIC_ESCROW=${escrowAddr}`);
@@ -112,6 +122,7 @@ async function main() {
   console.log(`NEXT_PUBLIC_REFERRAL=${referralAddr}`);
   console.log(`NEXT_PUBLIC_TOURNAMENT=${tournAddr}`);
   console.log(`NEXT_PUBLIC_TABLE_REGISTRY=${registryAddr}`);
+  console.log(`NEXT_PUBLIC_POKER_HANDLE=${handleAddr}`);
   console.log(`NEXT_PUBLIC_CHAIN_ID=42161`);
   console.log("──────────────────────────────────────────────────────");
 }

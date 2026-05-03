@@ -64,6 +64,12 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     uint256 public rakeTreasuryBps = 2000; // 20% to treasury
     uint256 public referralBps     = 1000; // 10% to referrer
 
+    // Rakeback loyalty — players earn back a % of their rake as claimable CHIPS
+    uint256 public rakebackBps = 500;  // 5% of rake paid accrues to player
+    uint256 public rakebackPool;       // funded by owner from community wallet
+    mapping(address => uint256) public rakebackAccrued;  // claimable per player
+    uint256 public totalRakebackPaid;
+
     IChipsToken       public immutable chipsToken;
     IChipsStaking     public stakingContract;
     IReferralRegistry public referralRegistry;
@@ -93,6 +99,8 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         uint256 rake, uint256 burned, uint256 toStaking, uint256 referralPaid
     );
     event HumanVerified(address indexed player, bool status);
+    event RakebackClaimed(address indexed player, uint256 amount);
+    event RakebackPoolFunded(uint256 amount);
 
     error NotHuman(address p);
     error TableNotOpen(uint256 id);
@@ -243,6 +251,19 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         totalRakeToStaking  += stakingAmt;
         totalReferralsPaid  += referralPaid;
 
+        // ── Rakeback accrual (5% of rake per player, claimable later) ──────
+        if (rakebackBps > 0 && rakebackPool > 0) {
+            uint256 rakePerPlayer = totalRake / t.players.length;
+            for (uint i; i < t.players.length; i++) {
+                uint256 rb = (rakePerPlayer * rakebackBps) / 10000;
+                if (rb > rakebackPool) rb = rakebackPool;
+                if (rb > 0) {
+                    rakebackAccrued[t.players[i]] += rb;
+                    rakebackPool                  -= rb;
+                }
+            }
+        }
+
         // ── Pay winners ────────────────────────────────────────────────────
         uint256 netPot = t.potTotal - totalRake;
         uint256[] memory payouts = new uint256[](winners.length);
@@ -263,6 +284,25 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         require(dep > 0);
         t.deposits[msg.sender] = 0; t.chips[msg.sender] = 0; t.potTotal -= dep;
         chipsToken.safeTransfer(msg.sender, dep);
+    }
+
+    // ─── RAKEBACK ─────────────────────────────────────────────────────────────
+
+    /// @notice Claim all accrued rakeback CHIPS. Funded from rakebackPool (topped up by owner).
+    function claimRakeback() external nonReentrant {
+        uint256 amount = rakebackAccrued[msg.sender];
+        require(amount > 0, "Nothing to claim");
+        rakebackAccrued[msg.sender] = 0;
+        totalRakebackPaid += amount;
+        chipsToken.safeTransfer(msg.sender, amount);
+        emit RakebackClaimed(msg.sender, amount);
+    }
+
+    /// @notice Owner tops up the rakeback pool (e.g. from community wallet).
+    function fundRakebackPool(uint256 amount) external onlyOwner {
+        chipsToken.safeTransferFrom(msg.sender, address(this), amount);
+        rakebackPool += amount;
+        emit RakebackPoolFunded(amount);
     }
 
     // ─── VIEWS ────────────────────────────────────────────────────────────────
@@ -307,4 +347,5 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     function setReferral(address r)        external onlyOwner { referralRegistry = IReferralRegistry(r); }
     function setAntiBotOracle(address o)   external onlyOwner { antiBotOracle = o; }
     function setTableRegistry(address reg) external onlyOwner { tableRegistry = ITableRegistry(reg); }
+    function setRakebackBps(uint256 bps)   external onlyOwner { require(bps <= 1000, "Max 10%"); rakebackBps = bps; }
 }
