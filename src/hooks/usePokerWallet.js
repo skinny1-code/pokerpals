@@ -23,7 +23,7 @@ export const wagmiConfig = createConfig({
 });
 
 // ─── ABIs ─────────────────────────────────────────────────────────────────────
-export const PPP_ABI = [
+export const CHIPS_ABI = [
   { name:"balanceOf",  type:"function", stateMutability:"view",
     inputs:[{name:"account",type:"address"}], outputs:[{type:"uint256"}] },
   { name:"approve",    type:"function", stateMutability:"nonpayable",
@@ -31,6 +31,8 @@ export const PPP_ABI = [
   { name:"allowance",  type:"function", stateMutability:"view",
     inputs:[{name:"owner",type:"address"},{name:"spender",type:"address"}], outputs:[{type:"uint256"}] },
 ];
+// backwards-compat alias
+export const PPP_ABI = CHIPS_ABI;
 
 export const ESCROW_ABI = [
   { name:"buyIn",       type:"function", stateMutability:"nonpayable",
@@ -51,7 +53,7 @@ export const ESCROW_ABI = [
     ]},
 ];
 
-const PPP   = process.env.NEXT_PUBLIC_PPP_TOKEN;
+const CHIPS  = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
 const ESCROW = process.env.NEXT_PUBLIC_ESCROW;
 
 // ─── HOOK: WALLET STATE ───────────────────────────────────────────────────────
@@ -60,12 +62,12 @@ export function useWallet() {
   const { connect, connectors }           = useConnect();
   const { disconnect }                    = useDisconnect();
 
-  // PPP balance
-  const { data: pppRaw } = useReadContract({
-    address: PPP, abi: PPP_ABI, functionName: "balanceOf",
+  // CHIPS balance
+  const { data: chipsRaw } = useReadContract({
+    address: CHIPS, abi: CHIPS_ABI, functionName: "balanceOf",
     args: [address], query: { enabled: !!address, refetchInterval: 8000 },
   });
-  const pppBalance = pppRaw ? Number(formatUnits(pppRaw, 18)) : 0;
+  const chipsBalance = chipsRaw ? Number(formatUnits(chipsRaw, 18)) : 0;
 
   // ETH/native balance for gas
   const { data: nativeBal } = useBalance({ address, query: { enabled: !!address } });
@@ -83,7 +85,8 @@ export function useWallet() {
     address,
     isConnected,
     chainId,
-    pppBalance,
+    chipsBalance,
+    pppBalance: chipsBalance,  // backwards-compat alias
     nativeBalance: nativeBal ? Number(formatUnits(nativeBal.value, 18)) : 0,
     isHuman: !!isHuman,
     connectMetaMask,
@@ -107,9 +110,9 @@ export function useEscrow(tableId) {
     try {
       setStatus('approving');
       const amountBN = parseUnits(String(buyInAmount), 18);
-      // Step 1: Approve escrow to spend PPP
+      // Step 1: Approve escrow to spend CHIPS
       const approveTx = await writeContractAsync({
-        address: PPP, abi: PPP_ABI, functionName: "approve",
+        address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
         args: [ESCROW, amountBN],
       });
       setTxHash(approveTx);
