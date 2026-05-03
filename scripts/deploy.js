@@ -65,6 +65,14 @@ async function main() {
   // await token.connect(liquiditySigner).approve(stakingAddr, seedAmount);
   // await staking.connect(liquiditySigner).fundYieldPool(seedAmount);
 
+  console.log("\n── Role wallets used in this deploy ──────────────────");
+  console.log(`Deployer:          ${deployer.address}`);
+  console.log(`Operator signer:   ${OPERATOR}`);
+  console.log(`Rake recipient:    ${RAKE_ADDR}`);
+  console.log(`Anti-bot oracle:   ${ORACLE}`);
+  console.log(`Dev wallet:        ${DEV}`);
+  console.log(`Community wallet:  ${COMMUNITY}`);
+  console.log(`Liquidity wallet:  ${LIQUIDITY}`);
   console.log("\n── Paste into .env ───────────────────────────────────");
   console.log(`NEXT_PUBLIC_PPP_TOKEN=${tokenAddr}`);
   console.log(`NEXT_PUBLIC_ESCROW=${escrowAddr}`);
