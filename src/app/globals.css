@@ -77,3 +77,27 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
 .animate-in { animation: fade-in .3s ease forwards; }
 .pulse      { animation: pulse-ring 1.5s infinite; }
 .winner-glow { animation: winner-glow 1s ease-in-out infinite; }
+
+/* ── Mobile ──────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Table page: stack side panel below table */
+  .table-layout {
+    grid-template-columns: 1fr !important;
+  }
+  .table-side-panel {
+    border-left: none !important;
+    border-top: 1px solid #1a3a1a;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  /* Lobby: single column */
+  .lobby-grid {
+    grid-template-columns: 1fr !important;
+    font-size: 11px;
+  }
+  .lobby-grid-header { display: none !important; }
+  /* Betting controls: full width */
+  .betting-controls { max-width: 100% !important; }
+  /* Leaderboard: hide win-rate column on small screens */
+  .lb-winrate { display: none !important; }
+}

@@ -31,18 +31,45 @@ export const CHIPS_ABI = [
   { name:"allowance",  type:"function", stateMutability:"view",
     inputs:[{name:"owner",type:"address"},{name:"spender",type:"address"}], outputs:[{type:"uint256"}] },
 ];
-// backwards-compat alias
 export const PPP_ABI = CHIPS_ABI;
 
+export const STAKING_ABI = [
+  { name:"stake",   type:"function", stateMutability:"nonpayable",
+    inputs:[{name:"amount",type:"uint256"}], outputs:[] },
+  { name:"unstake", type:"function", stateMutability:"nonpayable",
+    inputs:[{name:"amount",type:"uint256"}], outputs:[] },
+  { name:"claimYield", type:"function", stateMutability:"nonpayable",
+    inputs:[], outputs:[{type:"uint256"}] },
+  { name:"getStakeInfo", type:"function", stateMutability:"view",
+    inputs:[{name:"player",type:"address"}],
+    outputs:[
+      {name:"amount",type:"uint256"},{name:"tier",type:"uint8"},
+      {name:"lockedUntil",type:"uint256"},{name:"aprBps",type:"uint256"},
+    ]},
+  { name:"pendingYield", type:"function", stateMutability:"view",
+    inputs:[{name:"player",type:"address"}], outputs:[{type:"uint256"}] },
+  { name:"getTierStats", type:"function", stateMutability:"view",
+    inputs:[],
+    outputs:[
+      {name:"thresholds",type:"uint256[5]"},
+      {name:"aprs",type:"uint256[5]"},
+      {name:"counts",type:"uint256[5]"},
+    ]},
+];
+
 export const ESCROW_ABI = [
-  { name:"buyIn",       type:"function", stateMutability:"nonpayable",
+  { name:"buyIn",    type:"function", stateMutability:"nonpayable",
     inputs:[{name:"tableId",type:"uint256"}], outputs:[] },
-  { name:"rebuy",       type:"function", stateMutability:"nonpayable",
+  { name:"rebuy",    type:"function", stateMutability:"nonpayable",
     inputs:[{name:"tableId",type:"uint256"},{name:"amount",type:"uint256"}], outputs:[] },
-  { name:"refund",      type:"function", stateMutability:"nonpayable",
+  { name:"refund",   type:"function", stateMutability:"nonpayable",
     inputs:[{name:"tableId",type:"uint256"}], outputs:[] },
+  { name:"claimRakeback", type:"function", stateMutability:"nonpayable",
+    inputs:[], outputs:[] },
   { name:"humanVerified", type:"function", stateMutability:"view",
     inputs:[{name:"addr",type:"address"}], outputs:[{type:"bool"}] },
+  { name:"rakebackAccrued", type:"function", stateMutability:"view",
+    inputs:[{name:"",type:"address"}], outputs:[{type:"uint256"}] },
   { name:"getTableInfo", type:"function", stateMutability:"view",
     inputs:[{name:"tableId",type:"uint256"}],
     outputs:[
@@ -53,8 +80,9 @@ export const ESCROW_ABI = [
     ]},
 ];
 
-const CHIPS  = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
-const ESCROW = process.env.NEXT_PUBLIC_ESCROW;
+const CHIPS   = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
+const ESCROW  = process.env.NEXT_PUBLIC_ESCROW;
+const STAKING = process.env.NEXT_PUBLIC_STAKING;
 
 // ─── HOOK: WALLET STATE ───────────────────────────────────────────────────────
 export function useWallet() {
@@ -92,6 +120,98 @@ export function useWallet() {
     connectMetaMask,
     connectWalletConnect,
     disconnect,
+  };
+}
+
+// ─── HOOK: STAKING ────────────────────────────────────────────────────────────
+export function useStaking() {
+  const { address }            = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  const [txHash, setTxHash]    = useState(null);
+  const [status, setStatus]    = useState('idle');
+
+  const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const { data: stakeInfo, refetch: refetchStake } = useReadContract({
+    address: STAKING, abi: STAKING_ABI, functionName: "getStakeInfo",
+    args: [address], query: { enabled: !!address && !!STAKING, refetchInterval: 15000 },
+  });
+
+  const { data: pendingRaw, refetch: refetchPending } = useReadContract({
+    address: STAKING, abi: STAKING_ABI, functionName: "pendingYield",
+    args: [address], query: { enabled: !!address && !!STAKING, refetchInterval: 15000 },
+  });
+
+  const { data: rakebackRaw, refetch: refetchRakeback } = useReadContract({
+    address: ESCROW, abi: ESCROW_ABI, functionName: "rakebackAccrued",
+    args: [address], query: { enabled: !!address && !!ESCROW, refetchInterval: 15000 },
+  });
+
+  const stakedAmount  = stakeInfo ? Number(formatUnits(stakeInfo[0], 18)) : 0;
+  const currentTier   = stakeInfo ? Number(stakeInfo[1]) : 0;
+  const lockedUntil   = stakeInfo ? Number(stakeInfo[2]) : 0;
+  const pendingYield  = pendingRaw  ? Number(formatUnits(pendingRaw,  18)) : 0;
+  const rakebackOwed  = rakebackRaw ? Number(formatUnits(rakebackRaw, 18)) : 0;
+
+  const stake = useCallback(async (amount) => {
+    if (!address || !STAKING) return;
+    try {
+      setStatus('approving');
+      const amountBN = parseUnits(String(amount), 18);
+      await writeContractAsync({
+        address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+        args: [STAKING, amountBN],
+      });
+      setStatus('staking');
+      const tx = await writeContractAsync({
+        address: STAKING, abi: STAKING_ABI, functionName: "stake",
+        args: [amountBN],
+      });
+      setTxHash(tx);
+      setStatus('idle');
+      return tx;
+    } catch { setStatus('error'); }
+  }, [address, writeContractAsync]);
+
+  const unstake = useCallback(async (amount) => {
+    if (!address || !STAKING) return;
+    try {
+      setStatus('unstaking');
+      const tx = await writeContractAsync({
+        address: STAKING, abi: STAKING_ABI, functionName: "unstake",
+        args: [parseUnits(String(amount), 18)],
+      });
+      setTxHash(tx); setStatus('idle'); return tx;
+    } catch { setStatus('error'); }
+  }, [address, writeContractAsync]);
+
+  const claimYield = useCallback(async () => {
+    if (!address || !STAKING) return;
+    try {
+      setStatus('claiming');
+      const tx = await writeContractAsync({
+        address: STAKING, abi: STAKING_ABI, functionName: "claimYield", args: [],
+      });
+      setTxHash(tx); setStatus('idle'); return tx;
+    } catch { setStatus('error'); }
+  }, [address, writeContractAsync]);
+
+  const claimRakeback = useCallback(async () => {
+    if (!address || !ESCROW) return;
+    try {
+      setStatus('claiming');
+      const tx = await writeContractAsync({
+        address: ESCROW, abi: ESCROW_ABI, functionName: "claimRakeback", args: [],
+      });
+      setTxHash(tx); setStatus('idle'); return tx;
+    } catch { setStatus('error'); }
+  }, [address, writeContractAsync]);
+
+  return {
+    stakedAmount, currentTier, lockedUntil, pendingYield, rakebackOwed,
+    stake, unstake, claimYield, claimRakeback,
+    status, confirmed,
+    refetch: () => { refetchStake(); refetchPending(); refetchRakeback(); },
   };
 }
 

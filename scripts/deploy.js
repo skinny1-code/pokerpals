@@ -115,15 +115,30 @@ async function main() {
   console.log("\n── Handle NFT ────────────────────────────────────────");
   console.log("  Mint cost: 500 CHIPS burned (fully deflationary)");
   console.log("  Fully on-chain SVG — no IPFS needed");
-  console.log("\n── Paste into .env ───────────────────────────────────");
-  console.log(`NEXT_PUBLIC_CHIPS_TOKEN=${tokenAddr}`);
-  console.log(`NEXT_PUBLIC_ESCROW=${escrowAddr}`);
-  console.log(`NEXT_PUBLIC_STAKING=${stakingAddr}`);
-  console.log(`NEXT_PUBLIC_REFERRAL=${referralAddr}`);
-  console.log(`NEXT_PUBLIC_TOURNAMENT=${tournAddr}`);
-  console.log(`NEXT_PUBLIC_TABLE_REGISTRY=${registryAddr}`);
-  console.log(`NEXT_PUBLIC_POKER_HANDLE=${handleAddr}`);
-  console.log(`NEXT_PUBLIC_CHAIN_ID=42161`);
+  // Auto-write contract addresses into .env
+  const { execSync } = require("child_process");
+  const envArgs = [
+    `NEXT_PUBLIC_CHIPS_TOKEN=${tokenAddr}`,
+    `NEXT_PUBLIC_ESCROW=${escrowAddr}`,
+    `NEXT_PUBLIC_STAKING=${stakingAddr}`,
+    `NEXT_PUBLIC_REFERRAL=${referralAddr}`,
+    `NEXT_PUBLIC_TOURNAMENT=${tournAddr}`,
+    `NEXT_PUBLIC_TABLE_REGISTRY=${registryAddr}`,
+    `NEXT_PUBLIC_POKER_HANDLE=${handleAddr}`,
+  ].join(" ");
+  try {
+    execSync(`node ${__dirname}/updateEnv.js ${envArgs}`, { stdio: "inherit" });
+    console.log("\n✅ Contract addresses written to .env automatically");
+  } catch {
+    console.log("\n── Paste into .env manually if auto-write failed ─────");
+    console.log(`NEXT_PUBLIC_CHIPS_TOKEN=${tokenAddr}`);
+    console.log(`NEXT_PUBLIC_ESCROW=${escrowAddr}`);
+    console.log(`NEXT_PUBLIC_STAKING=${stakingAddr}`);
+    console.log(`NEXT_PUBLIC_REFERRAL=${referralAddr}`);
+    console.log(`NEXT_PUBLIC_TOURNAMENT=${tournAddr}`);
+    console.log(`NEXT_PUBLIC_TABLE_REGISTRY=${registryAddr}`);
+    console.log(`NEXT_PUBLIC_POKER_HANDLE=${handleAddr}`);
+  }
   console.log("──────────────────────────────────────────────────────");
 }
 

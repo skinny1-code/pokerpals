@@ -230,7 +230,7 @@ export default function TablePage() {
       </div>
 
       {/* Layout */}
-      <div style={{
+      <div className="table-layout" style={{
         flex:1, display:'grid', gridTemplateColumns:'1fr 260px',
         overflow:'hidden',
       }}>
@@ -288,7 +288,7 @@ export default function TablePage() {
         </div>
 
         {/* Side panel */}
-        <div style={{
+        <div className="table-side-panel" style={{
           display:'flex', flexDirection:'column', gap:8,
           padding:'16px 12px 16px 0',
           borderLeft:'1px solid #1a3a1a',
