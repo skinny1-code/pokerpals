@@ -93,7 +93,40 @@ const envContent = [
 
 fs.writeFileSync(ENV_PATH, envContent);
 
-// Print summary
+// Build printable text file
+const now = new Date().toLocaleString();
+const PRINT_PATH = path.resolve(__dirname, "../WALLETS-PRINT-ME.txt");
+
+const printLines = [
+  "================================================================",
+  "  PokerPartyPals — WALLET KEYS",
+  `  Generated: ${now}`,
+  "  KEEP THIS SAFE — DO NOT SHARE — DO NOT LOSE",
+  "================================================================",
+  "",
+];
+
+generated.forEach(({ label, note, key, address, addrVar, keyVar }) => {
+  printLines.push(`[ ${label} ]`);
+  printLines.push(`  Role    : ${note}`);
+  printLines.push(`  Address : ${address}`);
+  printLines.push(`  Key     : ${key}`);
+  if (addrVar)  printLines.push(`  .env    : ${addrVar}  /  ${keyVar}`);
+  else          printLines.push(`  .env    : ${keyVar}`);
+  printLines.push("");
+});
+
+printLines.push("================================================================");
+printLines.push("  NEXT STEPS AFTER PRINTING:");
+printLines.push("  1. Import each Key into MetaMask (Account > Import Account)");
+printLines.push("  2. Label each account with the Role name above");
+printLines.push("  3. Send ETH to DEPLOYER address on Arbitrum for gas");
+printLines.push("  4. Run: npm run deploy:mainnet");
+printLines.push("================================================================");
+
+fs.writeFileSync(PRINT_PATH, printLines.join("\n") + "\n");
+
+// Terminal summary
 console.log("\n" + line());
 console.log("  PokerPartyPals — NEW WALLETS GENERATED");
 console.log("  Write these down and store them safely!");
@@ -108,9 +141,11 @@ generated.forEach(({ label, note, key, address }) => {
 
 console.log("\n" + line());
 console.log("  All keys saved to .env");
-console.log("  Next steps:");
-console.log("    1. Write down / save every key above in a password manager");
-console.log("    2. Import each address into MetaMask (use the Key to import)");
-console.log("    3. Send ETH to the DEPLOYER address on Arbitrum for gas");
+console.log(`  Printable file saved to: WALLETS-PRINT-ME.txt`);
+console.log("  Open that file and print it — then store it somewhere safe.");
+console.log("\n  Next steps:");
+console.log("    1. Print WALLETS-PRINT-ME.txt and store it safely");
+console.log("    2. Import each address into MetaMask using the Key");
+console.log("    3. Send ETH to DEPLOYER address on Arbitrum for gas");
 console.log("    4. Run: npm run deploy:mainnet");
 console.log(line() + "\n");

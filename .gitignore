@@ -6,6 +6,7 @@
 *.key
 *.pem
 secrets/
+WALLETS-PRINT-ME.txt
 
 # ── NODE ──────────────────────────────────────────────────────────────────────
 node_modules/
