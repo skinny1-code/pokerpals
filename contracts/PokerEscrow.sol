@@ -19,6 +19,9 @@ interface IReferralRegistry {
     function getReferrer(address player) external view returns (address);
     function creditRake(address player, uint256 rakeAmount) external;
 }
+interface ITableRegistry {
+    function canSit(uint256 roomId, address player) external view returns (bool);
+}
 
 /// @title PokerEscrow — seat fees + VIP rake tiers + referral splits + auto rake distribution
 ///
@@ -64,14 +67,16 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     IChipsToken       public immutable chipsToken;
     IChipsStaking     public stakingContract;
     IReferralRegistry public referralRegistry;
+    ITableRegistry    public tableRegistry;
     address public operatorSigner;
     address public rakeRecipient;
     address public antiBotOracle;
 
     uint256 public tableCount;
-    mapping(uint256 => Table) private tables;
-    mapping(bytes32 => bool)  public usedSettleHashes;
-    mapping(address => bool)  public humanVerified;
+    mapping(uint256 => Table)  private tables;
+    mapping(uint256 => uint256) public tableRoom;  // tableId => roomId (0 = open table)
+    mapping(bytes32 => bool)   public usedSettleHashes;
+    mapping(address => bool)   public humanVerified;
 
     // Revenue tracking
     uint256 public totalRakeCollected;
@@ -116,7 +121,10 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     }
 
     // ─── TABLE ────────────────────────────────────────────────────────────────
-    function createTable(uint256 buyInAmount, uint256 bigBlind, uint8 maxPlayers, uint8 gameType)
+
+    /// @param roomId  Optional TableRegistry room ID; 0 = open public table.
+    ///                If non-zero, only players approved by the room's access rules can buy in.
+    function createTable(uint256 buyInAmount, uint256 bigBlind, uint8 maxPlayers, uint8 gameType, uint256 roomId)
         external returns (uint256 id)
     {
         require(buyInAmount >= bigBlind * 10, "Buy-in too small");
@@ -126,6 +134,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         t.id = id; t.creator = msg.sender; t.buyInAmount = buyInAmount;
         t.bigBlind = bigBlind; t.maxPlayers = maxPlayers;
         t.gameType = GameType(gameType); t.status = TableStatus.Open;
+        if (roomId != 0) tableRoom[id] = roomId;
         emit TableCreated(id, msg.sender, buyInAmount, GameType(gameType));
     }
 
@@ -135,6 +144,12 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         if (!humanVerified[msg.sender])       revert NotHuman(msg.sender);
         if (t.deposits[msg.sender] > 0)       revert AlreadySeated(msg.sender);
         if (t.players.length >= t.maxPlayers) revert TableFull(tableId);
+
+        // Room access check: if this table is linked to a leased room, verify the player
+        uint256 roomId = tableRoom[tableId];
+        if (roomId != 0 && address(tableRegistry) != address(0)) {
+            require(tableRegistry.canSit(roomId, msg.sender), "Room access denied");
+        }
 
         uint256 total = t.buyInAmount + seatFeeCHIPS;
         chipsToken.safeTransferFrom(msg.sender, address(this), total);
@@ -286,9 +301,10 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         referralBps     = refBps;
     }
 
-    function setOperatorSigner(address s) external onlyOwner { operatorSigner = s; }
-    function setRakeRecipient(address r)  external onlyOwner { rakeRecipient = r; }
-    function setStaking(address s)        external onlyOwner { stakingContract = IChipsStaking(s); }
-    function setReferral(address r)       external onlyOwner { referralRegistry = IReferralRegistry(r); }
-    function setAntiBotOracle(address o)  external onlyOwner { antiBotOracle = o; }
+    function setOperatorSigner(address s)  external onlyOwner { operatorSigner = s; }
+    function setRakeRecipient(address r)   external onlyOwner { rakeRecipient = r; }
+    function setStaking(address s)         external onlyOwner { stakingContract = IChipsStaking(s); }
+    function setReferral(address r)        external onlyOwner { referralRegistry = IReferralRegistry(r); }
+    function setAntiBotOracle(address o)   external onlyOwner { antiBotOracle = o; }
+    function setTableRegistry(address reg) external onlyOwner { tableRegistry = ITableRegistry(reg); }
 }

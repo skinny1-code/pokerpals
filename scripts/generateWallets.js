@@ -1,6 +1,6 @@
 // scripts/generateWallets.js
 // Run: npm run setup:wallets
-// Generates 7 fresh wallets for every role and writes them to .env.
+// Generates fresh wallets for every role and writes them to .env.
 // Run it again any time you need to replace all wallets with new ones.
 
 const { ethers } = require("ethers");
@@ -24,7 +24,7 @@ const ROLES = [
   },
   {
     label:      "RAKE WALLET",
-    note:       "Receives all rake revenue",
+    note:       "Receives ongoing rake revenue (20% of rake + all seat fees) — your personal income stream",
     keyVar:     "RAKE_WALLET_KEY",
     addrVar:    "RAKE_WALLET",
   },
@@ -36,19 +36,25 @@ const ROLES = [
   },
   {
     label:      "DEV WALLET",
-    note:       "Receives 10% of token supply (100M PPP)",
+    note:       "Receives 10% of token supply (100M CHIPS) vested linearly over 24 months — your equity stake",
     keyVar:     "DEV_WALLET_KEY",
     addrVar:    "DEV_WALLET",
   },
   {
+    label:      "OPS WALLET",
+    note:       "Receives 10% of token supply (100M CHIPS) — devops budget: servers, staff, marketing",
+    keyVar:     "OPS_WALLET_KEY",
+    addrVar:    "OPS_WALLET",
+  },
+  {
     label:      "COMMUNITY WALLET",
-    note:       "Receives 40% of token supply (400M PPP)",
+    note:       "Receives 10% of token supply (100M CHIPS) — tournaments, airdrops, grants",
     keyVar:     "COMMUNITY_WALLET_KEY",
     addrVar:    "COMMUNITY_WALLET",
   },
   {
     label:      "LIQUIDITY WALLET",
-    note:       "Receives 50% of token supply (500M PPP)",
+    note:       "Receives 50% of token supply (500M CHIPS) — DEX liquidity pools",
     keyVar:     "LIQUIDITY_WALLET_KEY",
     addrVar:    "LIQUIDITY_WALLET",
   },
@@ -61,7 +67,7 @@ const generated = ROLES.map(role => {
   return { ...role, key: wallet.privateKey, address: wallet.address };
 });
 
-// Build .env content — start with any non-wallet lines from existing .env
+// Build .env content — preserve any non-wallet lines from existing .env
 const WALLET_KEYS = new Set([
   ...ROLES.map(r => r.keyVar),
   ...ROLES.filter(r => r.addrVar).map(r => r.addrVar),
@@ -99,7 +105,7 @@ const PRINT_PATH = path.resolve(__dirname, "../WALLETS-PRINT-ME.txt");
 
 const printLines = [
   "================================================================",
-  "  PokerPartyPals — WALLET KEYS",
+  "  PokerVsPals — WALLET KEYS",
   `  Generated: ${now}`,
   "  KEEP THIS SAFE — DO NOT SHARE — DO NOT LOSE",
   "================================================================",
@@ -128,7 +134,7 @@ fs.writeFileSync(PRINT_PATH, printLines.join("\n") + "\n");
 
 // Terminal summary
 console.log("\n" + line());
-console.log("  PokerPartyPals — NEW WALLETS GENERATED");
+console.log("  PokerVsPals — NEW WALLETS GENERATED");
 console.log("  Write these down and store them safely!");
 console.log(line());
 

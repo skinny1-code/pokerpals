@@ -25,17 +25,19 @@ After deploying, copy the printed contract addresses into `.env` as `NEXT_PUBLIC
 
 The system has three independent runtime layers:
 
-**1. Smart contracts** (`contracts/`) — Solidity 0.8.20, deployed on Arbitrum One. Deployment order matters and is handled by `scripts/deploy.js`:
-- `ChipsToken` — ERC-20 token named "Chips" (ticker: CHIPS), 1B supply. Allocation: 10% dev (vested 24 months in-contract), 20% staking rewards pool (seeded to ChipsStaking at deploy), 20% community, 50% liquidity
+**1. Smart contracts** (`contracts/`) — Solidity 0.8.26, deployed on Arbitrum One. Deployment order matters and is handled by `scripts/deploy.js`:
+- `ChipsToken` — ERC-20 token named "Chips" (ticker: CHIPS), 1B supply. Allocation: 10% dev (vested 24 months in-contract), 20% staking rewards pool (seeded to ChipsStaking at deploy), 10% ops reserve, 10% community, 50% liquidity
 - `ChipsStaking` — players lock CHIPS to earn a VIP tier (0–4); tier determines rake rate. Also receives 35% of every rake payment as yield for stakers
 - `ReferralRegistry` — tracks referrer per player; must be `setAuthorized(escrowAddr, true)` before it will record rake credits
-- `PokerEscrow` — core cash-game contract: buy-in locking, per-hand signed settlement, VIP rake tiers, referral splits, seat fees
+- `PokerEscrow` — core cash-game contract: buy-in locking, per-hand signed settlement, VIP rake tiers, referral splits, seat fees. Optionally links tables to a `TableRegistry` room for access control.
 - `TournamentManager` — scheduled tournaments; mirrors the signed-settlement pattern of `PokerEscrow`
+- `TableRegistry` — on-chain private room leasing. Anyone pays a weekly CHIPS fee to lease a room. Rooms can be NFT-gated (ERC-721 ownership required to sit). Lease fee split: 35% burn / 35% staking / 30% treasury. `canSit(roomId, player)` is checked by PokerEscrow on buy-in.
 
 Post-deploy wiring (done in `scripts/deploy.js`):
 - `token.transfer(stakingAddr, 200M_CHIPS)` then `staking.initYieldPool()`
-- `staking.setYieldSource(escrowAddr, true)` and `setYieldSource(tournAddr, true)`
+- `staking.setYieldSource(escrowAddr, true)`, `setYieldSource(tournAddr, true)`, `setYieldSource(registryAddr, true)`
 - `referral.setAuthorized(escrowAddr, true)` and `setAuthorized(tournAddr, true)`
+- `escrow.setTableRegistry(registryAddr)`
 - `token.setEscrowFactory(escrowAddr)`
 
 **2. WebSocket game server** (`server/index.js`) — Node.js using ES module syntax (`import`). Manages game state in memory (`Map<id, PokerTable>`). Key responsibilities:
@@ -63,10 +65,16 @@ Also exports `BehaviorMonitor`, which can be integrated into the game server to 
 **Supply: 1,000,000,000 CHIPS**
 | Allocation | Amount | Destination |
 |---|---|---|
-| 10% Dev | 100M | Vested linearly in-contract over 24 months; dev calls `claimDevVest()` |
+| 10% Dev | 100M | Vested linearly in-contract over 24 months; dev calls `claimDevVest()` — personal equity |
 | 20% Staking | 200M | Seeded to ChipsStaking yield pool at deploy |
-| 20% Community | 200M | Community wallet (tournaments, airdrops, grants) |
+| 10% Ops Reserve | 100M | Ops wallet — devops budget: servers, staff, marketing |
+| 10% Community | 100M | Community wallet (tournaments, airdrops, grants) |
 | 50% Liquidity | 500M | Liquidity wallet (DEX pools) |
+
+**Owner income streams:**
+- `RAKE_WALLET`: 20% of all rake per hand + 100% of seat fees + 30% of tournament rake — ongoing personal income
+- `DEV_WALLET`: 100M CHIPS vested linearly over 24 months — personal equity stake
+- `OPS_WALLET`: 100M CHIPS one-time — operational budget (separate from personal earnings)
 
 **Rake split per hand (of total rake):**
 - 35% burned → deflationary supply reduction
