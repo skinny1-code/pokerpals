@@ -1,4 +1,4 @@
-// scripts/deploy.js — deploys all PokerPartyPals contracts in order
+// scripts/deploy.js — deploys all PokerVsPals contracts in order
 // npx hardhat run scripts/deploy.js --network arbitrumSepolia
 require("dotenv").config();
 const { ethers } = require("hardhat");
@@ -11,22 +11,25 @@ async function main() {
   const RAKE_ADDR = process.env.RAKE_WALLET       || deployer.address;
   const ORACLE    = process.env.ANTIBOT_ORACLE    || deployer.address;
   const DEV       = process.env.DEV_WALLET        || deployer.address;
+  const OPS       = process.env.OPS_WALLET        || deployer.address;
   const COMMUNITY = process.env.COMMUNITY_WALLET  || deployer.address;
   const LIQUIDITY = process.env.LIQUIDITY_WALLET  || deployer.address;
 
-  // 1. PPPToken
-  const Token = await ethers.getContractFactory("PPPToken");
-  const token = await Token.deploy(DEV, COMMUNITY, LIQUIDITY);
+  // 1. ChipsToken
+  //    Mints: 10% dev (vested in-contract), 10% community, 10% ops, 50% liquidity,
+  //    20% staking pool to deployer (transferred to staking contract in step 6).
+  const Token = await ethers.getContractFactory("ChipsToken");
+  const token = await Token.deploy(DEV, COMMUNITY, LIQUIDITY, OPS);
   await token.waitForDeployment();
   const tokenAddr = await token.getAddress();
-  console.log("✅ PPPToken:", tokenAddr);
+  console.log("✅ ChipsToken:", tokenAddr);
 
-  // 2. PPPStaking
-  const Staking = await ethers.getContractFactory("PPPStaking");
+  // 2. ChipsStaking
+  const Staking = await ethers.getContractFactory("ChipsStaking");
   const staking = await Staking.deploy(tokenAddr);
   await staking.waitForDeployment();
   const stakingAddr = await staking.getAddress();
-  console.log("✅ PPPStaking:", stakingAddr);
+  console.log("✅ ChipsStaking:", stakingAddr);
 
   // 3. ReferralRegistry
   const Referral = await ethers.getContractFactory("ReferralRegistry");
@@ -35,7 +38,7 @@ async function main() {
   const referralAddr = await referral.getAddress();
   console.log("✅ ReferralRegistry:", referralAddr);
 
-  // 4. PokerEscrow (v2 — with staking + referral wired in)
+  // 4. PokerEscrow
   const Escrow = await ethers.getContractFactory("PokerEscrow");
   const escrow = await Escrow.deploy(
     tokenAddr, OPERATOR, RAKE_ADDR, ORACLE, stakingAddr, referralAddr
@@ -46,40 +49,96 @@ async function main() {
 
   // 5. TournamentManager
   const Tourn = await ethers.getContractFactory("TournamentManager");
-  const tourn = await Tourn.deploy(tokenAddr, OPERATOR, RAKE_ADDR, ORACLE);
+  const tourn = await Tourn.deploy(tokenAddr, OPERATOR, RAKE_ADDR, ORACLE, stakingAddr);
   await tourn.waitForDeployment();
   const tournAddr = await tourn.getAddress();
   console.log("✅ TournamentManager:", tournAddr);
 
-  // 6. Wire: authorize Escrow + Tournament to call ReferralRegistry.creditRake
+  // 6. TableRegistry
+  const Registry = await ethers.getContractFactory("TableRegistry");
+  const registry = await Registry.deploy(tokenAddr, RAKE_ADDR, stakingAddr);
+  await registry.waitForDeployment();
+  const registryAddr = await registry.getAddress();
+  console.log("✅ TableRegistry:", registryAddr);
+
+  // 7. PokerHandle — username NFT (burn 500 CHIPS to mint)
+  const Handle = await ethers.getContractFactory("PokerHandle");
+  const handle = await Handle.deploy(tokenAddr);
+  await handle.waitForDeployment();
+  const handleAddr = await handle.getAddress();
+  console.log("✅ PokerHandle:", handleAddr);
+
+  // 7. Seed staking yield pool: transfer 200M CHIPS from deployer → staking
+  const STAKING_POOL = ethers.parseUnits("200000000", 18);
+  await token.transfer(stakingAddr, STAKING_POOL);
+  await staking.initYieldPool();
+  console.log("✅ Staking yield pool seeded with 200M CHIPS");
+
+  // 8. Authorize escrow, tournament, and registry as yield sources
+  await staking.setYieldSource(escrowAddr, true);
+  await staking.setYieldSource(tournAddr, true);
+  await staking.setYieldSource(registryAddr, true);
+  console.log("✅ Yield sources authorized (escrow + tournament + registry)");
+
+  // 9. Authorize escrow + tournament to call ReferralRegistry.creditRake
   await referral.setAuthorized(escrowAddr, true);
   await referral.setAuthorized(tournAddr, true);
   console.log("✅ Referral registry authorized");
 
-  // 7. Wire: token → escrow factory
+  // 10. Wire escrow → table registry
+  await escrow.setTableRegistry(registryAddr);
+  console.log("✅ PokerEscrow wired to TableRegistry");
+
+  // 11. Wire token → escrow factory
   await token.setEscrowFactory(escrowAddr);
   console.log("✅ Token wired to escrow");
-
-  // 8. Seed staking yield pool from liquidity allocation (optional on testnet)
-  // const seedAmount = ethers.parseUnits("100000", 18);
-  // await token.connect(liquiditySigner).approve(stakingAddr, seedAmount);
-  // await staking.connect(liquiditySigner).fundYieldPool(seedAmount);
 
   console.log("\n── Role wallets used in this deploy ──────────────────");
   console.log(`Deployer:          ${deployer.address}`);
   console.log(`Operator signer:   ${OPERATOR}`);
-  console.log(`Rake recipient:    ${RAKE_ADDR}`);
+  console.log(`Rake recipient:    ${RAKE_ADDR}   ← personal income stream`);
   console.log(`Anti-bot oracle:   ${ORACLE}`);
-  console.log(`Dev wallet:        ${DEV}`);
-  console.log(`Community wallet:  ${COMMUNITY}`);
-  console.log(`Liquidity wallet:  ${LIQUIDITY}`);
-  console.log("\n── Paste into .env ───────────────────────────────────");
-  console.log(`NEXT_PUBLIC_PPP_TOKEN=${tokenAddr}`);
-  console.log(`NEXT_PUBLIC_ESCROW=${escrowAddr}`);
-  console.log(`NEXT_PUBLIC_STAKING=${stakingAddr}`);
-  console.log(`NEXT_PUBLIC_REFERRAL=${referralAddr}`);
-  console.log(`NEXT_PUBLIC_TOURNAMENT=${tournAddr}`);
-  console.log(`NEXT_PUBLIC_CHAIN_ID=42161`);
+  console.log(`Dev wallet:        ${DEV}   ← personal equity (100M CHIPS vested 24 mo)`);
+  console.log(`Ops wallet:        ${OPS}   ← devops budget (100M CHIPS)`);
+  console.log(`Community wallet:  ${COMMUNITY}   ← 100M CHIPS`);
+  console.log(`Liquidity wallet:  ${LIQUIDITY}   ← 500M CHIPS`);
+  console.log("\n── Token economy ─────────────────────────────────────");
+  console.log("  10% Dev       — 100M CHIPS, vested linearly over 24 months");
+  console.log("  20% Staking   — 200M CHIPS, seeded into yield pool");
+  console.log("  10% Ops       — 100M CHIPS → ops wallet (devops budget)");
+  console.log("  10% Community — 100M CHIPS → community wallet");
+  console.log("  50% Liquidity — 500M CHIPS → liquidity wallet");
+  console.log("\n── Rake split per hand ───────────────────────────────");
+  console.log("  35% burned | 35% staking yield | 20% treasury | 10% referral");
+  console.log("\n── Room lease fee split ──────────────────────────────");
+  console.log("  35% burned | 35% staking yield | 30% treasury");
+  console.log("\n── Handle NFT ────────────────────────────────────────");
+  console.log("  Mint cost: 500 CHIPS burned (fully deflationary)");
+  console.log("  Fully on-chain SVG — no IPFS needed");
+  // Auto-write contract addresses into .env
+  const { execSync } = require("child_process");
+  const envArgs = [
+    `NEXT_PUBLIC_CHIPS_TOKEN=${tokenAddr}`,
+    `NEXT_PUBLIC_ESCROW=${escrowAddr}`,
+    `NEXT_PUBLIC_STAKING=${stakingAddr}`,
+    `NEXT_PUBLIC_REFERRAL=${referralAddr}`,
+    `NEXT_PUBLIC_TOURNAMENT=${tournAddr}`,
+    `NEXT_PUBLIC_TABLE_REGISTRY=${registryAddr}`,
+    `NEXT_PUBLIC_POKER_HANDLE=${handleAddr}`,
+  ].join(" ");
+  try {
+    execSync(`node ${__dirname}/updateEnv.js ${envArgs}`, { stdio: "inherit" });
+    console.log("\n✅ Contract addresses written to .env automatically");
+  } catch {
+    console.log("\n── Paste into .env manually if auto-write failed ─────");
+    console.log(`NEXT_PUBLIC_CHIPS_TOKEN=${tokenAddr}`);
+    console.log(`NEXT_PUBLIC_ESCROW=${escrowAddr}`);
+    console.log(`NEXT_PUBLIC_STAKING=${stakingAddr}`);
+    console.log(`NEXT_PUBLIC_REFERRAL=${referralAddr}`);
+    console.log(`NEXT_PUBLIC_TOURNAMENT=${tournAddr}`);
+    console.log(`NEXT_PUBLIC_TABLE_REGISTRY=${registryAddr}`);
+    console.log(`NEXT_PUBLIC_POKER_HANDLE=${handleAddr}`);
+  }
   console.log("──────────────────────────────────────────────────────");
 }
 

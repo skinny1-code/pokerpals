@@ -6,30 +6,29 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/// @title PPPStaking — Stake PPP to unlock VIP rake tiers
-/// @notice Players lock PPP tokens for a minimum duration. Higher stake = lower rake.
+/// @title ChipsStaking — Stake CHIPS to unlock VIP rake tiers and earn yield
 ///
-/// Tiers:
-///   0 Standard  — 0 PPP staked       — 1.5% rake
-///   1 Bronze    — 1,000  PPP staked  — 1.3% rake
-///   2 Silver    — 10,000 PPP staked  — 1.1% rake
-///   3 Gold      — 50,000 PPP staked  — 0.9% rake
-///   4 Whale     — 200,000 PPP staked — 0.6% rake
+/// Tiers (by staked CHIPS):
+///   0 Standard  —       0 CHIPS — 1.5% rake
+///   1 Bronze    —   1,000 CHIPS — 1.3% rake
+///   2 Silver    —  10,000 CHIPS — 1.1% rake
+///   3 Gold      —  50,000 CHIPS — 0.9% rake
+///   4 Whale     — 200,000 CHIPS — 0.6% rake
 ///
-/// Staking also earns yield paid from rake revenue (set by owner).
-contract PPPStaking is Ownable, ReentrancyGuard {
+/// Yield is pushed automatically from 35% of every rake settlement via receiveYield().
+contract ChipsStaking is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     struct StakeInfo {
         uint256 amount;
-        uint256 since;      // timestamp
-        uint256 lastClaim;  // last yield claim
+        uint256 since;       // timestamp of last stake (lock resets on top-up)
+        uint256 lastClaim;   // last yield claim timestamp
         uint8   tier;
     }
 
-    IERC20 public immutable pppToken;
+    IERC20 public immutable chipsToken;
 
-    // Tier thresholds in PPP (18 decimals)
+    // Tier thresholds in CHIPS (18 decimals)
     uint256[5] public tierThresholds = [
         0,
         1_000   * 10**18,
@@ -38,28 +37,28 @@ contract PPPStaking is Ownable, ReentrancyGuard {
         200_000 * 10**18
     ];
 
-    // APR per tier in basis points (e.g. 500 = 5% APR)
+    // APR per tier in basis points (500 = 5% APR)
     uint256[5] public tierAPR = [0, 200, 400, 700, 1200]; // 0%, 2%, 4%, 7%, 12%
 
-    // Minimum lock period before unstake (in seconds)
     uint256 public minLockPeriod = 7 days;
 
     mapping(address => StakeInfo) public stakes;
 
-    // Total staked per tier (for dashboard stats)
+    // Addresses authorized to push yield (PokerEscrow, TournamentManager)
+    mapping(address => bool) public yieldSources;
+
     uint256[5] public totalStakedByTier;
     uint256    public totalStaked;
-
-    // Yield pool — funded by rake revenue
-    uint256 public yieldPool;
+    uint256    public yieldPool;
 
     event Staked(address indexed player, uint256 amount, uint8 tier);
-    event Unstaked(address indexed player, uint256 amount, uint256 yield);
+    event Unstaked(address indexed player, uint256 amount, uint256 yieldEarned);
     event YieldClaimed(address indexed player, uint256 amount);
     event YieldPoolFunded(uint256 amount);
+    event YieldSourceSet(address indexed src, bool enabled);
 
-    constructor(address _pppToken) Ownable(msg.sender) {
-        pppToken = IERC20(_pppToken);
+    constructor(address _chipsToken) Ownable(msg.sender) {
+        chipsToken = IERC20(_chipsToken);
     }
 
     // ─── STAKE ────────────────────────────────────────────────────────────────
@@ -67,18 +66,17 @@ contract PPPStaking is Ownable, ReentrancyGuard {
         require(amount > 0, "Zero amount");
         StakeInfo storage s = stakes[msg.sender];
 
-        // Claim pending yield before changing stake
         if (s.amount > 0) _claimYield(msg.sender);
 
-        pppToken.safeTransferFrom(msg.sender, address(this), amount);
+        chipsToken.safeTransferFrom(msg.sender, address(this), amount);
 
         uint8 prevTier = s.tier;
-        s.amount  += amount;
-        s.since    = block.timestamp;
+        s.amount   += amount;
+        s.since     = block.timestamp;
         s.lastClaim = block.timestamp;
-        s.tier     = _calcTier(s.amount);
+        s.tier      = _calcTier(s.amount);
 
-        totalStakedByTier[prevTier] -= (s.amount - amount); // adjust old tier count
+        totalStakedByTier[prevTier] -= (s.amount - amount);
         totalStakedByTier[s.tier]   += s.amount;
         totalStaked                 += amount;
 
@@ -90,8 +88,7 @@ contract PPPStaking is Ownable, ReentrancyGuard {
         require(s.amount >= amount, "Insufficient stake");
         require(block.timestamp >= s.since + minLockPeriod, "Still locked");
 
-        // Claim yield first
-        uint256 yield = _claimYield(msg.sender);
+        uint256 yieldEarned = _claimYield(msg.sender);
 
         uint8 prevTier = s.tier;
         s.amount -= amount;
@@ -101,8 +98,8 @@ contract PPPStaking is Ownable, ReentrancyGuard {
         if (s.amount > 0) totalStakedByTier[s.tier] += s.amount;
         totalStaked -= amount;
 
-        pppToken.safeTransfer(msg.sender, amount);
-        emit Unstaked(msg.sender, amount, yield);
+        chipsToken.safeTransfer(msg.sender, amount);
+        emit Unstaked(msg.sender, amount, yieldEarned);
     }
 
     function claimYield() external nonReentrant returns (uint256) {
@@ -114,16 +111,42 @@ contract PPPStaking is Ownable, ReentrancyGuard {
         if (s.amount == 0 || s.tier == 0) return 0;
 
         uint256 elapsed = block.timestamp - s.lastClaim;
-        uint256 apr     = tierAPR[s.tier];
-        earned          = (s.amount * apr * elapsed) / (10000 * 365 days);
-
+        earned          = (s.amount * tierAPR[s.tier] * elapsed) / (10000 * 365 days);
         if (earned > yieldPool) earned = yieldPool;
+
         if (earned > 0) {
-            yieldPool    -= earned;
-            s.lastClaim   = block.timestamp;
-            pppToken.safeTransfer(player, earned);
+            yieldPool   -= earned;
+            s.lastClaim  = block.timestamp;
+            chipsToken.safeTransfer(player, earned);
             emit YieldClaimed(player, earned);
         }
+    }
+
+    // ─── YIELD POOL ───────────────────────────────────────────────────────────
+
+    /// @notice Called by PokerEscrow/TournamentManager after transferring tokens here.
+    ///         Registers the pushed amount as available yield.
+    function receiveYield(uint256 amount) external {
+        require(yieldSources[msg.sender], "Not authorized yield source");
+        yieldPool += amount;
+        emit YieldPoolFunded(amount);
+    }
+
+    /// @notice Anyone can top up the yield pool manually (e.g. community wallet)
+    function fundYieldPool(uint256 amount) external {
+        chipsToken.safeTransferFrom(msg.sender, address(this), amount);
+        yieldPool += amount;
+        emit YieldPoolFunded(amount);
+    }
+
+    /// @notice One-time post-deploy: registers the 200M CHIPS minted to this contract as yield.
+    ///         Called by owner immediately after deploy + token transfer.
+    function initYieldPool() external onlyOwner {
+        require(yieldPool == 0, "Already initialized");
+        uint256 bal = chipsToken.balanceOf(address(this));
+        require(bal > 0, "No tokens present");
+        yieldPool = bal;
+        emit YieldPoolFunded(bal);
     }
 
     // ─── VIEWS ────────────────────────────────────────────────────────────────
@@ -135,29 +158,27 @@ contract PPPStaking is Ownable, ReentrancyGuard {
         StakeInfo storage s = stakes[player];
         if (s.amount == 0 || s.tier == 0) return 0;
         uint256 elapsed = block.timestamp - s.lastClaim;
-        uint256 apr     = tierAPR[s.tier];
-        uint256 earned  = (s.amount * apr * elapsed) / (10000 * 365 days);
+        uint256 earned  = (s.amount * tierAPR[s.tier] * elapsed) / (10000 * 365 days);
         return earned > yieldPool ? yieldPool : earned;
     }
 
     function getStakeInfo(address player) external view returns (
         uint256 amount, uint8 tier, uint256 lockedUntil, uint256 aprBps
-    ){
+    ) {
         StakeInfo storage s = stakes[player];
         return (s.amount, s.tier, s.since + minLockPeriod, tierAPR[s.tier]);
     }
 
     function getTierStats() external view returns (
         uint256[5] memory thresholds, uint256[5] memory aprs, uint256[5] memory counts
-    ){
+    ) {
         return (tierThresholds, tierAPR, totalStakedByTier);
     }
 
     // ─── ADMIN ────────────────────────────────────────────────────────────────
-    function fundYieldPool(uint256 amount) external {
-        pppToken.safeTransferFrom(msg.sender, address(this), amount);
-        yieldPool += amount;
-        emit YieldPoolFunded(amount);
+    function setYieldSource(address src, bool enabled) external onlyOwner {
+        yieldSources[src] = enabled;
+        emit YieldSourceSet(src, enabled);
     }
 
     function setTierThresholds(uint256[5] calldata t) external onlyOwner { tierThresholds = t; }

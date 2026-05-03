@@ -5,9 +5,9 @@
 import { ethers } from "ethers";
 import fetch from "node-fetch";
 
-const RPC_URL        = process.env.RPC_URL;
+const RPC_URL        = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL;
 const OPERATOR_KEY   = process.env.OPERATOR_PRIVATE_KEY;
-const ESCROW_ADDR    = process.env.ESCROW_ADDRESS;
+const ESCROW_ADDR    = process.env.NEXT_PUBLIC_ESCROW || process.env.ESCROW_ADDRESS;
 const PASSPORT_API   = process.env.GITCOIN_PASSPORT_API;
 const SCORER_ID      = process.env.GITCOIN_SCORER_ID;
 const ALCHEMY_API    = process.env.ALCHEMY_API_KEY;

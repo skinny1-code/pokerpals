@@ -1,6 +1,6 @@
 // server/index.js — Node 20+ WebSocket game server
 // Run: node server/index.js
-// Env: OPERATOR_PRIVATE_KEY, ESCROW_ADDRESS, PPP_TOKEN, RPC_URL, PORT
+// Env: OPERATOR_PRIVATE_KEY, NEXT_PUBLIC_ESCROW, ARB_SEPOLIA_RPC, PORT
 
 import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
@@ -9,8 +9,8 @@ import crypto from "crypto";
 
 const PORT            = process.env.PORT || 4000;
 const OPERATOR_KEY    = process.env.OPERATOR_PRIVATE_KEY;
-const ESCROW_ADDR     = process.env.ESCROW_ADDRESS;
-const RPC_URL         = process.env.RPC_URL || "https://arb1.arbitrum.io/rpc";
+const ESCROW_ADDR     = process.env.NEXT_PUBLIC_ESCROW || process.env.ESCROW_ADDRESS;
+const RPC_URL         = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL || "https://arb1.arbitrum.io/rpc";
 const PASSPORT_URL    = "https://api.scorer.gitcoin.co";
 const PASSPORT_API    = process.env.GITCOIN_PASSPORT_API;
 const SCORER_ID       = process.env.GITCOIN_SCORER_ID;
@@ -21,7 +21,7 @@ const operator = new ethers.Wallet(OPERATOR_KEY, provider);
 
 const ESCROW_ABI = [
   "function settle(uint256,uint256,address[],uint256[],bytes) external",
-  "function getTableInfo(uint256) external view returns (uint256,uint256,uint256,uint8,uint8,uint8,uint256,uint256,uint8)",
+  "function getTableInfo(uint256 id) external view returns (uint256 tableId, uint256 buyInAmount, uint256 bigBlind, uint8 maxPlayers, uint8 gameType, uint8 status, uint256 potTotal, uint256 handNonce, uint8 playerCount)",
   "function markHuman(address,bool) external",
 ];
 const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, operator);
@@ -94,16 +94,25 @@ function bestOmaha(hole, comm) {
 
 // ─── ANTI-BOT VERIFICATION ───────────────────────────────────────────────────
 async function verifyHuman(address) {
+  // Testnet bypass — skip all checks and mark human directly
+  if (process.env.TESTNET_SKIP_HUMAN_CHECK === 'true') {
+    try {
+      const tx = await escrow.markHuman(address, true);
+      await tx.wait();
+      console.log(`[AntiBot] Testnet bypass: marked ${address} as human`);
+      return { ok: true };
+    } catch (e) {
+      console.error("markHuman (testnet bypass) error:", e.message);
+      return { ok: false, reason: e.message };
+    }
+  }
+
   try {
     // 1. Check wallet age + tx count on-chain
     const txCount = await provider.getTransactionCount(address);
     if (txCount < 50) return { ok: false, reason: "Less than 50 on-chain transactions" };
 
-    // 2. Check first tx timestamp (proxy for wallet age — needs etherscan/alchemy API in prod)
-    // Simplified: use nonce as proxy
-    if (txCount < 50) return { ok: false, reason: "Wallet too new" };
-
-    // 3. Check Gitcoin Passport score
+    // 2. Check Gitcoin Passport score
     if (PASSPORT_API && SCORER_ID) {
       const res = await fetch(
         `${PASSPORT_URL}/registry/score/${SCORER_ID}/${address}`,
@@ -114,7 +123,7 @@ async function verifyHuman(address) {
       if (score < 15) return { ok: false, reason: `Passport score ${score} < 15` };
     }
 
-    // 4. Mark on-chain via escrow
+    // 3. Mark on-chain via escrow
     const tx = await escrow.markHuman(address, true);
     await tx.wait();
 
@@ -187,9 +196,36 @@ class PokerTable {
     this.sideLog.push({ event:'hand_start', handHash, nonce:this.handNonce });
   }
 
+  // Advance actionIdx to the next player who can act (not folded, not all-in)
+  _nextActionIdx() {
+    const n = this.players.length;
+    let next = (this.actionIdx + 1) % n;
+    let iters = 0;
+    while ((this.players[next].folded || this.players[next].allIn) && iters < n) {
+      next = (next + 1) % n;
+      iters++;
+    }
+    this.actionIdx = next;
+  }
+
+  // First active player after dealer (for new streets)
+  _resetActionIdxForStreet() {
+    const n = this.players.length;
+    let next = (this.dealerIdx + 1) % n;
+    let iters = 0;
+    while ((this.players[next].folded || this.players[next].allIn) && iters < n) {
+      next = (next + 1) % n;
+      iters++;
+    }
+    this.actionIdx = next;
+  }
+
   applyAction(addr, action, amount = 0) {
-    const p = this.players.find(x => x.addr === addr);
-    if (!p || p.folded || this.phase === 'showdown') return null;
+    const idx = this.players.findIndex(x => x.addr === addr);
+    // Only the player whose turn it is may act
+    if (idx < 0 || idx !== this.actionIdx) return { error: 'Not your turn' };
+    const p = this.players[idx];
+    if (p.folded || this.phase === 'showdown') return null;
 
     const due = Math.max(0, this.maxBet - p.bet);
 
@@ -217,6 +253,7 @@ class PokerTable {
       p.allIn = true; p.actionLabel = 'ALL IN';
     }
 
+    this._nextActionIdx();
     return this.advance();
   }
 
@@ -243,6 +280,8 @@ class PokerTable {
     } else if (this.phase === 'river') {
       return this.doShowdown(alive);
     }
+
+    this._resetActionIdxForStreet();
     return null;
   }
 
@@ -265,19 +304,25 @@ class PokerTable {
   async signAndSettle(winners, shares) {
     const digest = ethers.solidityPackedKeccak256(
       ['uint256','uint256','address[]','uint256[]'],
-      [this.id, this.handNonce, winners, shares]
+      [BigInt(this.id), BigInt(this.handNonce), winners, shares.map(BigInt)]
     );
     const sig = await operator.signMessage(ethers.getBytes(digest));
     return sig;
   }
 
   pubState(forAddr) {
+    const activePlayer = this.phase !== 'waiting' && this.phase !== 'showdown'
+      ? this.players[this.actionIdx]
+      : null;
     return {
-      tableId:   this.id,
-      phase:     this.phase,
-      pot:       this.pot,
-      maxBet:    this.maxBet,
-      community: this.community,
+      tableId:    String(this.id),
+      phase:      this.phase,
+      pot:        this.pot,
+      maxBet:     this.maxBet,
+      community:  this.community,
+      activeAddr: activePlayer?.addr || null,
+      dealerAddr: this.players[this.dealerIdx]?.addr || null,
+      config:     this.config,
       players: this.players.map(p => ({
         addr:        p.addr,
         chips:       p.chips,
@@ -333,25 +378,42 @@ wss.on('connection', (ws) => {
         break;
       }
 
-      case 'CREATE_TABLE': {
-        const { buyIn, bigBlind, maxPlayers, gameType } = payload;
-        const id = crypto.randomUUID();
-        tables.set(id, new PokerTable(id, { buyIn, bigBlind, maxPlayers, gameType }));
-        send(ws, { type: 'TABLE_CREATED', tableId: id });
-        break;
-      }
-
       case 'JOIN_TABLE': {
         const { tableId } = payload;
-        const t = tables.get(tableId);
-        if (!t) return send(ws, { type: 'ERROR', error: 'Table not found' });
+        const tidKey = String(tableId);
+        let t = tables.get(tidKey);
+
+        // If not in memory, fetch config from on-chain
+        if (!t) {
+          try {
+            const info = await escrow.getTableInfo(BigInt(tableId));
+            // info: (tableId, buyInAmount, bigBlind, maxPlayers, gameType, status, potTotal, handNonce, playerCount)
+            if (!info || info[0] === 0n) {
+              return send(ws, { type: 'ERROR', error: 'Table not found on chain' });
+            }
+            const config = {
+              buyIn:      Number(info[1]),
+              bigBlind:   Number(info[2]),
+              maxPlayers: Number(info[3]),
+              gameType:   Number(info[4]),
+            };
+            t = new PokerTable(BigInt(tableId), config);
+            t.handNonce = Number(info[7]);
+            tables.set(tidKey, t);
+            console.log(`[Server] Loaded table ${tidKey} from chain`);
+          } catch (e) {
+            console.error(`[Server] getTableInfo(${tidKey}) failed:`, e.message);
+            return send(ws, { type: 'ERROR', error: 'Table not found' });
+          }
+        }
+
         const addr = client.addr;
         if (!addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
 
         const seated = t.seat({ addr, ws });
         if (!seated) return send(ws, { type: 'ERROR', error: 'Cannot join table' });
 
-        clients.set(ws, { ...client, tableId });
+        clients.set(ws, { ...client, tableId: tidKey });
         broadcastTable(t);
 
         if (t.players.length >= t.config.maxPlayers) {
@@ -362,7 +424,7 @@ wss.on('connection', (ws) => {
 
       case 'ACTION': {
         const { tableId, action, amount } = payload;
-        const t = tables.get(tableId);
+        const t = tables.get(String(tableId));
         if (!t) return;
         const result = t.applyAction(client.addr, action, amount);
         broadcastTable(t);
@@ -377,19 +439,24 @@ wss.on('connection', (ws) => {
             results: result.results.map(r => ({ addr: r.p.addr, hand: r.h.n })),
             pot: result.pot,
             sig,
-            tableId,
-            handNonce: t.handNonce - 1,
+            tableId: String(tableId),
+            handNonce: t.handNonce,
             shares,
           });
           // Auto-restart after 6s
-          setTimeout(() => { t.handNonce++; t.dealerIdx = (t.dealerIdx+1) % t.players.length; t.start(); broadcastTable(t); }, 6000);
+          setTimeout(() => {
+            t.handNonce++;
+            t.dealerIdx = (t.dealerIdx + 1) % t.players.length;
+            t.start();
+            broadcastTable(t);
+          }, 6000);
         }
         break;
       }
 
       case 'LEAVE_TABLE': {
         const { tableId } = payload;
-        const t = tables.get(tableId);
+        const t = tables.get(String(tableId));
         if (t) {
           t.players = t.players.filter(p => p.addr !== client.addr);
           broadcastTable(t);
@@ -400,7 +467,7 @@ wss.on('connection', (ws) => {
 
       case 'LIST_TABLES': {
         const list = [...tables.values()].map(t => ({
-          id: t.id, config: t.config, seated: t.players.length, phase: t.phase,
+          id: String(t.id), config: t.config, seated: t.players.length, phase: t.phase,
         }));
         send(ws, { type: 'TABLE_LIST', tables: list });
         break;

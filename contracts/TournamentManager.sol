@@ -8,15 +8,21 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
+interface IChipsTokenBurnable is IERC20 {
+    function burn(uint256 amount) external;
+}
+interface IChipsStakingForTourn {
+    function receiveYield(uint256 amount) external;
+}
+
 /// @title TournamentManager — scheduled tournaments with entry fees and operator-signed payouts
 ///
-/// Revenue model:
-///   tournamentRake (10% default) taken from total prize pool before payout
-///   House guaranteed edge = entry_count × entryFee × rake%
-///
-/// Example: 100 players × 100 PPP entry × 10% = 1,000 PPP to house per tournament
+/// Rake split (of tournament rake):
+///   35% → burned (deflationary)
+///   35% → staking yield pool
+///   30% → treasury (rakeRecipient)
 contract TournamentManager is Ownable, ReentrancyGuard {
-    using SafeERC20 for IERC20;
+    using SafeERC20 for IChipsTokenBurnable;
     using ECDSA for bytes32;
 
     enum TournStatus { Registration, Running, Settled, Cancelled }
@@ -27,35 +33,43 @@ contract TournamentManager is Ownable, ReentrancyGuard {
         uint256 entryFee;
         uint256 startTime;
         uint8   maxPlayers;
-        uint8   gameType;       // 0=holdem,1=omaha,etc
+        uint8   gameType;
         TournStatus status;
         address[] entrants;
         uint256 prizePool;
         uint256 rakeCollected;
-        bool    guaranteed;     // if true, house tops up to guaranteedPrize if not enough entrants
+        bool    guaranteed;
         uint256 guaranteedPrize;
     }
 
-    IERC20  public immutable pppToken;
+    IChipsTokenBurnable public immutable chipsToken;
+    IChipsStakingForTourn public stakingContract;
     address public operatorSigner;
     address public rakeRecipient;
     address public antiBotOracle;
 
-    uint256 public tournamentRake   = 100;  // 10% (basis points / 1000)
-    uint256 public rakeDenominator  = 1000;
+    // Tournament rake: 10% default (num/den)
+    uint256 public tournamentRake  = 100;
+    uint256 public rakeDenominator = 1000;
+
+    // Rake split (bps / 10000, burn + staking + treasury must sum to 10000)
+    uint256 public rakeBurnBps    = 3500; // 35%
+    uint256 public rakeStakingBps = 3500; // 35%
+    // treasury = 10000 - rakeBurnBps - rakeStakingBps = 30%
 
     uint256 public tournamentCount;
-    mapping(uint256 => Tournament)   public tournaments;
+    mapping(uint256 => Tournament)              public tournaments;
     mapping(uint256 => mapping(address => bool)) public registered;
-    mapping(address => bool)         public humanVerified;
-    mapping(bytes32 => bool)         public usedPayoutHashes;
+    mapping(address => bool)                    public humanVerified;
+    mapping(bytes32 => bool)                    public usedPayoutHashes;
 
-    // Revenue
     uint256 public totalTournamentRake;
+    uint256 public totalRakeBurned;
+    uint256 public totalRakeToStaking;
 
     event TournamentCreated(uint256 indexed id, string name, uint256 entryFee, uint256 startTime);
     event PlayerRegistered(uint256 indexed id, address player, uint256 feePaid);
-    event TournamentStarted(uint256 indexed id, uint256 prizePool, uint256 rake);
+    event TournamentStarted(uint256 indexed id, uint256 prizePool, uint256 rake, uint256 burned, uint256 toStaking);
     event TournamentPaid(uint256 indexed id, address[] winners, uint256[] payouts);
     event TournamentCancelled(uint256 indexed id);
     event HumanVerified(address indexed player, bool status);
@@ -67,11 +81,14 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     error InvalidSig();
     error AlreadyUsed(bytes32 h);
 
-    constructor(address _token, address _signer, address _rake, address _oracle)
+    constructor(address _token, address _signer, address _rake, address _oracle, address _staking)
         Ownable(msg.sender)
     {
-        pppToken = IERC20(_token); operatorSigner = _signer;
-        rakeRecipient = _rake;    antiBotOracle = _oracle;
+        chipsToken      = IChipsTokenBurnable(_token);
+        operatorSigner  = _signer;
+        rakeRecipient   = _rake;
+        antiBotOracle   = _oracle;
+        stakingContract = IChipsStakingForTourn(_staking);
     }
 
     function markHuman(address player, bool status) external {
@@ -81,7 +98,6 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     }
 
     // ─── TOURNAMENT LIFECYCLE ─────────────────────────────────────────────────
-    /// @notice Owner creates a tournament. Can be guaranteed (house tops up prize pool).
     function createTournament(
         string calldata name,
         uint256 entryFee,
@@ -99,29 +115,26 @@ contract TournamentManager is Ownable, ReentrancyGuard {
         t.gameType = gameType; t.status = TournStatus.Registration;
         t.guaranteed = guaranteed; t.guaranteedPrize = guaranteedPrize;
 
-        // Fund guarantee upfront if set
         if (guaranteed && guaranteedPrize > 0) {
-            pppToken.safeTransferFrom(msg.sender, address(this), guaranteedPrize);
+            chipsToken.safeTransferFrom(msg.sender, address(this), guaranteedPrize);
         }
         emit TournamentCreated(id, name, entryFee, startTime);
     }
 
-    /// @notice Player registers and locks entry fee
     function register(uint256 tournId) external nonReentrant {
         Tournament storage t = tournaments[tournId];
-        if (t.status != TournStatus.Registration)   revert TournNotOpen(tournId);
-        if (!humanVerified[msg.sender])              revert NotHuman(msg.sender);
-        if (registered[tournId][msg.sender])         revert AlreadyRegistered(msg.sender);
-        if (t.entrants.length >= t.maxPlayers)       revert TournFull(tournId);
+        if (t.status != TournStatus.Registration)  revert TournNotOpen(tournId);
+        if (!humanVerified[msg.sender])             revert NotHuman(msg.sender);
+        if (registered[tournId][msg.sender])        revert AlreadyRegistered(msg.sender);
+        if (t.entrants.length >= t.maxPlayers)      revert TournFull(tournId);
 
-        pppToken.safeTransferFrom(msg.sender, address(this), t.entryFee);
+        chipsToken.safeTransferFrom(msg.sender, address(this), t.entryFee);
         t.prizePool += t.entryFee;
         t.entrants.push(msg.sender);
         registered[tournId][msg.sender] = true;
         emit PlayerRegistered(tournId, msg.sender, t.entryFee);
     }
 
-    /// @notice Operator starts tournament — takes rake, locks prize pool
     function startTournament(uint256 tournId) external {
         require(msg.sender == operatorSigner || msg.sender == owner());
         Tournament storage t = tournaments[tournId];
@@ -133,22 +146,37 @@ contract TournamentManager is Ownable, ReentrancyGuard {
         uint256 rake = (pool * tournamentRake) / rakeDenominator;
         t.rakeCollected = rake;
 
-        // Apply guarantee top-up if applicable
         if (t.guaranteed && pool - rake < t.guaranteedPrize) {
-            // guaranteedPrize already deposited by owner, net is already in contract
-            t.prizePool = t.guaranteedPrize + rake; // keep rake on top
+            t.prizePool = t.guaranteedPrize + rake;
         }
 
-        pppToken.safeTransfer(rakeRecipient, rake);
+        // ── Rake distribution ──────────────────────────────────────────────
+        uint256 burnAmt    = (rake * rakeBurnBps)    / 10000;
+        uint256 stakingAmt = (rake * rakeStakingBps) / 10000;
+        uint256 treasuryAmt = rake - burnAmt - stakingAmt;
+
+        if (burnAmt > 0) chipsToken.burn(burnAmt);
+
+        if (stakingAmt > 0) {
+            if (address(stakingContract) != address(0)) {
+                chipsToken.safeTransfer(address(stakingContract), stakingAmt);
+                stakingContract.receiveYield(stakingAmt);
+            } else {
+                chipsToken.safeTransfer(rakeRecipient, stakingAmt);
+            }
+        }
+
+        if (treasuryAmt > 0) chipsToken.safeTransfer(rakeRecipient, treasuryAmt);
+
         totalTournamentRake += rake;
+        totalRakeBurned     += burnAmt;
+        totalRakeToStaking  += stakingAmt;
+
         t.prizePool -= rake;
         t.status = TournStatus.Running;
-        emit TournamentStarted(tournId, t.prizePool, rake);
+        emit TournamentStarted(tournId, t.prizePool, rake, burnAmt, stakingAmt);
     }
 
-    /// @notice Operator signs final standings and calls payout (or any entrant submits sig)
-    /// @param winners  Ordered addresses (1st, 2nd, 3rd, etc.)
-    /// @param shares   Basis points / 1000, must sum to 1000
     function payout(
         uint256 tournId,
         address[] calldata winners,
@@ -171,19 +199,18 @@ contract TournamentManager is Ownable, ReentrancyGuard {
         uint256[] memory payouts = new uint256[](winners.length);
         for (uint i; i < winners.length; i++) {
             payouts[i] = (t.prizePool * shares[i]) / 1000;
-            pppToken.safeTransfer(winners[i], payouts[i]);
+            chipsToken.safeTransfer(winners[i], payouts[i]);
         }
         t.status = TournStatus.Settled;
         emit TournamentPaid(tournId, winners, payouts);
     }
 
-    /// @notice Refund all entrants if tournament cancelled
     function cancelTournament(uint256 tournId) external onlyOwner {
         Tournament storage t = tournaments[tournId];
         require(t.status == TournStatus.Registration, "Cannot cancel");
         t.status = TournStatus.Cancelled;
         for (uint i; i < t.entrants.length; i++) {
-            pppToken.safeTransfer(t.entrants[i], t.entryFee);
+            chipsToken.safeTransfer(t.entrants[i], t.entryFee);
         }
         emit TournamentCancelled(tournId);
     }
@@ -192,8 +219,11 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     function getEntrants(uint256 id) external view returns (address[] memory) {
         return tournaments[id].entrants;
     }
-    function getRevenue() external view returns (uint256) {
-        return totalTournamentRake;
+
+    function getRevenue() external view returns (
+        uint256 rake, uint256 burned, uint256 toStaking
+    ) {
+        return (totalTournamentRake, totalRakeBurned, totalRakeToStaking);
     }
 
     // ─── ADMIN ────────────────────────────────────────────────────────────────
@@ -201,6 +231,15 @@ contract TournamentManager is Ownable, ReentrancyGuard {
         require(num <= 150 && den >= 1000, "Max 15% tournament rake");
         tournamentRake = num; rakeDenominator = den;
     }
-    function setOperatorSigner(address s) external onlyOwner { operatorSigner = s; }
-    function setRakeRecipient(address r)  external onlyOwner { rakeRecipient = r; }
+
+    function setRakeSplit(uint256 burnBps, uint256 stakingBps) external onlyOwner {
+        require(burnBps + stakingBps <= 10000, "Exceeds 100%");
+        rakeBurnBps    = burnBps;
+        rakeStakingBps = stakingBps;
+    }
+
+    function setOperatorSigner(address s)  external onlyOwner { operatorSigner = s; }
+    function setRakeRecipient(address r)   external onlyOwner { rakeRecipient = r; }
+    function setStaking(address s)         external onlyOwner { stakingContract = IChipsStakingForTourn(s); }
+    function setAntiBotOracle(address o)   external onlyOwner { antiBotOracle = o; }
 }

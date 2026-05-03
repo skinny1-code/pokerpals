@@ -1,0 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --felt:       #1a4a2e;
+  --felt-light: #1f5a36;
+  --felt-edge:  #0f3020;
+  --rail:       #2c1a0e;
+  --rail-light: #3d2515;
+  --gold:       #d4af37;
+  --gold-dim:   #8a7020;
+  --cream:      #faf3e0;
+  --red:        #c0392b;
+  --black:      #1a1a1a;
+  --bg:         #0d1a0d;
+  --bg-deep:    #060e06;
+  --chip-red:   #c0392b;
+  --chip-blue:  #2980b9;
+  --chip-green: #27ae60;
+  --chip-black: #2c2c2c;
+  --chip-white: #e8e8e8;
+}
+
+html, body { height: 100%; background: var(--bg-deep); color: var(--cream); }
+
+body {
+  font-family: 'Playfair Display', Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: #1a3a1a; border-radius: 3px; }
+
+/* Animations */
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(212,175,55,.7); }
+  70%  { box-shadow: 0 0 0 10px rgba(212,175,55,0); }
+  100% { box-shadow: 0 0 0 0 rgba(212,175,55,0); }
+}
+
+@keyframes deal-card {
+  from { transform: translate(-50%, -200px) rotate(-15deg) scale(.4); opacity: 0; }
+  to   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+}
+
+@keyframes chip-toss {
+  0%   { transform: translateY(0) scale(1); }
+  50%  { transform: translateY(-20px) scale(1.1); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes winner-glow {
+  0%,100% { box-shadow: 0 0 15px rgba(212,175,55,.3); }
+  50%      { box-shadow: 0 0 40px rgba(212,175,55,.9), 0 0 60px rgba(212,175,55,.4); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes timer-drain {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: 126; }
+}
+
+@keyframes live-dot {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%     { opacity: .4; transform: scale(.8); }
+}
+
+.animate-in { animation: fade-in .3s ease forwards; }
+.pulse      { animation: pulse-ring 1.5s infinite; }
+.winner-glow { animation: winner-glow 1s ease-in-out infinite; }
+
+/* ── Mobile ──────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Table page: stack side panel below table */
+  .table-layout {
+    grid-template-columns: 1fr !important;
+  }
+  .table-side-panel {
+    border-left: none !important;
+    border-top: 1px solid #1a3a1a;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  /* Lobby: single column */
+  .lobby-grid {
+    grid-template-columns: 1fr !important;
+    font-size: 11px;
+  }
+  .lobby-grid-header { display: none !important; }
+  /* Betting controls: full width */
+  .betting-controls { max-width: 100% !important; }
+  /* Leaderboard: hide win-rate column on small screens */
+  .lb-winrate { display: none !important; }
+}
