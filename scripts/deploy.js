@@ -115,6 +115,31 @@ async function main() {
   console.log("\n── Handle NFT ────────────────────────────────────────");
   console.log("  Mint cost: 500 CHIPS burned (fully deflationary)");
   console.log("  Fully on-chain SVG — no IPFS needed");
+  // Save deployment manifest
+  const fs   = require("fs");
+  const path = require("path");
+  const deplDir = path.resolve(__dirname, "../deployments");
+  if (!fs.existsSync(deplDir)) fs.mkdirSync(deplDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(deplDir, "arbitrumSepolia.json"),
+    JSON.stringify({
+      network: "arbitrumSepolia",
+      chainId: "421614",
+      deployedAt: new Date().toISOString(),
+      deployer: deployer.address,
+      contracts: {
+        PvPToken:          tokenAddr,
+        PvPStaking:        stakingAddr,
+        ReferralRegistry:  referralAddr,
+        PokerEscrow:       escrowAddr,
+        TournamentManager: tournAddr,
+        TableRegistry:     registryAddr,
+        PokerHandle:       handleAddr,
+      },
+    }, null, 2)
+  );
+  console.log("✅ deployments/arbitrumSepolia.json saved");
+
   // Auto-write contract addresses into .env
   const { execSync } = require("child_process");
   const envArgs = [

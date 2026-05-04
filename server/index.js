@@ -206,7 +206,7 @@ class PokerTable {
 
     // Commit hand start to audit log
     const handHash = crypto.createHash('sha256')
-      .update(JSON.stringify({ id:this.id, nonce:this.handNonce, deck:this.deck.slice(0,5).join(','), ts:Date.now() }))
+      .update(JSON.stringify({ id:String(this.id), nonce:this.handNonce, deck:this.deck.slice(0,5).join(','), ts:Date.now() }))
       .digest('hex');
     this.sideLog.push({ event:'hand_start', handHash, nonce:this.handNonce });
   }
@@ -446,7 +446,10 @@ wss.on('connection', (ws) => {
 
         if (result?.winners) {
           // Hand over — sign settlement
-          const shares = result.winners.map(() => Math.floor(1000 / result.winners.length));
+          const base   = Math.floor(1000 / result.winners.length);
+          const shares = result.winners.map((_, i) =>
+            i === 0 ? base + (1000 - base * result.winners.length) : base
+          );
           const sig = await t.signAndSettle(result.winners, shares);
           broadcastToTable(t, {
             type: 'HAND_OVER',
