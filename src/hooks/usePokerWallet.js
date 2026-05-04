@@ -246,10 +246,11 @@ export function useEscrow(tableId) {
     try {
       setStatus('approving');
       const amountBN = parseUnits(String(buyInAmount), 18);
-      // Step 1: Approve escrow to spend CHIPS
+      const seatFee  = parseUnits("2", 18); // PokerEscrow.seatFeeCHIPS = 2 CHIPS
+      // Step 1: Approve escrow to spend buyIn + seat fee
       const approveTx = await writeContractAsync({
         address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
-        args: [ESCROW, amountBN],
+        args: [ESCROW, amountBN + seatFee],
       });
       setTxHash(approveTx);
       // Wait for approval
