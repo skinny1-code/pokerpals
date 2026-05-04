@@ -13,7 +13,8 @@
     "deploy:testnet": "npx hardhat run scripts/deploy.js --network arbitrumSepolia",
     "deploy:mainnet": "npx hardhat run scripts/deploy.js --network arbitrum",
     "test": "npx hardhat test",
-    "setup:wallets": "node scripts/generateWallets.js"
+    "setup:wallets": "node scripts/generateWallets.js",
+    "setup:env": "node scripts/setupEnv.js"
   },
   "dependencies": {
     "next": "^14.2.0",
