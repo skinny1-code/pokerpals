@@ -9,17 +9,30 @@ npm install                  # install all dependencies
 
 npm run compile              # compile Solidity contracts via Hardhat
 npm run test                 # run Hardhat contract tests
-npm run deploy:testnet       # deploy to Arbitrum Sepolia
+npm run deploy:testnet       # deploy to Arbitrum Sepolia → saves deployments/arbitrumSepolia.json + writes .env
 npm run deploy:mainnet       # deploy to Arbitrum One
 
-npm run server               # start WebSocket game server (server/index.js)
+npm run setup:wallets        # generate fresh wallets for all roles → writes .env + WALLETS-PRINT-ME.txt
+npm run setup:env            # re-sync .env from deployments/arbitrumSepolia.json (run after any redeploy)
+
+npm run server               # start WebSocket game server (server/index.js) — reads .env via --env-file
 npm run oracle               # start anti-bot oracle as a separate process (server/antiBotOracle.js)
 npm run dev                  # Next.js dev server
 npm run build                # production Next.js build
-npm run setup:wallets        # generate fresh wallets for all roles → writes .env + WALLETS-PRINT-ME.txt
 ```
 
-After deploying, copy the printed contract addresses into `.env` as `NEXT_PUBLIC_*` variables. Run `server` and `oracle` as two independent Node processes.
+### First-time testnet setup
+
+```bash
+npm run setup:wallets        # 1. generate role wallets → .env
+# fund DEPLOYER_KEY address with Arbitrum Sepolia ETH (chainlink faucet or bridge)
+npm run deploy:testnet       # 2. deploy all contracts → deployments/arbitrumSepolia.json + .env
+npm run setup:env            # 3. (re-)sync NEXT_PUBLIC_* addresses into .env (safe to re-run)
+npm run server               # 4. start game server (terminal 1)
+npm run dev                  # 5. start frontend (terminal 2)
+```
+
+Run `server` and `oracle` as two independent Node processes.
 
 ## Architecture
 
@@ -107,7 +120,8 @@ See `.env.example` for all required variables. Key groups:
 - **Wallet keys**: `DEPLOYER_KEY`, `OPERATOR_PRIVATE_KEY`, `OPERATOR_SIGNER`, `RAKE_WALLET`, `ANTIBOT_ORACLE`
 - **RPC**: `ARB_SEPOLIA_RPC`, `ARB_RPC` (Alchemy endpoints)
 - **APIs**: `ALCHEMY_API_KEY`, `GITCOIN_PASSPORT_API`, `GITCOIN_SCORER_ID`, `ARBISCAN_API_KEY`
-- **Frontend** (`NEXT_PUBLIC_*`): `WC_PROJECT_ID`, `CHAIN_ID`, `WS_URL`, and the five contract addresses (`NEXT_PUBLIC_CHIPS_TOKEN`, `NEXT_PUBLIC_ESCROW`, `NEXT_PUBLIC_STAKING`, `NEXT_PUBLIC_REFERRAL`, `NEXT_PUBLIC_TOURNAMENT`)
+- **Frontend** (`NEXT_PUBLIC_*`): `WC_PROJECT_ID`, `CHAIN_ID`, `WS_URL`, and all seven contract addresses (`NEXT_PUBLIC_CHIPS_TOKEN`, `NEXT_PUBLIC_ESCROW`, `NEXT_PUBLIC_STAKING`, `NEXT_PUBLIC_REFERRAL`, `NEXT_PUBLIC_TOURNAMENT`, `NEXT_PUBLIC_TABLE_REGISTRY`, `NEXT_PUBLIC_POKER_HANDLE`) — auto-written by `deploy:testnet` and re-synced by `setup:env`
+- **Testnet**: set `TESTNET_SKIP_HUMAN_CHECK=true` to bypass Gitcoin Passport; server calls `markHuman()` directly for any connecting wallet
 
 ## Security notes
 
