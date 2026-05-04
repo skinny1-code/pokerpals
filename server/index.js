@@ -6,11 +6,26 @@ import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { ethers } from "ethers";
 import crypto from "crypto";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { join, dirname } from "path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function loadDeployment() {
+  try {
+    return JSON.parse(readFileSync(join(__dirname, "../deployments/arbitrumSepolia.json"), "utf8"));
+  } catch { return null; }
+}
+const _depl = loadDeployment();
 
 const PORT            = process.env.PORT || 4000;
 const OPERATOR_KEY    = process.env.OPERATOR_PRIVATE_KEY;
-const ESCROW_ADDR     = process.env.NEXT_PUBLIC_ESCROW || process.env.ESCROW_ADDRESS;
+const ESCROW_ADDR     = process.env.NEXT_PUBLIC_ESCROW || process.env.ESCROW_ADDRESS || _depl?.contracts?.PokerEscrow;
 const RPC_URL         = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL || "https://arb1.arbitrum.io/rpc";
+
+if (!ESCROW_ADDR) throw new Error("ESCROW_ADDR not set — add NEXT_PUBLIC_ESCROW to .env or deploy first");
+if (!OPERATOR_KEY) throw new Error("OPERATOR_PRIVATE_KEY not set in .env");
 const PASSPORT_URL    = "https://api.scorer.gitcoin.co";
 const PASSPORT_API    = process.env.GITCOIN_PASSPORT_API;
 const SCORER_ID       = process.env.GITCOIN_SCORER_ID;
