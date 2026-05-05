@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { createConfig, http, useAccount, useConnect, useDisconnect,
          useReadContract, useWriteContract, useWaitForTransactionReceipt,
          useBalance, useSignMessage } from "wagmi";
+import { waitForTransactionReceipt } from "wagmi/actions";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 import { parseUnits, formatUnits } from "viem";
@@ -254,8 +255,8 @@ export function useEscrow(tableId) {
         args: [ESCROW, amountBN + seatFee],
       });
       setTxHash(approveTx);
-      // Wait for approval
-      await new Promise(r => setTimeout(r, 4000));
+      // Wait for approve tx to be mined before submitting buyIn
+      await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
       // Step 2: Buy in
       setStatus('buying');
       const buyInTx = await writeContractAsync({

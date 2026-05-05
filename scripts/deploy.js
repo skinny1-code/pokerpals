@@ -128,8 +128,8 @@ async function main() {
       deployedAt: new Date().toISOString(),
       deployer: deployer.address,
       contracts: {
-        PvPToken:          tokenAddr,
-        PvPStaking:        stakingAddr,
+        ChipsToken:        tokenAddr,
+        ChipsStaking:      stakingAddr,
         ReferralRegistry:  referralAddr,
         PokerEscrow:       escrowAddr,
         TournamentManager: tournAddr,
