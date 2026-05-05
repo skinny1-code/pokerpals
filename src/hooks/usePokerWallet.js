@@ -126,8 +126,14 @@ export const HANDLE_ABI = [
     inputs:[{name:"",type:"address"}], outputs:[{type:"uint256"}] },
   { name:"handleTaken", type:"function", stateMutability:"view",
     inputs:[{name:"",type:"string"}], outputs:[{type:"bool"}] },
-  { name:"mintBurnCost", type:"function", stateMutability:"view",
+  { name:"getCurrentMintCost", type:"function", stateMutability:"view",
     inputs:[], outputs:[{type:"uint256"}] },
+  { name:"getCurrentTier", type:"function", stateMutability:"view",
+    inputs:[], outputs:[{type:"uint8"}] },
+  { name:"tierCosts", type:"function", stateMutability:"view",
+    inputs:[{name:"",type:"uint256"}], outputs:[{type:"uint256"}] },
+  { name:"tierBounds", type:"function", stateMutability:"view",
+    inputs:[{name:"",type:"uint256"}], outputs:[{type:"uint256"}] },
   { name:"totalMinted", type:"function", stateMutability:"view",
     inputs:[], outputs:[{type:"uint256"}] },
   { name:"totalBurned", type:"function", stateMutability:"view",
@@ -638,16 +644,34 @@ export function useHandle() {
   });
 
   const { data: mintCostRaw } = useReadContract({
-    address: HANDLE, abi: HANDLE_ABI, functionName: "mintBurnCost",
-    query: { enabled: !!HANDLE },
+    address: HANDLE, abi: HANDLE_ABI, functionName: "getCurrentMintCost",
+    query: { enabled: !!HANDLE, refetchInterval: 15000 },
+  });
+
+  const { data: currentTierRaw } = useReadContract({
+    address: HANDLE, abi: HANDLE_ABI, functionName: "getCurrentTier",
+    query: { enabled: !!HANDLE, refetchInterval: 15000 },
   });
 
   const { data: totalMinted } = useReadContract({
     address: HANDLE, abi: HANDLE_ABI, functionName: "totalMinted",
-    query: { enabled: !!HANDLE, refetchInterval: 30000 },
+    query: { enabled: !!HANDLE, refetchInterval: 15000 },
   });
 
-  const mintCost = mintCostRaw ? Number(formatUnits(mintCostRaw, 18)) : 500;
+  // Read all four tier costs for the pricing table
+  const { data: cost0 } = useReadContract({ address: HANDLE, abi: HANDLE_ABI, functionName: "tierCosts", args: [0n], query: { enabled: !!HANDLE } });
+  const { data: cost1 } = useReadContract({ address: HANDLE, abi: HANDLE_ABI, functionName: "tierCosts", args: [1n], query: { enabled: !!HANDLE } });
+  const { data: cost2 } = useReadContract({ address: HANDLE, abi: HANDLE_ABI, functionName: "tierCosts", args: [2n], query: { enabled: !!HANDLE } });
+  const { data: cost3 } = useReadContract({ address: HANDLE, abi: HANDLE_ABI, functionName: "tierCosts", args: [3n], query: { enabled: !!HANDLE } });
+
+  const mintCost    = mintCostRaw ? Number(formatUnits(mintCostRaw, 18)) : 5000;
+  const currentTier = currentTierRaw != null ? Number(currentTierRaw) : 0;
+  const DEFAULTS    = [5000, 10000, 15000, 20000];
+  const tierCostsCHIPS = [cost0, cost1, cost2, cost3].map((c, i) =>
+    c != null ? Number(formatUnits(c, 18)) : DEFAULTS[i]
+  );
+  const TIER_LABELS = ['$5', '$10', '$15', '$20'];
+  const TIER_BOUNDS = [10_000, 110_000, 1_110_000];
 
   const mint = useCallback(async (handle) => {
     if (!address || !HANDLE || !CHIPS) return;
@@ -686,6 +710,10 @@ export function useHandle() {
     myHandle: myHandle || null,
     hasHandle: !!myHandle,
     mintCost,
+    currentTier,
+    tierCostsCHIPS,
+    TIER_LABELS,
+    TIER_BOUNDS,
     totalMinted: totalMinted ? Number(totalMinted) : 0,
     mint, status, txHash, confirmed, errorMsg,
     refetch: refetchHandle,

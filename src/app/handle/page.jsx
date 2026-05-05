@@ -50,7 +50,11 @@ export default function HandlePage() {
   const [mounted, setMounted]     = useState(false);
   const [inputVal, setInputVal]   = useState('');
   const { address, chipsBalance } = useWallet();
-  const { myHandle, hasHandle, mintCost, totalMinted, mint, status, confirmed, errorMsg } = useHandle();
+  const {
+    myHandle, hasHandle, mintCost, currentTier,
+    tierCostsCHIPS, TIER_LABELS, TIER_BOUNDS,
+    totalMinted, mint, status, confirmed, errorMsg,
+  } = useHandle();
 
   useEffect(() => setMounted(true), []);
 
@@ -84,11 +88,9 @@ export default function HandlePage() {
         </div>
 
         {/* Stats row */}
-        <div style={{
-          display: 'flex', gap: 8, marginBottom: 24,
-        }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           {[
-            { label: 'MINT COST', value: `${mintCost.toLocaleString()} CHIPS` },
+            { label: 'CURRENT PRICE', value: `${mintCost.toLocaleString()} CHIPS` },
             { label: 'MINTED', value: totalMinted.toLocaleString() },
             { label: 'YOUR CHIPS', value: mounted && address ? `${Math.floor(chipsBalance).toLocaleString()}` : '—' },
           ].map(s => (
@@ -101,6 +103,61 @@ export default function HandlePage() {
                 fontFamily: "'JetBrains Mono',monospace" }}>{s.value}</div>
             </div>
           ))}
+        </div>
+
+        {/* Tier pricing table */}
+        <div style={{
+          background: '#060e06', border: '1px solid #1a3a1a', borderRadius: 10,
+          overflow: 'hidden', marginBottom: 24,
+        }}>
+          <div style={{ padding: '8px 14px', borderBottom: '1px solid #1a3a1a',
+            fontSize: 8, color: '#3a6a3a', letterSpacing: 2 }}>TIER PRICING</div>
+          {[
+            { tier: 0, label: '$5',  supply: `First 10,000`,           bound: 10_000 },
+            { tier: 1, label: '$10', supply: `10,001 – 110,000`,       bound: 110_000 },
+            { tier: 2, label: '$15', supply: `110,001 – 1,110,000`,    bound: 1_110_000 },
+            { tier: 3, label: '$20', supply: `1,110,001+`,             bound: Infinity },
+          ].map(row => {
+            const isActive = currentTier === row.tier;
+            const isFuture = currentTier < row.tier;
+            const isPast   = currentTier > row.tier;
+            return (
+              <div key={row.tier} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 14px',
+                borderBottom: row.tier < 3 ? '1px solid #0f1f0f' : 'none',
+                background: isActive ? 'rgba(212,175,55,.04)' : 'transparent',
+                opacity: isPast ? 0.4 : 1,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {isActive && <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#d4af37',
+                    boxShadow: '0 0 4px #d4af37' }} />}
+                  {!isActive && <div style={{ width: 5, height: 5 }} />}
+                  <span style={{ fontSize: 10, color: isActive ? '#d4af37' : '#5a8a5a' }}>
+                    {row.supply}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{
+                    fontSize: 10, color: '#5a8a5a',
+                    fontFamily: "'JetBrains Mono',monospace",
+                  }}>
+                    {tierCostsCHIPS?.[row.tier]?.toLocaleString()} CHIPS
+                  </span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700,
+                    color: isActive ? '#d4af37' : isPast ? '#3a6a3a' : '#6a9a6a',
+                    fontFamily: "'JetBrains Mono',monospace", minWidth: 32, textAlign: 'right',
+                  }}>
+                    {row.label}
+                  </span>
+                  {isPast && <span style={{ fontSize: 9, color: '#3a6a3a' }}>SOLD</span>}
+                  {isActive && <span style={{ fontSize: 8, color: '#d4af37', border: '1px solid #d4af3744',
+                    borderRadius: 4, padding: '1px 5px' }}>NOW</span>}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Already has handle */}
@@ -173,10 +230,18 @@ export default function HandlePage() {
               background: '#0a160a', border: '1px solid #1a3a1a', borderRadius: 8,
               padding: '12px', marginBottom: 16,
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontSize: 11, color: '#5a8a5a' }}>Mint cost (burned)</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: '#5a8a5a' }}>
+                  Tier {currentTier + 1} price (burned)
+                </span>
                 <span style={{ fontSize: 11, color: '#e74c3c', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>
                   🔥 {mintCost.toLocaleString()} CHIPS
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: '#5a8a5a' }}>Target USD value</span>
+                <span style={{ fontSize: 11, color: '#27ae60', fontWeight: 700 }}>
+                  {TIER_LABELS?.[currentTier] || '—'}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -234,7 +299,7 @@ export default function HandlePage() {
               {status === 'approving' ? 'Approving CHIPS…'
                : status === 'minting'  ? 'Minting Handle…'
                : confirmed             ? '✓ Handle Minted!'
-               : `Burn ${mintCost.toLocaleString()} CHIPS & Mint`}
+               : `Burn ${mintCost.toLocaleString()} CHIPS (${TIER_LABELS?.[currentTier] || ''}) & Mint`}
             </button>
 
             <div style={{ marginTop: 12, fontSize: 10, color: '#3a6a3a', textAlign: 'center', lineHeight: 1.5 }}>

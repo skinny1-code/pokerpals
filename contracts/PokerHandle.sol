@@ -29,7 +29,20 @@ contract PokerHandle is ERC721, Ownable {
 
     IChipsTokenMint public immutable chipsToken;
 
-    uint256 public mintBurnCost = 500 * 10**18; // 500 CHIPS burned to mint
+    // Tiered pricing: mint cost rises as more handles are claimed.
+    // tierBounds[i] is the exclusive upper limit (on totalMinted at time of mint) for tier i.
+    //   Tier 0  (totalMinted <      10_000): $5  target  — first 10,000
+    //   Tier 1  (totalMinted <     110_000): $10 target  — next 100,000
+    //   Tier 2  (totalMinted <   1_110_000): $15 target  — next 1,000,000
+    //   Tier 3  (totalMinted >= 1_110_000):  $20 target  — remainder
+    // Owner calls setTierCosts() to express these in CHIPS once the CHIPS/USD price is set.
+    uint256[3] public tierBounds = [10_000, 110_000, 1_110_000];
+    uint256[4] public tierCosts  = [
+        5_000  * 10**18,  // tier 0 — $5  @ $0.001/CHIP
+        10_000 * 10**18,  // tier 1 — $10
+        15_000 * 10**18,  // tier 2 — $15
+        20_000 * 10**18   // tier 3 — $20
+    ];
 
     uint256 public totalMinted;
     uint256 public totalBurned;
@@ -39,7 +52,8 @@ contract PokerHandle is ERC721, Ownable {
     mapping(address => uint256) public ownerTokenId;    // wallet => tokenId (0 = none)
 
     event HandleMinted(address indexed player, uint256 tokenId, string handle, uint256 burned);
-    event MintCostUpdated(uint256 newCost);
+    event TierCostsUpdated(uint256[4] costs);
+    event TierBoundsUpdated(uint256[3] bounds);
 
     error HandleTooShort();
     error HandleTooLong();
@@ -51,9 +65,29 @@ contract PokerHandle is ERC721, Ownable {
         chipsToken = IChipsTokenMint(_chipsToken);
     }
 
+    // ─── VIEWS ────────────────────────────────────────────────────────────────
+
+    /// @notice Current mint cost in CHIPS based on how many have been minted so far.
+    function getCurrentMintCost() public view returns (uint256) {
+        uint256 minted = totalMinted;
+        if (minted < tierBounds[0]) return tierCosts[0];
+        if (minted < tierBounds[1]) return tierCosts[1];
+        if (minted < tierBounds[2]) return tierCosts[2];
+        return tierCosts[3];
+    }
+
+    /// @notice Which tier is currently active (0–3).
+    function getCurrentTier() public view returns (uint8) {
+        uint256 minted = totalMinted;
+        if (minted < tierBounds[0]) return 0;
+        if (minted < tierBounds[1]) return 1;
+        if (minted < tierBounds[2]) return 2;
+        return 3;
+    }
+
     // ─── MINT ─────────────────────────────────────────────────────────────────
 
-    /// @notice Burn 500 CHIPS to claim a unique on-chain poker handle.
+    /// @notice Burn CHIPS (amount depends on current tier) to claim a unique on-chain poker handle.
     ///         Handle is 3–20 chars, alphanumeric + underscore, case-insensitive unique.
     function mintHandle(string calldata handle) external {
         if (ownerTokenId[msg.sender] != 0) revert AlreadyHasHandle(msg.sender);
@@ -64,17 +98,19 @@ contract PokerHandle is ERC721, Ownable {
         if (handleTaken[lower]) revert HandleAlreadyTaken(handle);
         handleTaken[lower] = true;
 
+        uint256 cost = getCurrentMintCost();
+
         // Burn CHIPS permanently — no refund, deflationary
-        chipsToken.safeTransferFrom(msg.sender, address(this), mintBurnCost);
-        chipsToken.burn(mintBurnCost);
-        totalBurned += mintBurnCost;
+        chipsToken.safeTransferFrom(msg.sender, address(this), cost);
+        chipsToken.burn(cost);
+        totalBurned += cost;
 
         uint256 tokenId = ++totalMinted;
         _handles[tokenId]        = handle;
         ownerTokenId[msg.sender] = tokenId;
 
         _safeMint(msg.sender, tokenId);
-        emit HandleMinted(msg.sender, tokenId, handle, mintBurnCost);
+        emit HandleMinted(msg.sender, tokenId, handle, cost);
     }
 
     // ─── VIEWS ────────────────────────────────────────────────────────────────
@@ -125,9 +161,18 @@ contract PokerHandle is ERC721, Ownable {
 
     // ─── ADMIN ────────────────────────────────────────────────────────────────
 
-    function setMintBurnCost(uint256 cost) external onlyOwner {
-        mintBurnCost = cost;
-        emit MintCostUpdated(cost);
+    /// @notice Update CHIPS burn cost for each tier. Call this when CHIPS/USD price is set.
+    ///         e.g. if 1 CHIP = $0.001: tier0=5000e18, tier1=10000e18, tier2=15000e18, tier3=20000e18
+    function setTierCosts(uint256[4] calldata costs) external onlyOwner {
+        tierCosts = costs;
+        emit TierCostsUpdated(costs);
+    }
+
+    /// @notice Adjust the supply boundaries where each tier starts. Must be strictly ascending.
+    function setTierBounds(uint256[3] calldata bounds) external onlyOwner {
+        require(bounds[0] < bounds[1] && bounds[1] < bounds[2], "Bounds must be ascending");
+        tierBounds = bounds;
+        emit TierBoundsUpdated(bounds);
     }
 
     /// @notice Allows owner to reserve a handle (e.g. for brand protection). No CHIPS burned.
