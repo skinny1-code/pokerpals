@@ -183,6 +183,8 @@ export default function LobbyPage() {
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('status');
   const [showCreate, setShowCreate] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   // Refresh table list periodically when connected
   useEffect(() => {
@@ -269,7 +271,7 @@ export default function LobbyPage() {
             ))}
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            {address && (
+            {mounted && address && (
               <button onClick={() => setShowCreate(true)} style={{
                 background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
                 border:'1px solid #d4af3744', borderRadius:6, padding:'5px 14px',
@@ -306,7 +308,7 @@ export default function LobbyPage() {
 
           {filtered.length === 0 && (
             <div style={{ textAlign:'center', padding:'48px 0' }}>
-              {!address ? (
+              {!mounted || !address ? (
                 <div style={{ color:'#3a6a3a', fontSize:12 }}>
                   Connect your wallet to see live tables
                 </div>
