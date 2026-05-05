@@ -68,25 +68,36 @@ function evalFive(cs) {
   const flush = ss.every(x => x === ss[0]);
   const uniq = [...new Set(v)];
   const cnts = uniq.map(x=>({x,n:v.filter(y=>y===x).length})).sort((a,b)=>b.n-a.n||b.x-a.x);
-  const str = uniq.length===5 && v[0]-v[4]===4;
+  const str   = uniq.length===5 && v[0]-v[4]===4;
   const wheel = uniq.length===5 && v[0]===14 && v[1]===5;
-  if (flush && str && v[0]===14) return {r:9,n:"Royal Flush"};
-  if (flush && (str||wheel))    return {r:8,n:"Straight Flush"};
-  if (cnts[0].n===4)            return {r:7,n:"Four of a Kind"};
-  if (cnts[0].n===3&&cnts[1]?.n===2) return {r:6,n:"Full House"};
-  if (flush)                    return {r:5,n:"Flush"};
-  if (str||wheel)               return {r:4,n:"Straight"};
-  if (cnts[0].n===3)            return {r:3,n:"Three of a Kind"};
-  if (cnts[0].n===2&&cnts[1]?.n===2) return {r:2,n:"Two Pair"};
-  if (cnts[0].n===2)            return {r:1,n:"One Pair"};
-  return {r:0,n:"High Card"};
+  // kickers: tiebreak values ordered by group size desc, then rank desc
+  const kickers = cnts.map(c => c.x);
+  if (flush && str && v[0]===14) return {r:9,n:"Royal Flush",        kickers:[14]};
+  if (flush && (str||wheel))    return {r:8,n:"Straight Flush",      kickers:wheel?[5]:[v[0]]};
+  if (cnts[0].n===4)            return {r:7,n:"Four of a Kind",      kickers};
+  if (cnts[0].n===3&&cnts[1]?.n===2) return {r:6,n:"Full House",    kickers};
+  if (flush)                    return {r:5,n:"Flush",               kickers:v};
+  if (str||wheel)               return {r:4,n:"Straight",            kickers:wheel?[5]:[v[0]]};
+  if (cnts[0].n===3)            return {r:3,n:"Three of a Kind",     kickers};
+  if (cnts[0].n===2&&cnts[1]?.n===2) return {r:2,n:"Two Pair",      kickers};
+  if (cnts[0].n===2)            return {r:1,n:"One Pair",            kickers};
+  return {r:0,n:"High Card",kickers:v};
+}
+// Compare two evaluated hands: >0 means a wins, 0 means tie, <0 means b wins
+function compareHands(a, b) {
+  if (a.r !== b.r) return a.r - b.r;
+  for (let i = 0; i < Math.max(a.kickers.length, b.kickers.length); i++) {
+    const ak = a.kickers[i] ?? 0, bk = b.kickers[i] ?? 0;
+    if (ak !== bk) return ak - bk;
+  }
+  return 0;
 }
 function best7(cs) {
   let b = null;
   for (let i=0;i<cs.length-1;i++)
     for (let j=i+1;j<cs.length;j++) {
       const e = evalFive(cs.filter((_,k)=>k!==i&&k!==j));
-      if (!b || e.r > b.r) b = e;
+      if (!b || compareHands(e,b) > 0) b = e;
     }
   return b || evalFive(cs);
 }
@@ -102,7 +113,7 @@ function bestOmaha(hole, comm) {
   for (const hp of holePairs)
     for (const ct of commTrips) {
       const e = evalFive([...hp,...ct]);
-      if (!best || e.r > best.r) best = e;
+      if (!best || compareHands(e,best) > 0) best = e;
     }
   return best;
 }
@@ -188,11 +199,12 @@ class PokerTable {
 
   start() {
     if (this.players.length < 2) return;
-    this.deck      = shuffle(makeDeck());
-    this.community = [];
-    this.pot       = 0;
-    this.phase     = 'preflop';
-    const n        = this.players.length;
+    this.deck       = shuffle(makeDeck());
+    this.community  = [];
+    this.pot        = 0;
+    this.phase      = 'preflop';
+    this.streetActed = new Set(); // tracks who has acted this betting round
+    const n         = this.players.length;
     const holeCount = this.config.gameType === 1 ? 4 : 2;
 
     this.players.forEach(p => {
@@ -200,15 +212,17 @@ class PokerTable {
       for (let j = 0; j < holeCount; j++) p.hand.push(this.deck.shift());
     });
 
-    const sbIdx = (this.dealerIdx + 1) % n;
-    const bbIdx = (this.dealerIdx + 2) % n;
+    // Heads-up (2-player): dealer IS the small blind and acts first preflop
+    const sbIdx = n === 2 ? this.dealerIdx : (this.dealerIdx + 1) % n;
+    const bbIdx = n === 2 ? (this.dealerIdx + 1) % n : (this.dealerIdx + 2) % n;
     const sb    = this.config.bigBlind / 2;
     const bb    = this.config.bigBlind;
     this.players[sbIdx].chips -= sb; this.players[sbIdx].bet = sb;
     this.players[bbIdx].chips -= bb; this.players[bbIdx].bet = bb;
     this.pot    = sb + bb;
     this.maxBet = bb;
-    this.actionIdx = (bbIdx + 1) % n;
+    // Preflop: in HU the SB/dealer acts first; multi-way starts left of BB
+    this.actionIdx = n === 2 ? sbIdx : (bbIdx + 1) % n;
 
     const handHash = crypto.createHash('sha256')
       .update(JSON.stringify({ id: String(this.id), nonce: this.handNonce, deck: this.deck.slice(0,5).join(','), ts: Date.now() }))
@@ -269,26 +283,34 @@ class PokerTable {
       this.maxBet = p.bet;
       if (p.chips === 0) p.allIn = true;
       p.actionLabel = `RAISE +${amount}`;
+      // After a raise, prior actors must respond again — clear the acted set
+      this.streetActed = new Set();
     } else if (action === 'allin') {
       const pay = p.chips;
       p.chips = 0; p.bet += pay; this.pot += pay;
       this.maxBet = Math.max(this.maxBet, p.bet);
       p.allIn = true; p.actionLabel = 'ALL IN';
+      // All-in acts as an implicit raise if it exceeds current maxBet — clear acted set
+      this.streetActed = new Set();
     }
+    this.streetActed.add(addr);
 
     this._nextActionIdx();
     return this.advance();
   }
 
   advance() {
-    const alive      = this.players.filter(p => !p.folded);
-    const allBetsEq  = alive.every(p => p.bet === this.maxBet || p.allIn);
+    const alive     = this.players.filter(p => !p.folded);
+    const allBetsEq = alive.every(p => p.bet === this.maxBet || p.allIn);
+    // All non-folded, non-allin players must have acted this street
+    const allActed  = alive.every(p => p.allIn || this.streetActed.has(p.addr));
 
     if (alive.length === 1) return this.doShowdown(alive);
-    if (!allBetsEq) return null;
+    if (!allBetsEq || !allActed) return null;
 
     this.players.forEach(p => { p.bet = 0; p.actionLabel = ''; });
     this.maxBet = 0;
+    this.streetActed = new Set();
 
     if (this.phase === 'preflop') {
       this.community = [this.deck.shift(), this.deck.shift(), this.deck.shift()];
@@ -304,19 +326,27 @@ class PokerTable {
     }
 
     this._resetActionIdxForStreet();
+    // If all alive players are all-in, no betting needed — run out the board
+    if (alive.every(p => p.allIn)) return this.advance();
     return null;
   }
 
   doShowdown(alive) {
     this.phase = 'showdown';
+    // Single remaining player wins uncontested — skip hand evaluation entirely
+    if (alive.length === 1) {
+      alive[0].chips += this.pot;
+      return { winners:[alive[0].addr], results:[{p:alive[0],h:{r:-1,n:'Uncontested',kickers:[]}}], pot:this.pot };
+    }
     const results = alive.map(p => {
       const h = this.config.gameType === 1
         ? bestOmaha(p.hand, this.community)
         : best7([...p.hand, ...this.community]);
       return { p, h };
-    }).sort((a,b) => b.h.r - a.h.r);
+    }).sort((a,b) => compareHands(b.h, a.h));
 
-    const winners = results.filter(r => r.h.r === results[0].h.r).map(r => r.p);
+    const topHand = results[0].h;
+    const winners = results.filter(r => compareHands(r.h, topHand) === 0).map(r => r.p);
     const share   = Math.floor(this.pot / winners.length);
     winners.forEach(w => w.chips += share);
 
