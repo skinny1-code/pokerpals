@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createConfig, http, useAccount, useConnect, useDisconnect,
          useReadContract, useWriteContract, useWaitForTransactionReceipt,
-         useBalance, useSignMessage } from "wagmi";
+         useBalance, useSignMessage, usePublicClient } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
@@ -236,6 +236,7 @@ export function useStaking() {
 export function useEscrow(tableId) {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const publicClient           = usePublicClient();
   const [txHash, setTxHash]   = useState(null);
   const [status, setStatus]   = useState('idle'); // idle | approving | buying | settling | error
 
@@ -248,10 +249,17 @@ export function useEscrow(tableId) {
       setStatus('approving');
       const amountBN = parseUnits(String(buyInAmount), 18);
       const seatFee  = parseUnits("2", 18); // PokerEscrow.seatFeeCHIPS = 2 CHIPS
+      // Fetch live gas fees with 20% buffer to avoid base fee underrun
+      const fees = await publicClient.estimateFeesPerGas();
+      const feeOverrides = {
+        maxFeePerGas:         fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined,
+        maxPriorityFeePerGas: fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined,
+      };
       // Step 1: Approve escrow to spend buyIn + seat fee
       const approveTx = await writeContractAsync({
         address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
         args: [ESCROW, amountBN + seatFee],
+        ...feeOverrides,
       });
       setTxHash(approveTx);
       // Wait for approve tx to be mined before submitting buyIn
@@ -261,6 +269,7 @@ export function useEscrow(tableId) {
       const buyInTx = await writeContractAsync({
         address: ESCROW, abi: ESCROW_ABI, functionName: "buyIn",
         args: [BigInt(tableId)],
+        ...feeOverrides,
       });
       setTxHash(buyInTx);
       setStatus('idle');
@@ -269,7 +278,7 @@ export function useEscrow(tableId) {
       console.error("buyIn error:", e);
       setStatus('error');
     }
-  }, [address, tableId, writeContractAsync]);
+  }, [address, tableId, writeContractAsync, publicClient]);
 
   const refund = useCallback(async () => {
     try {
@@ -384,6 +393,7 @@ export function useTableSocket(tableId) {
 export function useCreateTable() {
   const { address, chainId }   = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const publicClient           = usePublicClient();
   const [txHash, setTxHash]    = useState(null);
   const [status, setStatus]    = useState('idle');
   const [errorMsg, setErrorMsg] = useState(null);
@@ -411,10 +421,16 @@ export function useCreateTable() {
     try {
       const buyInBN    = parseUnits(String(buyIn), 18);
       const bigBlindBN = parseUnits(String(bigBlind), 18);
+      // Fetch live fees and add 20% buffer so we don't land below the block base fee
+      const fees = await publicClient.estimateFeesPerGas();
+      const maxFeePerGas         = fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined;
+      const maxPriorityFeePerGas = fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined;
       const hash = await writeContractAsync({
         address: ESCROW, abi: ESCROW_ABI, functionName: 'createTable',
         args: [buyInBN, bigBlindBN, maxPlayers, gameType, 0n],
         chainId: EXPECTED_CHAIN,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
       });
       setTxHash(hash);
       return hash;
@@ -424,7 +440,7 @@ export function useCreateTable() {
       setStatus('error');
       return null;
     }
-  }, [address, chainId, writeContractAsync, EXPECTED_CHAIN]);
+  }, [address, chainId, writeContractAsync, publicClient, EXPECTED_CHAIN]);
 
   // Extract tableId from receipt logs (TableCreated event first indexed param)
   const newTableId = receipt?.logs?.[0]
