@@ -47,6 +47,7 @@ export default function WalletBar() {
           { href: '/',            label: 'Lobby' },
           { href: '/leaderboard', label: 'Board' },
           { href: '/stake',       label: 'Stake' },
+          { href: '/buy',         label: 'Buy CHIPS' },
         ].map(({ href, label }) => (
           <Link key={href} href={href} style={{
             color: '#6a9a6a', fontSize: 11, fontWeight: 700, letterSpacing: 1,
