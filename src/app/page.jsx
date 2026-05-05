@@ -6,46 +6,37 @@ import WalletBar from '../components/WalletBar';
 import { useTableSocket, useCreateTable } from '../hooks/usePokerWallet';
 import { useAccount } from 'wagmi';
 
-const GAME_TYPE_LABEL = { 0: "No Limit Hold'em", 1: 'Pot Limit Omaha' };
-const PHASE_STATUS = { waiting:'Waiting', preflop:'Active', flop:'Active', turn:'Active', river:'Active', showdown:'Showdown' };
-const PHASE_COLOR  = { waiting:'#d4af37', preflop:'#27ae60', flop:'#27ae60', turn:'#27ae60', river:'#27ae60', showdown:'#e67e22' };
+const GAME_LABEL = { 0:"No Limit Hold'em", 1:'Pot Limit Omaha' };
 
-const STATS = [
-  { label: 'Players Online', value: '—', icon: '◉', key: 'players' },
-  { label: 'Active Tables',  value: '—', icon: '♠', key: 'tables'  },
-  { label: 'Total Pot',      value: '—', icon: '◈', unit: 'CHIPS', key: 'pot' },
-];
+function fmt(v) {
+  return v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M`
+       : v >= 1_000     ? `${(v/1_000).toFixed(0)}K`
+       : String(v || 0);
+}
 
-function StatBubble({ stat }) {
+function StatusBadge({ phase }) {
+  const active = phase && phase !== 'waiting';
   return (
-    <div style={{
-      background:'#0c1e0c', border:'1px solid #1a3a1a', borderRadius:10,
-      padding:'12px 20px', display:'flex', flexDirection:'column',
-      alignItems:'center', gap:4, minWidth:110,
+    <span style={{
+      fontSize: 9, fontWeight: 700, letterSpacing: .5,
+      color: active ? '#27ae60' : '#d4af37',
+      background: active ? '#27ae6015' : '#d4af3715',
+      border: `1px solid ${active ? '#27ae6040' : '#d4af3740'}`,
+      borderRadius: 4, padding: '2px 7px',
     }}>
-      <div style={{ fontSize:18, color:'#d4af37' }}>{stat.icon}</div>
-      <div style={{ fontSize:18, color:'#d4af37', fontWeight:700,
-        fontFamily:"'JetBrains Mono',monospace" }}>{stat.value}</div>
-      <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:1, textAlign:'center' }}>
-        {stat.label}{stat.unit ? ` (${stat.unit})` : ''}
-      </div>
-    </div>
+      {active ? 'LIVE' : 'OPEN'}
+    </span>
   );
 }
 
-function TableRow({ table }) {
+function TableCard({ table }) {
   const [hov, setHov] = useState(false);
-  const fmt = v => v >= 1_000_000 ? `${(v/1_000_000).toFixed(2)}M`
-    : v >= 1_000 ? `${(v/1_000).toFixed(0)}K` : String(v || 0);
-
   const phase = table.phase || 'waiting';
-  const statusColor = PHASE_COLOR[phase] || '#d4af37';
-  const statusLabel = PHASE_STATUS[phase] || 'Waiting';
-  const gameType = table.config?.gameType || 0;
+  const seated = table.seated || 0;
+  const max = table.config?.maxPlayers || 9;
+  const buyIn = table.config?.buyIn || 0;
   const bigBlind = table.config?.bigBlind || 0;
-  const buyIn    = table.config?.buyIn || 0;
-  const maxPlayers = table.config?.maxPlayers || 9;
-  const seated   = table.seated || 0;
+  const gameType = table.config?.gameType || 0;
 
   return (
     <Link href={`/table/${table.id}`} style={{ textDecoration:'none' }}>
@@ -53,130 +44,188 @@ function TableRow({ table }) {
         onMouseEnter={() => setHov(true)}
         onMouseLeave={() => setHov(false)}
         style={{
-          display:'grid',
-          gridTemplateColumns:'2fr 1.2fr 1fr 1fr 80px 80px',
-          alignItems:'center', padding:'12px 16px', borderRadius:8, gap:8,
-          background: hov ? 'rgba(212,175,55,.04)' : 'transparent',
-          border:`1px solid ${hov ? '#d4af3733' : '#1a3a1a22'}`,
-          cursor:'pointer', transition:'all .15s',
+          background: hov ? '#111f11' : '#0c1a0c',
+          border: `1px solid ${hov ? '#2a4a2a' : '#1a3a1a'}`,
+          borderRadius: 10, padding: '14px 16px',
+          cursor: 'pointer', transition: 'all .15s',
+          display: 'flex', alignItems: 'center', gap: 12,
         }}
       >
-        <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-          <span style={{ fontSize:13, color: hov ? '#d4af37' : '#d0c8b0', fontWeight:600 }}>
-            {table.name || `Table ${table.id?.slice(0,8)}…`}
-          </span>
-          <span style={{ fontSize:9, color:'#3a6a3a',
+        {/* Left: game type icon */}
+        <div style={{
+          width: 38, height: 38, borderRadius: 8, flexShrink: 0,
+          background: gameType === 1 ? '#1a0a2a' : '#0a1a0a',
+          border: `1px solid ${gameType === 1 ? '#8e44ad44' : '#1a3a1a'}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 18, color: gameType === 1 ? '#9b59b6' : '#27ae60',
+        }}>
+          ♠
+        </div>
+
+        {/* Middle: name + blinds */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: hov ? '#d4af37' : '#e8e0cc',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {table.name || `Table #${String(table.id).slice(0,8)}`}
+            </span>
+            <StatusBadge phase={phase} />
+          </div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, color: '#6a9a6a', fontFamily:"'JetBrains Mono',monospace" }}>
+              {fmt(bigBlind/2)}/{fmt(bigBlind)}
+            </span>
+            <span style={{ fontSize: 10, color: '#3a6a3a' }} className="hide-mobile">
+              {GAME_LABEL[gameType]}
+            </span>
+          </div>
+        </div>
+
+        {/* Right: buy-in + seats */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+          <span style={{ fontSize: 12, color: '#d4af37', fontWeight: 700,
             fontFamily:"'JetBrains Mono',monospace" }}>
-            #{String(table.id).slice(0,12)}
+            ◈ {fmt(buyIn)}
           </span>
-        </div>
-        <div style={{ fontSize:10, color:'#6a9a6a' }}>{GAME_TYPE_LABEL[gameType]}</div>
-        <div style={{ fontSize:11, color:'#a8c8a8', fontFamily:"'JetBrains Mono',monospace" }}>
-          {fmt(bigBlind/2)}/{fmt(bigBlind)}
-        </div>
-        <div style={{ fontSize:11, color:'#d4af37', fontFamily:"'JetBrains Mono',monospace" }}>
-          ◈ {fmt(buyIn)}
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-          {Array.from({ length: maxPlayers }).map((_,i) => (
-            <div key={i} style={{ width:7, height:7, borderRadius:'50%',
-              background: i < seated ? '#27ae60' : '#1a3a1a',
-              border:'1px solid rgba(255,255,255,.1)' }} />
-          ))}
-          <span style={{ fontSize:9, color:'#6a9a6a', marginLeft:2 }}>{seated}/{maxPlayers}</span>
-        </div>
-        <div style={{ display:'flex', justifyContent:'flex-end' }}>
-          <div style={{
-            fontSize:8, color:statusColor,
-            border:`1px solid ${statusColor}44`, borderRadius:10,
-            padding:'2px 8px', letterSpacing:1, background:`${statusColor}11`,
-          }}>{statusLabel.toUpperCase()}</div>
+          <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+            {Array.from({ length: max }).map((_,i) => (
+              <div key={i} style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: i < seated ? '#27ae60' : '#1a3a1a',
+              }} />
+            ))}
+            <span style={{ fontSize: 9, color: '#4a7a4a', marginLeft: 3 }}>
+              {seated}/{max}
+            </span>
+          </div>
         </div>
       </div>
     </Link>
   );
 }
 
-// ── Create Table Modal ────────────────────────────────────────────────────────
 function CreateTableModal({ onClose }) {
   const router = useRouter();
   const { createTable, status, newTableId, errorMsg } = useCreateTable();
   const [form, setForm] = useState({ buyIn: 1000, bigBlind: 20, maxPlayers: 6, gameType: 0 });
   const loading = status === 'pending';
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   useEffect(() => {
     if (newTableId) { onClose(); router.push(`/table/${newTableId}`); }
   }, [newTableId, onClose, router]);
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const fields = [
+    { label:'Game Type',        key:'gameType',   type:'select',
+      options:[[0,"No Limit Hold'em"],[1,'Pot Limit Omaha']] },
+    { label:'Buy-in (CHIPS)',   key:'buyIn',      type:'number', min:100 },
+    { label:'Big Blind (CHIPS)',key:'bigBlind',   type:'number', min:1 },
+    { label:'Max Players',      key:'maxPlayers', type:'select',
+      options:[[2,'2-max'],[4,'4-max'],[6,'6-max'],[9,'9-max (Full Ring)']] },
+  ];
+
+  const inputStyle = {
+    width:'100%', background:'#081408', border:'1px solid #1a3a1a',
+    borderRadius:8, padding:'10px 14px', color:'#e8e0cc', fontSize:13,
+    fontFamily:'inherit', outline:'none', transition:'border-color .15s',
+  };
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.8)',
-      display:'flex', alignItems:'center', justifyContent:'center', zIndex:300 }}
-      onClick={onClose}>
-      <div style={{
-        background:'linear-gradient(135deg,#0a1f0a,#060e06)',
-        border:'1px solid #d4af37', borderRadius:16, padding:'32px',
-        width:380, animation:'fade-in .3s ease forwards',
+    <div style={{
+      position:'fixed', inset:0, background:'rgba(0,0,0,.85)',
+      display:'flex', alignItems:'center', justifyContent:'center', zIndex:300,
+      backdropFilter:'blur(4px)',
+      padding: '16px',
+    }} onClick={onClose}>
+      <div className="animate-in" style={{
+        background:'linear-gradient(160deg,#0d1f0d,#060e06)',
+        border:'1px solid #d4af3755', borderRadius:16, padding:'28px',
+        width:'100%', maxWidth:420,
+        boxShadow:'0 24px 64px rgba(0,0,0,.6), 0 0 0 1px rgba(212,175,55,.05)',
       }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize:9, color:'#d4af3799', letterSpacing:3, marginBottom:8 }}>NEW TABLE</div>
-        <div style={{ fontSize:20, color:'#d4af37', fontWeight:700, marginBottom:20,
-          fontFamily:"'Playfair Display',serif" }}>Create Table</div>
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          {[
-            { label:'GAME TYPE', key:'gameType', type:'select',
-              options:[[0,"No Limit Hold'em"],[1,'Pot Limit Omaha']] },
-            { label:'BUY-IN (CHIPS)', key:'buyIn', type:'number', min:100 },
-            { label:'BIG BLIND (CHIPS)', key:'bigBlind', type:'number', min:1 },
-            { label:'MAX PLAYERS', key:'maxPlayers', type:'select',
-              options:[[2,'2'],[4,'4'],[6,'6 (6-max)'],[9,'9 (Full Ring)']] },
-          ].map(({ label, key, type, options, min }) => (
+
+        <div style={{ marginBottom:24 }}>
+          <div style={{ fontSize:10, color:'#d4af3799', letterSpacing:3, marginBottom:6, fontWeight:600 }}>
+            NEW TABLE
+          </div>
+          <h2 style={{ fontSize:22, color:'#d4af37', fontWeight:700,
+            fontFamily:"'Playfair Display',serif" }}>
+            Create Table
+          </h2>
+        </div>
+
+        <div style={{ display:'flex', flexDirection:'column', gap:16, marginBottom:20 }}>
+          {fields.map(({ label, key, type, options, min }) => (
             <div key={key}>
-              <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:1, marginBottom:5 }}>{label}</div>
+              <label style={{ fontSize:10, color:'#6a9a6a', letterSpacing:.5,
+                fontWeight:600, display:'block', marginBottom:6 }}>
+                {label.toUpperCase()}
+              </label>
               {type === 'select' ? (
-                <select value={form[key]} onChange={e => set(key, Number(e.target.value))} style={{
-                  width:'100%', background:'#0c1e0c', border:'1px solid #1a3a1a', borderRadius:6,
-                  padding:'8px 12px', color:'#d4af37', fontSize:12, fontFamily:'inherit', outline:'none',
-                }}>
-                  {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                <select value={form[key]} onChange={e => set(key, Number(e.target.value))}
+                  style={{ ...inputStyle, cursor:'pointer' }}
+                  onFocus={e => e.currentTarget.style.borderColor='#d4af3766'}
+                  onBlur={e => e.currentTarget.style.borderColor='#1a3a1a'}>
+                  {options.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               ) : (
                 <input type="number" value={form[key]} min={min}
                   onChange={e => set(key, Number(e.target.value))}
-                  style={{ width:'100%', background:'#0c1e0c', border:'1px solid #1a3a1a',
-                    borderRadius:6, padding:'8px 12px', color:'#d4af37', fontSize:12,
-                    fontFamily:"'JetBrains Mono',monospace", outline:'none', boxSizing:'border-box' }} />
+                  style={{ ...inputStyle, fontFamily:"'JetBrains Mono',monospace" }}
+                  onFocus={e => e.currentTarget.style.borderColor='#d4af3766'}
+                  onBlur={e => e.currentTarget.style.borderColor='#1a3a1a'} />
               )}
             </div>
           ))}
         </div>
+
+        {/* Validation warning */}
         {form.buyIn < form.bigBlind * 10 && (
-          <div style={{ marginTop:10, fontSize:10, color:'#e67e22' }}>
-            Buy-in must be ≥ 10× big blind (◈ {form.bigBlind * 10})
+          <div style={{ marginBottom:12, fontSize:11, color:'#e67e22',
+            background:'#1a0e0422', border:'1px solid #e67e2233',
+            borderRadius:6, padding:'8px 12px' }}>
+            ⚠ Buy-in must be ≥ 10× big blind (min ◈ {form.bigBlind * 10})
           </div>
         )}
+
+        {/* Error */}
         {errorMsg && (
-          <div style={{ marginTop:10, fontSize:11, color:'#e74c3c',
-            background:'#1a0808', border:'1px solid #5a1a1a',
-            borderRadius:6, padding:'8px 12px', wordBreak:'break-word' }}>
+          <div style={{ marginBottom:12, fontSize:11, color:'#e74c3c',
+            background:'#1a080822', border:'1px solid #e74c3c33',
+            borderRadius:6, padding:'8px 12px', wordBreak:'break-word', lineHeight:1.5 }}>
             ⚠ {errorMsg}
           </div>
         )}
-        <div style={{ display:'flex', gap:8, marginTop:20 }}>
+
+        <div style={{ display:'flex', gap:10 }}>
           <button onClick={onClose} disabled={loading} style={{
             flex:1, background:'transparent', border:'1px solid #1a3a1a', borderRadius:8,
-            padding:'10px', cursor:'pointer', color:'#6a9a6a', fontSize:12, fontFamily:'inherit',
-          }}>Cancel</button>
-          <button onClick={() => createTable(form)}
+            padding:'11px', cursor:'pointer', color:'#6a9a6a', fontSize:13,
+            fontFamily:'inherit', fontWeight:600, transition:'all .15s',
+          }}>
+            Cancel
+          </button>
+          <button
+            onClick={() => createTable(form)}
             disabled={loading || form.buyIn < form.bigBlind * 10}
             style={{
-              flex:2, background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-              border:'1px solid #d4af3744', borderRadius:8, padding:'10px',
+              flex:2, borderRadius:8, padding:'11px',
+              fontSize:13, fontWeight:700, fontFamily:'inherit', letterSpacing:.3,
               cursor: (loading || form.buyIn < form.bigBlind * 10) ? 'not-allowed' : 'pointer',
-              color: loading ? '#6a9a6a' : '#d4af37',
-              fontSize:12, fontWeight:700, fontFamily:'inherit', opacity: loading ? 0.7 : 1,
+              background: (loading || form.buyIn < form.bigBlind * 10)
+                ? '#0c1e0c' : 'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
+              border: `1px solid ${(loading || form.buyIn < form.bigBlind * 10) ? '#1a3a1a' : '#d4af3766'}`,
+              color: (loading || form.buyIn < form.bigBlind * 10) ? '#3a6a3a' : '#d4af37',
+              transition: 'all .15s',
             }}>
-            {loading ? 'Waiting for wallet…' : 'Create Table'}
+            {loading ? (
+              <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                <span style={{ width:12, height:12, borderRadius:'50%',
+                  border:'2px solid #d4af3755', borderTopColor:'#d4af37',
+                  display:'inline-block', animation:'spin .7s linear infinite' }} />
+                Confirm in wallet…
+              </span>
+            ) : 'Create Table →'}
           </button>
         </div>
       </div>
@@ -187,13 +236,11 @@ function CreateTableModal({ onClose }) {
 export default function LobbyPage() {
   const { address } = useAccount();
   const { tableList, wsStatus, refreshTables } = useTableSocket(null);
-  const [filter, setFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('status');
+  const [filter, setFilter]     = useState('all');
   const [showCreate, setShowCreate] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted]   = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  // Refresh table list periodically when connected
   useEffect(() => {
     if (wsStatus !== 'authed') return;
     const t = setInterval(refreshTables, 8000);
@@ -201,38 +248,25 @@ export default function LobbyPage() {
   }, [wsStatus, refreshTables]);
 
   const filters = [
-    { id:'all',  label:'All Tables' },
+    { id:'all',  label:"All Tables" },
     { id:'nlh',  label:"Hold'em" },
     { id:'plo',  label:'Omaha' },
-    { id:'high', label:'High Stakes' },
+    { id:'open', label:'Open' },
   ];
 
   const filtered = tableList.filter(t => {
-    if (filter === 'nlh')  return (t.config?.gameType || 0) === 0;
-    if (filter === 'plo')  return (t.config?.gameType || 0) === 1;
-    if (filter === 'high') return (t.config?.buyIn || 0) >= 10000;
+    if (filter === 'nlh')  return (t.config?.gameType||0) === 0;
+    if (filter === 'plo')  return (t.config?.gameType||0) === 1;
+    if (filter === 'open') return !t.phase || t.phase === 'waiting';
     return true;
-  }).sort((a, b) => {
-    const aActive = a.phase && a.phase !== 'waiting' ? 1 : 0;
-    const bActive = b.phase && b.phase !== 'waiting' ? 1 : 0;
-    if (sortBy === 'status')  return bActive - aActive || (b.seated||0) - (a.seated||0);
-    if (sortBy === 'buyin')   return (b.config?.buyIn||0) - (a.config?.buyIn||0);
-    if (sortBy === 'players') return (b.seated||0) - (a.seated||0);
-    return 0;
+  }).sort((a,b) => {
+    const aLive = a.phase && a.phase !== 'waiting' ? 1 : 0;
+    const bLive = b.phase && b.phase !== 'waiting' ? 1 : 0;
+    return bLive - aLive || (b.seated||0) - (a.seated||0);
   });
 
-  const liveStats = {
-    players: tableList.reduce((s, t) => s + (t.seated||0), 0),
-    tables:  tableList.filter(t => t.phase && t.phase !== 'waiting').length,
-  };
-
-  const stats = STATS.map(s => ({
-    ...s,
-    value: s.key === 'players' ? String(liveStats.players)
-         : s.key === 'tables'  ? String(liveStats.tables)
-         : '—',
-  }));
-
+  const liveCount  = tableList.filter(t => t.phase && t.phase !== 'waiting').length;
+  const totalSeated = tableList.reduce((s,t) => s + (t.seated||0), 0);
   const wsConnected = wsStatus === 'authed';
 
   return (
@@ -242,115 +276,177 @@ export default function LobbyPage() {
       {/* Hero */}
       <div style={{
         background:'linear-gradient(180deg,#0a1f0a 0%,#060e06 100%)',
-        borderBottom:'1px solid #1a3a1a', padding:'32px 24px', textAlign:'center',
+        borderBottom:'1px solid #1a3a1a',
+        padding:'36px 24px 28px',
+        textAlign:'center',
+        position:'relative',
+        overflow:'hidden',
       }}>
-        <div style={{ fontSize:11, color:'#3a6a3a', letterSpacing:4, marginBottom:8 }}>
-          ONCHAIN  •  PVP  •  POKER
-        </div>
-        <h1 style={{ fontSize:36, fontWeight:900, color:'#d4af37',
-          fontFamily:"'Playfair Display',serif", letterSpacing:2, marginBottom:4 }}>
-          PokerVsPals
-        </h1>
-        <p style={{ fontSize:12, color:'#5a8a5a', letterSpacing:1 }}>
-          Real PvP poker. Instant onchain settlement. No house edge. No bots.
-        </p>
-        <div style={{ display:'flex', gap:12, justifyContent:'center', marginTop:24, flexWrap:'wrap' }}>
-          {stats.map(s => <StatBubble key={s.label} stat={s} />)}
+        {/* Background spade watermark */}
+        <div style={{
+          position:'absolute', top:'50%', left:'50%',
+          transform:'translate(-50%,-50%)',
+          fontSize:200, color:'rgba(255,255,255,.012)',
+          pointerEvents:'none', userSelect:'none', lineHeight:1,
+        }}>♠</div>
+
+        <div style={{ position:'relative', zIndex:1 }}>
+          <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:4, marginBottom:10, fontWeight:600 }}>
+            ONCHAIN  ·  PVP  ·  POKER
+          </div>
+          <h1 style={{ fontSize:clamp(28, 42), fontWeight:900, color:'#d4af37',
+            fontFamily:"'Playfair Display',serif", letterSpacing:1, marginBottom:8, lineHeight:1.1 }}>
+            PokerVsPals
+          </h1>
+          <p style={{ fontSize:13, color:'#5a8a5a', letterSpacing:.3, marginBottom:24,
+            maxWidth:460, margin:'0 auto 24px' }}>
+            Real PvP poker. Instant onchain settlement. No house edge.
+          </p>
+
+          {/* Stats row */}
+          <div style={{ display:'flex', gap:16, justifyContent:'center', flexWrap:'wrap', marginBottom:28 }}>
+            {[
+              { label:'Players Online', value: String(totalSeated), icon:'◉' },
+              { label:'Live Tables',    value: String(liveCount),   icon:'♠' },
+              { label:'Open Tables',    value: String(tableList.length - liveCount), icon:'◈' },
+            ].map(s => (
+              <div key={s.label} style={{
+                background:'rgba(12,30,12,.8)', border:'1px solid #1a3a1a',
+                borderRadius:10, padding:'12px 20px', minWidth:110, textAlign:'center',
+              }}>
+                <div style={{ fontSize:20, color:'#d4af37', fontWeight:700,
+                  fontFamily:"'JetBrains Mono',monospace", lineHeight:1.2 }}>
+                  {wsConnected ? s.value : '—'}
+                </div>
+                <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:1, marginTop:2, fontWeight:600 }}>
+                  {s.label.toUpperCase()}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+          {mounted && address && (
+            <button onClick={() => setShowCreate(true)} style={{
+              background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
+              border:'1px solid #d4af3766', borderRadius:10,
+              padding:'12px 32px', cursor:'pointer',
+              color:'#d4af37', fontSize:14, fontWeight:700,
+              fontFamily:'inherit', letterSpacing:.3,
+              boxShadow:'0 4px 20px rgba(212,175,55,.12)',
+              transition:'all .2s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor='#d4af37aa'; e.currentTarget.style.boxShadow='0 4px 24px rgba(212,175,55,.25)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor='#d4af3766'; e.currentTarget.style.boxShadow='0 4px 20px rgba(212,175,55,.12)'; }}>
+              + Create Table
+            </button>
+          )}
+          {mounted && !address && (
+            <div style={{ fontSize:12, color:'#3a6a3a' }}>
+              Connect your wallet to create or join a table
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Main */}
-      <div style={{ maxWidth:960, margin:'0 auto', padding:'24px 16px' }}>
+      {/* Main content */}
+      <div style={{ maxWidth:800, margin:'0 auto', padding:'24px 16px' }}>
 
-        {/* Filter + sort */}
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-          marginBottom:16, flexWrap:'wrap', gap:8 }}>
-          <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+        {/* Filter tabs */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+          marginBottom:16, gap:8, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', gap:4 }}>
             {filters.map(f => (
               <button key={f.id} onClick={() => setFilter(f.id)} style={{
                 background: filter===f.id ? '#0c1e0c' : 'transparent',
                 border:`1px solid ${filter===f.id ? '#d4af3744' : '#1a3a1a'}`,
-                borderRadius:6, padding:'5px 12px', cursor:'pointer',
+                borderRadius:6, padding:'6px 14px', cursor:'pointer',
                 color: filter===f.id ? '#d4af37' : '#6a9a6a',
-                fontSize:11, fontWeight:700, letterSpacing:.5,
-                fontFamily:'inherit', transition:'all .15s',
+                fontSize:12, fontWeight:600, fontFamily:'inherit',
+                transition:'all .15s',
               }}>{f.label}</button>
             ))}
           </div>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            {mounted && address && (
-              <button onClick={() => setShowCreate(true)} style={{
-                background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-                border:'1px solid #d4af3744', borderRadius:6, padding:'5px 14px',
-                cursor:'pointer', color:'#d4af37', fontSize:11, fontWeight:700,
-                fontFamily:'inherit', letterSpacing:.5,
-              }}>+ Create Table</button>
-            )}
-            <span style={{ fontSize:10, color:'#3a6a3a', letterSpacing:1 }}>SORT</span>
-            {[['status','Live First'],['buyin','Buy-in'],['players','Players']].map(([v,l]) => (
-              <button key={v} onClick={() => setSortBy(v)} style={{
-                background:'transparent',
-                border:`1px solid ${sortBy===v ? '#d4af3744' : '#1a3a1a'}`,
-                borderRadius:4, padding:'3px 8px', cursor:'pointer',
-                color: sortBy===v ? '#d4af37' : '#4a7a4a',
-                fontSize:9, letterSpacing:.5, fontFamily:'inherit',
-              }}>{l}</button>
-            ))}
+
+          {/* Connection status */}
+          <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:10, color:'#3a6a3a' }}>
+            <div style={{
+              width:6, height:6, borderRadius:'50%',
+              background: wsConnected ? '#27ae60' : '#3a6a3a',
+              boxShadow: wsConnected ? '0 0 6px #27ae60' : 'none',
+              animation: wsConnected ? 'live-dot 2s infinite' : 'none',
+            }} />
+            <span style={{ fontWeight:600 }}>
+              {wsConnected ? 'Live' : mounted && address ? 'Connecting…' : 'Not connected'}
+            </span>
           </div>
         </div>
 
-        {/* Table header */}
-        <div style={{
-          display:'grid', gridTemplateColumns:'2fr 1.2fr 1fr 1fr 80px 80px',
-          padding:'6px 16px', gap:8, borderBottom:'1px solid #1a3a1a', marginBottom:4,
-        }}>
-          {['Table','Game','Blinds','Buy-in','Seats','Status'].map(h => (
-            <div key={h} style={{ fontSize:9, color:'#3a6a3a', letterSpacing:1 }}>{h.toUpperCase()}</div>
-          ))}
-        </div>
-
-        {/* Table rows */}
-        <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-          {filtered.map(t => <TableRow key={t.id} table={t} />)}
+        {/* Table list */}
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {filtered.map(t => <TableCard key={t.id} table={t} />)}
 
           {filtered.length === 0 && (
-            <div style={{ textAlign:'center', padding:'48px 0' }}>
+            <div style={{
+              textAlign:'center', padding:'56px 24px',
+              background:'#0c1a0c', border:'1px solid #1a3a1a',
+              borderRadius:12,
+            }}>
+              <div style={{ fontSize:40, marginBottom:12, opacity:.4 }}>♠</div>
               {!mounted || !address ? (
-                <div style={{ color:'#3a6a3a', fontSize:12 }}>
+                <div style={{ color:'#3a6a3a', fontSize:13, fontWeight:500 }}>
                   Connect your wallet to see live tables
                 </div>
               ) : !wsConnected ? (
-                <div style={{ color:'#3a6a3a', fontSize:12 }}>
-                  <div style={{ fontSize:24, marginBottom:8 }}>♠</div>
-                  Connecting to game server…
+                <div>
+                  <div style={{ color:'#3a6a3a', fontSize:13, fontWeight:500, marginBottom:4 }}>
+                    Connecting to game server…
+                  </div>
+                  <div style={{ fontSize:10, color:'#1a3a1a' }}>
+                    Make sure the server is running
+                  </div>
                 </div>
               ) : (
-                <div style={{ color:'#3a6a3a', fontSize:12 }}>No tables yet — be the first!</div>
+                <div>
+                  <div style={{ color:'#5a8a5a', fontSize:13, fontWeight:500, marginBottom:8 }}>
+                    No tables yet — be the first!
+                  </div>
+                  <button onClick={() => setShowCreate(true)} style={{
+                    background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
+                    border:'1px solid #d4af3744', borderRadius:8,
+                    padding:'8px 20px', cursor:'pointer',
+                    color:'#d4af37', fontSize:12, fontWeight:700, fontFamily:'inherit',
+                  }}>
+                    Create Table
+                  </button>
+                </div>
               )}
             </div>
           )}
         </div>
 
-        {/* Lease a room CTA */}
+        {/* Private rooms CTA */}
         <div style={{
-          marginTop:32, padding:'24px',
-          background:'#0c1e0c', border:'1px solid #1a3a1a', borderRadius:12,
+          marginTop:32, padding:'20px 24px',
+          background:'linear-gradient(135deg,#0c1a0c,#0a180a)',
+          border:'1px solid #1a3a1a', borderRadius:12,
           display:'flex', alignItems:'center', justifyContent:'space-between',
           flexWrap:'wrap', gap:16,
         }}>
           <div>
-            <div style={{ fontSize:14, color:'#d4af37', fontWeight:700, marginBottom:4 }}>
-              Host a Private Room
+            <div style={{ fontSize:13, color:'#d4af37', fontWeight:700, marginBottom:4 }}>
+              🏠 Host a Private Room
             </div>
-            <div style={{ fontSize:11, color:'#5a8a5a', maxWidth:400 }}>
-              Lease a private room for 100 CHIPS/week. Set custom buy-ins, NFT-gate for your community, and earn a share of the rake.
+            <div style={{ fontSize:11, color:'#5a8a5a', maxWidth:380, lineHeight:1.6 }}>
+              100 CHIPS/week — set custom buy-ins, NFT-gate for your community.
             </div>
           </div>
           <Link href="/stake" style={{
             background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
             border:'1px solid #d4af3744', borderRadius:8,
-            padding:'10px 24px', textDecoration:'none',
-            color:'#d4af37', fontSize:12, fontWeight:700, letterSpacing:.5,
+            padding:'9px 20px', textDecoration:'none',
+            color:'#d4af37', fontSize:12, fontWeight:700, letterSpacing:.3,
+            whiteSpace:'nowrap',
           }}>
             Lease a Room →
           </Link>
@@ -361,3 +457,6 @@ export default function LobbyPage() {
     </div>
   );
 }
+
+// Helper for responsive font size (avoids clamp SSR issues)
+function clamp(min, max) { return max; }
