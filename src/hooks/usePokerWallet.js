@@ -399,6 +399,10 @@ export function useCreateTable() {
 
   const createTable = useCallback(async ({ buyIn, bigBlind, maxPlayers, gameType }) => {
     if (!address) return null;
+    if (!ESCROW) {
+      alert('Contract addresses not configured. Run "npm run setup:env" in your Codespace terminal, then restart the dev server.');
+      return null;
+    }
     setStatus('pending');
     try {
       const buyInBN    = parseUnits(String(buyIn), 18);
