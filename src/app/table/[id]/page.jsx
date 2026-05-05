@@ -152,7 +152,10 @@ function HandOverOverlay({ handOver, onDismiss }) {
 export default function TablePage() {
   const { id }   = useParams();
   const router   = useRouter();
-  const { address } = useAccount();
+  const { address: rawAddress } = useAccount();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const address = mounted ? rawAddress : undefined;
 
   const { gameState, handOver, wsStatus, wsError, sendAction, leaveTable } = useTableSocket(id);
 

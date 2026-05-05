@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import WalletBar from '../../components/WalletBar';
 import { useAccount } from 'wagmi';
 
@@ -88,6 +88,8 @@ function LeaderRow({ entry, isHero }) {
 export default function LeaderboardPage() {
   const { address } = useAccount();
   const [period, setPeriod] = useState('all');
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const periods = [
     { id:'all',   label:'All Time' },
@@ -95,9 +97,9 @@ export default function LeaderboardPage() {
     { id:'week',  label:'This Week' },
   ];
 
-  const heroEntry = MOCK_DATA.find(e =>
+  const heroEntry = mounted ? MOCK_DATA.find(e =>
     e.addr.toLowerCase() === address?.toLowerCase()
-  );
+  ) : null;
 
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg-deep)' }}>
@@ -177,13 +179,13 @@ export default function LeaderboardPage() {
             <LeaderRow
               key={e.rank}
               entry={e}
-              isHero={e.addr.toLowerCase() === address?.toLowerCase()}
+              isHero={mounted && e.addr.toLowerCase() === address?.toLowerCase()}
             />
           ))}
         </div>
 
         {/* Your position (if not in top 10) */}
-        {address && !heroEntry && (
+        {mounted && address && !heroEntry && (
           <div style={{
             marginTop:12, padding:'12px 16px',
             background:'rgba(212,175,55,.04)', border:'1px solid #d4af3722',

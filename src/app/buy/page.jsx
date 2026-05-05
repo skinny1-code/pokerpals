@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import WalletBar from '../../components/WalletBar';
 import { useWallet } from '../../hooks/usePokerWallet';
 import Link from 'next/link';
@@ -51,6 +51,8 @@ export default function BuyPage() {
   const { address, chipsBalance } = useWallet();
   const [tab, setTab] = useState('swap');
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const copy = () => {
     navigator.clipboard.writeText(CHIPS || '');
@@ -75,7 +77,7 @@ export default function BuyPage() {
           <p style={{ fontSize: 12, color: '#5a8a5a' }}>
             CHIPS is used for all tables, buy-ins, and staking on PokerVsPals.
           </p>
-          {address && (
+          {mounted && address && (
             <div style={{ marginTop: 10, fontSize: 12, color: '#6a9a6a' }}>
               Your balance: <span style={{ color: '#d4af37', fontWeight: 700 }}>
                 {chipsBalance?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}
@@ -211,7 +213,7 @@ export default function BuyPage() {
                 </span>
               )}
             </div>
-            <TransakWidget walletAddress={address} />
+            <TransakWidget walletAddress={mounted ? address : undefined} />
             <div style={{ marginTop: 12, fontSize: 11, color: '#3a6a3a', textAlign: 'center' }}>
               After purchasing ETH, go to the Swap tab to exchange it for CHIPS.
             </div>
@@ -242,7 +244,7 @@ export default function BuyPage() {
                 </div>
                 <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11,
                   color: '#a8c8a8', wordBreak: 'break-all' }}>
-                  {`FAUCET_TO=${address || '0xYOUR_ADDRESS'} npm run faucet`}
+                  {`FAUCET_TO=${mounted && address ? address : '0xYOUR_ADDRESS'} npm run faucet`}
                 </div>
               </div>
             </div>

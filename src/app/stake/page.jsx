@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import WalletBar from '../../components/WalletBar';
 import { useWallet, useStaking } from '../../hooks/usePokerWallet';
 
@@ -169,6 +169,8 @@ export default function StakePage() {
   } = useStaking();
 
   const [selectedTier, setSelectedTier] = useState(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const isLocked = lockedUntil > Date.now() / 1000;
   const unlockDate = isLocked ? new Date(lockedUntil * 1000).toLocaleDateString() : null;
@@ -211,7 +213,7 @@ export default function StakePage() {
         </div>
 
         {/* Stats bar */}
-        {isConnected && (
+        {mounted && isConnected && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))',
             gap: 8, marginBottom: 24 }}>
             {[
@@ -282,7 +284,7 @@ export default function StakePage() {
           </div>
         </div>
 
-        {!isConnected && (
+        {mounted && !isConnected && (
           <div style={{ textAlign: 'center', padding: '32px 0', color: '#3a6a3a', fontSize: 12 }}>
             Connect your wallet to see your staking position
           </div>
