@@ -7,13 +7,11 @@ import { createConfig, http, useAccount, useConnect, useDisconnect,
          useBalance, useSignMessage } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
-import { injected, walletConnect } from "wagmi/connectors";
+import { injected } from "wagmi/connectors";
 import { parseUnits, formatUnits } from "viem";
 
 // ─── WAGMI CONFIG (export and wrap your app in <WagmiProvider config={wagmiConfig}>) ──
-const _wcId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 const _connectors = [injected()];
-if (_wcId) _connectors.push(walletConnect({ projectId: _wcId }));
 
 export const wagmiConfig = createConfig({
   chains:     [arbitrum, arbitrumSepolia],
