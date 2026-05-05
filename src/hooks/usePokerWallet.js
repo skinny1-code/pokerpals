@@ -436,16 +436,19 @@ export function useTableSocket(tableId) {
   const { signMessageAsync } = useSignMessage();
   const serverUrl            = process.env.NEXT_PUBLIC_WS_URL;
 
-  const [gameState,      setGameState]      = useState(null);
-  const [handOver,       setHandOver]       = useState(null);
-  const [tableList,      setTableList]      = useState([]);
-  const [wsStatus,       setWsStatus]       = useState('disconnected');
-  const [wsError,        setWsError]        = useState(null);
-  const [cashoutSig,     setCashoutSig]     = useState(null); // { amount, sig, nonce, tableId }
-  const [cashoutLocked,  setCashoutLocked]  = useState(null); // { handsRemaining } or null
-  const [tableLocked,    setTableLocked]    = useState(false); // creator can't leave
-  const [refundAvailable, setRefundAvailable] = useState(false); // Open table, call refund()
-  const wsRef = useRef(null);
+  const [gameState,       setGameState]       = useState(null);
+  const [handOver,        setHandOver]        = useState(null);
+  const [tableList,       setTableList]       = useState([]);
+  const [wsStatus,        setWsStatus]        = useState('disconnected');
+  const [wsError,         setWsError]         = useState(null);
+  const [cashoutSig,      setCashoutSig]      = useState(null);
+  const [cashoutLocked,   setCashoutLocked]   = useState(null);
+  const [tableLocked,     setTableLocked]     = useState(false);
+  const [refundAvailable, setRefundAvailable] = useState(false);
+  const [seatPickerData,  setSeatPickerData]  = useState(null); // { maxPlayers, takenSeats }
+  const [reconnectKey,    setReconnectKey]    = useState(0);
+  const wsRef      = useRef(null);
+  const authCacheRef = useRef(null); // { address, nonce, signature } — reused on reconnect
 
   useEffect(() => {
     if (!serverUrl || !address) return;
@@ -457,9 +460,15 @@ export function useTableSocket(tableId) {
     ws.onopen = async () => {
       setWsStatus('connected');
       try {
-        const nonce     = Date.now().toString();
-        const signature = await signMessageAsync({ message: `PPP-AUTH:${nonce}` });
-        ws.send(JSON.stringify({ type: 'AUTH', payload: { address, signature, nonce } }));
+        // Reuse cached sig for same address to avoid repeated MetaMask popups on reconnect
+        let auth = authCacheRef.current;
+        if (!auth || auth.address !== address) {
+          const nonce     = Date.now().toString();
+          const signature = await signMessageAsync({ message: `PPP-AUTH:${nonce}` });
+          auth = { address, nonce, signature };
+          authCacheRef.current = auth;
+        }
+        ws.send(JSON.stringify({ type: 'AUTH', payload: auth }));
       } catch {
         setWsError('Wallet signature required to connect');
         ws.close();
@@ -476,23 +485,21 @@ export function useTableSocket(tableId) {
             else         ws.send(JSON.stringify({ type: 'LIST_TABLES' }));
             break;
           case 'AUTH_FAIL':
+            // Clear cache so next attempt prompts a fresh sign
+            authCacheRef.current = null;
             setWsError('Authentication failed — check wallet signature');
             break;
           case 'GAME_STATE': {
             setGameState(msg.state);
+            setSeatPickerData(null); // seated — dismiss picker
             setHandOver(null);
-            // Sync lock state with authoritative server state
             if (msg.state && address) {
               const hero = msg.state.players?.find(
                 p => p.addr?.toLowerCase() === address.toLowerCase()
               );
               if (hero) {
                 const locked = (hero.cashoutLockedUntil ?? 0) > (msg.state.handNonce ?? 0);
-                if (locked) {
-                  setCashoutLocked({ handsRemaining: (hero.cashoutLockedUntil ?? 0) - (msg.state.handNonce ?? 0) });
-                } else {
-                  setCashoutLocked(null);
-                }
+                setCashoutLocked(locked ? { handsRemaining: (hero.cashoutLockedUntil ?? 0) - (msg.state.handNonce ?? 0) } : null);
               }
               if (!msg.state.anyLocked) setTableLocked(false);
             }
@@ -513,8 +520,10 @@ export function useTableSocket(tableId) {
           case 'REFUND_AVAILABLE':
             setRefundAvailable(true);
             break;
+          case 'SEAT_PICKER':
+            setSeatPickerData({ maxPlayers: msg.maxPlayers, takenSeats: msg.takenSeats || [] });
+            break;
           case 'REBUY_OK':
-            // Stack update is reflected via next GAME_STATE broadcast; nothing extra needed
             break;
           case 'TABLE_LIST':
             setTableList(msg.tables || []);
@@ -526,11 +535,19 @@ export function useTableSocket(tableId) {
       } catch {}
     };
 
-    ws.onclose  = () => { setWsStatus('disconnected'); wsRef.current = null; };
-    ws.onerror  = () => setWsError('Connection error');
+    ws.onclose = () => {
+      setWsStatus('disconnected');
+      wsRef.current = null;
+      // Auto-reconnect after 3s (no new sign needed — cached auth is reused)
+      setTimeout(() => setReconnectKey(k => k + 1), 3000);
+    };
+    ws.onerror = () => setWsError('Connection error');
 
-    return () => { ws.close(); };
-  }, [serverUrl, address, tableId]);
+    return () => {
+      ws.onclose = null; // prevent reconnect loop on intentional cleanup
+      ws.close();
+    };
+  }, [serverUrl, address, tableId, reconnectKey]);
 
   const sendAction = useCallback((action, amount) => {
     if (wsRef.current?.readyState === WebSocket.OPEN)
@@ -552,11 +569,17 @@ export function useTableSocket(tableId) {
       wsRef.current.send(JSON.stringify({ type: 'LIST_TABLES' }));
   }, []);
 
+  const joinWithSeat = useCallback((seatIndex) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN)
+      wsRef.current.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, seatIndex } }));
+  }, [tableId]);
+
   return {
     gameState, handOver, tableList, wsStatus, wsError,
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
-    sendAction, leaveTable, sendRebuyConfirmed, refreshTables,
+    seatPickerData,
+    sendAction, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat,
   };
 }
 

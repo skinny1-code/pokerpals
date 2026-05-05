@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import WalletBar from '../components/WalletBar';
-import { useTableSocket, useCreateTable } from '../hooks/usePokerWallet';
+import { useCreateTable } from '../hooks/usePokerWallet';
 import { useAccount } from 'wagmi';
 
 const GAME_LABEL = { 0:"No Limit Hold'em", 1:'Pot Limit Omaha' };
@@ -235,17 +235,25 @@ function CreateTableModal({ onClose }) {
 
 export default function LobbyPage() {
   const { address } = useAccount();
-  const { tableList, wsStatus, refreshTables } = useTableSocket(null);
+  const [tableList, setTableList] = useState([]);
+  const [serverOnline, setServerOnline] = useState(false);
   const [filter, setFilter]     = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [mounted, setMounted]   = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
+  // Poll server for table list via plain HTTP — no WS auth required
+  const serverBase = (process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000').replace(/^ws/, 'http');
   useEffect(() => {
-    if (wsStatus !== 'authed') return;
-    const t = setInterval(refreshTables, 8000);
+    const poll = () =>
+      fetch(`${serverBase}/tables`)
+        .then(r => r.json())
+        .then(d => { setTableList(d.tables || []); setServerOnline(true); })
+        .catch(() => setServerOnline(false));
+    poll();
+    const t = setInterval(poll, 8000);
     return () => clearInterval(t);
-  }, [wsStatus, refreshTables]);
+  }, [serverBase]);
 
   const filters = [
     { id:'all',  label:"All Tables" },
@@ -267,7 +275,6 @@ export default function LobbyPage() {
 
   const liveCount  = tableList.filter(t => t.phase && t.phase !== 'waiting').length;
   const totalSeated = tableList.reduce((s,t) => s + (t.seated||0), 0);
-  const wsConnected = wsStatus === 'authed';
 
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg-deep)' }}>
@@ -316,7 +323,7 @@ export default function LobbyPage() {
               }}>
                 <div style={{ fontSize:20, color:'#d4af37', fontWeight:700,
                   fontFamily:"'JetBrains Mono',monospace", lineHeight:1.2 }}>
-                  {wsConnected ? s.value : '—'}
+                  {serverOnline ? s.value : '—'}
                 </div>
                 <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:1, marginTop:2, fontWeight:600 }}>
                   {s.label.toUpperCase()}
@@ -372,12 +379,12 @@ export default function LobbyPage() {
           <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:10, color:'#3a6a3a' }}>
             <div style={{
               width:6, height:6, borderRadius:'50%',
-              background: wsConnected ? '#27ae60' : '#3a6a3a',
-              boxShadow: wsConnected ? '0 0 6px #27ae60' : 'none',
-              animation: wsConnected ? 'live-dot 2s infinite' : 'none',
+              background: serverOnline ? '#27ae60' : '#3a6a3a',
+              boxShadow: serverOnline ? '0 0 6px #27ae60' : 'none',
+              animation: serverOnline ? 'live-dot 2s infinite' : 'none',
             }} />
             <span style={{ fontWeight:600 }}>
-              {wsConnected ? 'Live' : mounted && address ? 'Connecting…' : 'Not connected'}
+              {serverOnline ? 'Live' : mounted && address ? 'Connecting…' : 'Not connected'}
             </span>
           </div>
         </div>
@@ -393,17 +400,13 @@ export default function LobbyPage() {
               borderRadius:12,
             }}>
               <div style={{ fontSize:40, marginBottom:12, opacity:.4 }}>♠</div>
-              {!mounted || !address ? (
-                <div style={{ color:'#3a6a3a', fontSize:13, fontWeight:500 }}>
-                  Connect your wallet to see live tables
-                </div>
-              ) : !wsConnected ? (
+              {!serverOnline ? (
                 <div>
                   <div style={{ color:'#3a6a3a', fontSize:13, fontWeight:500, marginBottom:4 }}>
                     Connecting to game server…
                   </div>
                   <div style={{ fontSize:10, color:'#1a3a1a' }}>
-                    Make sure the server is running
+                    Make sure <code>npm run server</code> is running
                   </div>
                 </div>
               ) : (

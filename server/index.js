@@ -165,17 +165,23 @@ class PokerTable {
     this.isActive     = false;  // mirrors on-chain TableStatus.Active
   }
 
-  seat(player) {
+  seat(player, preferredSeat) {
     if (this.players.length >= this.config.maxPlayers) return false;
     if (this.players.find(p => p.addr === player.addr)) return false;
     if (this.players.length === 0) this.creator = player.addr;
     const chips = player.onChainDeposit ?? this.config.buyIn;
+    // Assign seat position: use preferred if free, else first open slot
+    const taken = new Set(this.players.map(p => p.seatIndex));
+    let seatIndex = (preferredSeat != null && !taken.has(preferredSeat))
+      ? preferredSeat
+      : [...Array(this.config.maxPlayers).keys()].find(i => !taken.has(i)) ?? 0;
     this.players.push({
       ...player,
       chips,
       onChainDeposit: chips,
       hand: [], bet: 0, folded: false, allIn: false, actionLabel: '',
       cashoutLockedUntil: 0,
+      seatIndex,
     });
     return true;
   }
@@ -357,6 +363,7 @@ class PokerTable {
         allIn:              p.allIn,
         actionLabel:        p.actionLabel,
         cashoutLockedUntil: p.cashoutLockedUntil ?? 0,
+        seatIndex:          p.seatIndex ?? null,
         hand: p.addr === forAddr || this.phase === 'showdown'
           ? p.hand
           : p.hand.map(() => '??'),
@@ -370,8 +377,18 @@ const tables  = new Map();
 const clients = new Map(); // ws => { addr, tableId }
 
 const server = createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ service: 'PokerPartyPals WS', tables: tables.size }));
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.url === '/tables') {
+    const list = [...tables.values()].map(t => ({
+      id: String(t.id), config: t.config, seated: t.players.length, phase: t.phase,
+    }));
+    res.writeHead(200);
+    res.end(JSON.stringify({ tables: list }));
+  } else {
+    res.writeHead(200);
+    res.end(JSON.stringify({ service: 'PokerPartyPals WS', tables: tables.size }));
+  }
 });
 
 const wss = new WebSocketServer({ server });
@@ -396,13 +413,18 @@ async function signAndRemovePlayer(t, addr, ws) {
   const p = t.players.find(x => x.addr === addr);
   if (!p) return;
 
-  // If table isn't Active on-chain yet, player must call refund() themselves
+  // If table isn't Active on-chain yet, handle by intent:
+  // - Intentional leave (ws open) → remove player, signal refund
+  // - WS disconnect (ws null/closed) → keep player seated, just null their ws
   if (!t.isActive) {
-    t.players = t.players.filter(x => x.addr !== addr);
-    if (ws?.readyState === WebSocket.OPEN)
+    if (ws?.readyState === WebSocket.OPEN) {
+      t.players = t.players.filter(x => x.addr !== addr);
       send(ws, { type: 'REFUND_AVAILABLE', tableId: String(t.id) });
-    if (t.players.length === 0) tables.delete(t.id);
-    broadcastTable(t);
+      if (t.players.length === 0) tables.delete(t.id);
+      broadcastTable(t);
+    } else {
+      p.ws = null; // keep seated; they can reconnect and resume waiting
+    }
     return;
   }
 
@@ -431,7 +453,8 @@ async function signAndRemovePlayer(t, addr, ws) {
     t.foldPlayer(addr);
     const result = t.advance();
     if (result?.winners) {
-      await handleHandOver(t, result);
+      try { await handleHandOver(t, result); }
+      catch (e) { console.error('[Server] handleHandOver in signAndRemovePlayer:', e.message); }
     }
   }
 
@@ -544,7 +567,7 @@ wss.on('connection', (ws) => {
       }
 
       case 'JOIN_TABLE': {
-        const { tableId } = payload;
+        const { tableId, seatIndex } = payload;
         const tidKey = String(tableId);
         let t = tables.get(tidKey);
 
@@ -584,7 +607,9 @@ wss.on('connection', (ws) => {
           return send(ws, { type: 'ERROR', error: 'Could not verify buy-in' });
         }
         if (onChainDeposit === 0) {
-          return send(ws, { type: 'ERROR', error: 'Buy in on-chain first' });
+          // Player hasn't bought in yet — send current seat occupancy so UI can show seat picker
+          const takenSeats = t.players.map(p => ({ addr: p.addr, seatIndex: p.seatIndex }));
+          return send(ws, { type: 'SEAT_PICKER', tableId: tidKey, maxPlayers: t.config.maxPlayers, takenSeats });
         }
 
         // Deliver pending cashout if this player has one from a prior disconnection
@@ -600,7 +625,7 @@ wss.on('connection', (ws) => {
           return;
         }
 
-        const seated = t.seat({ addr, ws, onChainDeposit });
+        const seated = t.seat({ addr, ws, onChainDeposit }, seatIndex ?? null);
         if (!seated) return send(ws, { type: 'ERROR', error: 'Cannot join table' });
 
         clients.set(ws, { ...client, tableId: tidKey });
