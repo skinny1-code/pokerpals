@@ -19,6 +19,10 @@ npm run server               # start WebSocket game server (server/index.js) —
 npm run oracle               # start anti-bot oracle as a separate process (server/antiBotOracle.js)
 npm run dev                  # Next.js dev server
 npm run build                # production Next.js build
+
+npm run faucet               # send 10,000 CHIPS to deployer (testnet only)
+FAUCET_TO=0xADDR npm run faucet                      # send 10,000 CHIPS to 0xADDR
+FAUCET_TO=0xADDR FAUCET_AMOUNT=50000 npm run faucet  # send 50,000 CHIPS to 0xADDR
 ```
 
 ### First-time testnet setup
