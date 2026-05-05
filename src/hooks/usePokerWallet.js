@@ -88,6 +88,10 @@ export const ESCROW_ABI = [
     ]},
   { name:"tableCount", type:"function", stateMutability:"view",
     inputs:[], outputs:[{type:"uint256"}] },
+  { name:"tableRoom", type:"function", stateMutability:"view",
+    inputs:[{name:"tableId",type:"uint256"}], outputs:[{type:"uint256"}] },
+  { name:"seatFeeCHIPS", type:"function", stateMutability:"view",
+    inputs:[], outputs:[{type:"uint256"}] },
   { name:"TableCreated", type:"event",
     inputs:[
       {name:"id",type:"uint256",indexed:true},
@@ -242,23 +246,25 @@ export function useEscrow(tableId) {
 
   const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
-  // Approve + BuyIn in one flow
+  // Read whether table is leased (resolved later in hook; use ref so buyIn callback is stable)
+  const seatFeeRef = useRef(0n);
+
   const buyIn = useCallback(async (buyInAmount) => {
     if (!address || !tableId) return;
     try {
       setStatus('approving');
-      const amountBN = parseUnits(String(buyInAmount), 18);
-      const seatFee  = parseUnits("2", 18); // PokerEscrow.seatFeeCHIPS = 2 CHIPS
+      const amountBN    = parseUnits(String(buyInAmount), 18);
+      const seatFeeAmt  = seatFeeRef.current; // 0 for open tables, >0 for leased tables
       // Fetch live gas fees with 20% buffer to avoid base fee underrun
       const fees = await publicClient.estimateFeesPerGas();
       const feeOverrides = {
         maxFeePerGas:         fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined,
         maxPriorityFeePerGas: fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined,
       };
-      // Step 1: Approve escrow to spend buyIn + seat fee
+      // Step 1: Approve escrow to spend only what's needed
       const approveTx = await writeContractAsync({
         address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
-        args: [ESCROW, amountBN + seatFee],
+        args: [ESCROW, amountBN + seatFeeAmt],
         ...feeOverrides,
       });
       setTxHash(approveTx);
@@ -300,7 +306,24 @@ export function useEscrow(tableId) {
     query: { enabled: !!tableId, refetchInterval: 5000 },
   });
 
-  return { buyIn, refund, txHash, status, confirmed, tableInfo };
+  const { data: tableRoomId } = useReadContract({
+    address: ESCROW, abi: ESCROW_ABI, functionName: "tableRoom",
+    args: [BigInt(tableId || 0)],
+    query: { enabled: !!tableId },
+  });
+
+  const { data: seatFeeOnChain } = useReadContract({
+    address: ESCROW, abi: ESCROW_ABI, functionName: "seatFeeCHIPS",
+    query: { enabled: !!ESCROW },
+  });
+
+  const isLeased = tableRoomId != null && tableRoomId > 0n;
+  const seatFee  = isLeased ? (seatFeeOnChain ?? parseUnits("2", 18)) : 0n;
+
+  // Keep seatFeeRef in sync so the buyIn callback always has the latest value
+  useEffect(() => { seatFeeRef.current = seatFee; }, [seatFee]);
+
+  return { buyIn, refund, txHash, status, confirmed, tableInfo, isLeased, seatFee };
 }
 
 // ─── HOOK: TABLE WEBSOCKET ────────────────────────────────────────────────────

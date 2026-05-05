@@ -159,16 +159,19 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
             require(tableRegistry.canSit(roomId, msg.sender), "Room access denied");
         }
 
-        uint256 total = t.buyInAmount + seatFeeCHIPS;
-        chipsToken.safeTransferFrom(msg.sender, address(this), total);
-        chipsToken.safeTransfer(rakeRecipient, seatFeeCHIPS);
-        totalSeatFeesCollected += seatFeeCHIPS;
+        // Seat fee applies only to leased tables; open tables are free to join
+        uint256 fee = roomId != 0 ? seatFeeCHIPS : 0;
+        chipsToken.safeTransferFrom(msg.sender, address(this), t.buyInAmount + fee);
+        if (fee > 0) {
+            chipsToken.safeTransfer(rakeRecipient, fee);
+            totalSeatFeesCollected += fee;
+        }
 
         t.deposits[msg.sender] = t.buyInAmount;
         t.chips[msg.sender]    = t.buyInAmount;
         t.potTotal            += t.buyInAmount;
         t.players.push(msg.sender);
-        emit PlayerJoined(tableId, msg.sender, t.buyInAmount, seatFeeCHIPS);
+        emit PlayerJoined(tableId, msg.sender, t.buyInAmount, fee);
         if (t.players.length == t.maxPlayers) t.status = TableStatus.Active;
     }
 
@@ -176,10 +179,13 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         Table storage t = tables[tableId];
         require(t.status == TableStatus.Active, "Not active");
         require(t.deposits[msg.sender] > 0, "Not seated");
-        uint256 fee = seatFeeCHIPS / 2;
+        // Rebuy fee only for leased tables
+        uint256 fee = tableRoom[tableId] != 0 ? seatFeeCHIPS / 2 : 0;
         chipsToken.safeTransferFrom(msg.sender, address(this), amount + fee);
-        chipsToken.safeTransfer(rakeRecipient, fee);
-        totalSeatFeesCollected += fee;
+        if (fee > 0) {
+            chipsToken.safeTransfer(rakeRecipient, fee);
+            totalSeatFeesCollected += fee;
+        }
         t.deposits[msg.sender] += amount;
         t.chips[msg.sender]    += amount;
         t.potTotal             += amount;
