@@ -22,6 +22,7 @@ export const wagmiConfig = createConfig({
     [arbitrumSepolia.id]: http(),
   },
   connectors: _connectors,
+  ssr: true,  // prevents wagmi from reading localStorage during SSR hydration
 });
 
 // ─── ABIs ─────────────────────────────────────────────────────────────────────
