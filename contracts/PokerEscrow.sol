@@ -104,6 +104,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     event HumanVerified(address indexed player, bool status);
     event RakebackClaimed(address indexed player, uint256 amount);
     event RakebackPoolFunded(uint256 amount);
+    event TableClosed(uint256 indexed id);
 
     error NotHuman(address p);
     error TableNotOpen(uint256 id);
@@ -333,6 +334,16 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         }
         chipsToken.safeTransfer(player, amount);
         emit PlayerCashedOut(tableId, player, amount);
+    }
+
+    /// @notice Close a table once all funds have been withdrawn (potTotal == 0).
+    ///         Callable by anyone to clean up settled tables.
+    function closeTable(uint256 tableId) external nonReentrant {
+        Table storage t = tables[tableId];
+        require(t.status != TableStatus.Closed, "Already closed");
+        require(t.potTotal == 0, "Funds remain");
+        t.status = TableStatus.Closed;
+        emit TableClosed(tableId);
     }
 
     // ─── RAKEBACK ─────────────────────────────────────────────────────────────

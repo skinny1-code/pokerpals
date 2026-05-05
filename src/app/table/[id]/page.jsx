@@ -161,9 +161,10 @@ export default function TablePage() {
   const {
     gameState, handOver, wsStatus, wsError,
     cashoutSig, setCashoutSig,
+    cashoutLocked, tableLocked, refundAvailable,
     sendAction, leaveTable, sendRebuyConfirmed,
   } = useTableSocket(id);
-  const { rebuy, cashOut, status: escrowStatus } = useEscrow(id);
+  const { rebuy, cashOut, refund, status: escrowStatus } = useEscrow(id);
 
   const [showRebuy, setShowRebuy] = useState(false);
   const [rebuyAmt, setRebuyAmt]   = useState('');
@@ -236,6 +237,11 @@ export default function TablePage() {
     await rebuy(amt, sendRebuyConfirmed);
     setRebuyAmt('');
   }, [rebuyAmt, rebuy, sendRebuyConfirmed]);
+
+  const handleRefund = useCallback(async () => {
+    await refund();
+    router.push('/');
+  }, [refund, router]);
 
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg-deep)', display:'flex', flexDirection:'column' }}>
@@ -437,17 +443,48 @@ export default function TablePage() {
             </div>
           )}
 
-          {/* Leave */}
-          {!cashoutSig && (
-            <button onClick={handleLeave} style={{
-              background:'transparent', border:'1px solid #3a1a1a',
-              borderRadius:6, padding:'8px', cursor:'pointer',
-              color:'#6a4a4a', fontSize:11, fontFamily:'inherit', transition:'all .15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color='#e74c3c'; e.currentTarget.style.borderColor='#c0392b'; }}
-            onMouseLeave={e => { e.currentTarget.style.color='#6a4a4a'; e.currentTarget.style.borderColor='#3a1a1a'; }}>
-              Leave Table
+          {/* Creator lock notice */}
+          {tableLocked && mounted && address?.toLowerCase() === gameState?.creator?.toLowerCase() && (
+            <div style={{
+              background:'rgba(230,126,34,.08)', border:'1px solid #e67e2244',
+              borderRadius:8, padding:'10px 12px', fontSize:10, color:'#e67e22', lineHeight:1.5,
+            }}>
+              🔒 Table locked — a player must play 7 hands or all others must leave before you can close this table.
+            </div>
+          )}
+
+          {/* Refund available (table not yet active) */}
+          {refundAvailable && !cashoutSig && (
+            <button onClick={handleRefund} disabled={escrowStatus !== 'idle'} style={{
+              background:'rgba(212,175,55,.08)', border:'1px solid #d4af3766',
+              borderRadius:6, padding:'8px', cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer',
+              color:'#d4af37', fontSize:11, fontFamily:'inherit', fontWeight:700,
+            }}>
+              {escrowStatus !== 'idle' ? 'Processing…' : 'Claim Refund'}
             </button>
+          )}
+
+          {/* Leave — locked badge or button */}
+          {!cashoutSig && !refundAvailable && (
+            cashoutLocked ? (
+              <div style={{
+                background:'rgba(230,126,34,.08)', border:'1px solid #e67e2244',
+                borderRadius:6, padding:'8px 12px', textAlign:'center',
+                fontSize:11, color:'#e67e22', fontWeight:700,
+              }}>
+                🔒 Locked — {cashoutLocked.handsRemaining} hand{cashoutLocked.handsRemaining !== 1 ? 's' : ''} remaining
+              </div>
+            ) : (
+              <button onClick={handleLeave} style={{
+                background:'transparent', border:'1px solid #3a1a1a',
+                borderRadius:6, padding:'8px', cursor:'pointer',
+                color:'#6a4a4a', fontSize:11, fontFamily:'inherit', transition:'all .15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color='#e74c3c'; e.currentTarget.style.borderColor='#c0392b'; }}
+              onMouseLeave={e => { e.currentTarget.style.color='#6a4a4a'; e.currentTarget.style.borderColor='#3a1a1a'; }}>
+                Leave Table
+              </button>
+            )
           )}
         </div>
       </div>

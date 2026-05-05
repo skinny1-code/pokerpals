@@ -40,6 +40,7 @@ const ESCROW_ABI = [
   "function getTableInfo(uint256 id) external view returns (uint256 tableId, uint256 buyInAmount, uint256 bigBlind, uint8 maxPlayers, uint8 gameType, uint8 status, uint256 potTotal, uint256 handNonce, uint8 playerCount)",
   "function getPlayerDeposit(uint256 tableId, address player) external view returns (uint256)",
   "function markHuman(address,bool) external",
+  "function closeTable(uint256) external",
 ];
 const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, operator);
 
@@ -148,7 +149,7 @@ class PokerTable {
   constructor(id, config) {
     this.id           = id;
     this.config       = config; // { buyIn, bigBlind, maxPlayers, gameType }
-    this.players      = [];     // { addr, ws, chips, onChainDeposit, hand, bet, folded, allIn, actionLabel }
+    this.players      = [];     // { addr, ws, chips, onChainDeposit, hand, bet, folded, allIn, actionLabel, cashoutLockedUntil }
     this.deck         = [];
     this.community    = [];
     this.pot          = 0;
@@ -160,18 +161,21 @@ class PokerTable {
     this.sideLog      = [];
     this.cashOutNonces   = new Map(); // addr => nonce
     this.pendingCashouts = new Map(); // addr => { amount, sig, nonce, tableId }
+    this.creator      = null;   // first player to sit
+    this.isActive     = false;  // mirrors on-chain TableStatus.Active
   }
 
   seat(player) {
     if (this.players.length >= this.config.maxPlayers) return false;
     if (this.players.find(p => p.addr === player.addr)) return false;
-    // Use the verified on-chain deposit as the starting chip stack
+    if (this.players.length === 0) this.creator = player.addr;
     const chips = player.onChainDeposit ?? this.config.buyIn;
     this.players.push({
       ...player,
       chips,
       onChainDeposit: chips,
       hand: [], bet: 0, folded: false, allIn: false, actionLabel: '',
+      cashoutLockedUntil: 0,
     });
     return true;
   }
@@ -342,13 +346,17 @@ class PokerTable {
       activeAddr: activePlayer?.addr || null,
       dealerAddr: this.players[this.dealerIdx]?.addr || null,
       config:     this.config,
+      creator:    this.creator ?? null,
+      handNonce:  this.handNonce,
+      anyLocked:  this.players.some(p => (p.cashoutLockedUntil ?? 0) > this.handNonce),
       players: this.players.map(p => ({
-        addr:        p.addr,
-        chips:       p.chips,
-        bet:         p.bet,
-        folded:      p.folded,
-        allIn:       p.allIn,
-        actionLabel: p.actionLabel,
+        addr:               p.addr,
+        chips:              p.chips,
+        bet:                p.bet,
+        folded:             p.folded,
+        allIn:              p.allIn,
+        actionLabel:        p.actionLabel,
+        cashoutLockedUntil: p.cashoutLockedUntil ?? 0,
         hand: p.addr === forAddr || this.phase === 'showdown'
           ? p.hand
           : p.hand.map(() => '??'),
@@ -388,11 +396,39 @@ async function signAndRemovePlayer(t, addr, ws) {
   const p = t.players.find(x => x.addr === addr);
   if (!p) return;
 
+  // If table isn't Active on-chain yet, player must call refund() themselves
+  if (!t.isActive) {
+    t.players = t.players.filter(x => x.addr !== addr);
+    if (ws?.readyState === WebSocket.OPEN)
+      send(ws, { type: 'REFUND_AVAILABLE', tableId: String(t.id) });
+    if (t.players.length === 0) tables.delete(t.id);
+    broadcastTable(t);
+    return;
+  }
+
+  // Anti-snipe lock check
+  const lockedUntil    = p.cashoutLockedUntil ?? 0;
+  const handsLocked    = lockedUntil > t.handNonce;
+  // Unlock condition 2: this is the last player — nobody else remains to hold them
+  const othersLeft     = t.players.filter(x => x.addr !== addr).length;
+  const everyoneElseLeft = othersLeft === 0;
+
+  if (handsLocked && !everyoneElseLeft) {
+    if (ws?.readyState === WebSocket.OPEN)
+      send(ws, {
+        type: 'CASHOUT_LOCKED',
+        handsRemaining: lockedUntil - t.handNonce,
+        tableId: String(t.id),
+      });
+    return; // stay seated
+  }
+  // Lock lifted — clear it so it doesn't linger
+  p.cashoutLockedUntil = 0;
+
   const amount = p.chips;
   // If it's their turn in an active hand, fold them first
   if (t.phase !== 'waiting' && t.phase !== 'showdown' && t.players[t.actionIdx]?.addr === addr) {
     t.foldPlayer(addr);
-    // Advance action — if this creates a winner, handle hand-over
     const result = t.advance();
     if (result?.winners) {
       await handleHandOver(t, result);
@@ -416,12 +452,22 @@ async function signAndRemovePlayer(t, addr, ws) {
       if (ws && ws.readyState === WebSocket.OPEN) {
         send(ws, msg);
       } else {
-        // Store for retrieval on next auth
         t.pendingCashouts.set(addr, msg);
       }
     } catch (e) {
       console.error(`[Server] signCashOut error for ${addr}:`, e.message);
     }
+  }
+
+  // Close table when last player exits
+  if (t.players.length === 0) {
+    try {
+      const tx = await escrow.closeTable(BigInt(t.id));
+      await tx.wait();
+    } catch (e) {
+      console.error(`[Server] closeTable error:`, e.message);
+    }
+    tables.delete(t.id);
   }
 }
 
@@ -441,6 +487,18 @@ async function handleHandOver(t, result) {
     handNonce: t.handNonce,
     shares,
   });
+
+  // Anti-snipe lock: if a winner's share of this pot ≥ 50% of all chips at the table,
+  // lock their cashout for 7 more hands (lockedUntil = current nonce + 8).
+  const totalChips = t.players.reduce((sum, p) => sum + p.chips, 0);
+  const perWinner  = result.pot / result.winners.length;
+  if (totalChips > 0 && perWinner >= totalChips * 0.5) {
+    for (const winnerAddr of result.winners) {
+      const winner = t.players.find(x => x.addr === winnerAddr);
+      if (winner) winner.cashoutLockedUntil = t.handNonce + 8;
+    }
+  }
+
   setTimeout(() => {
     if (t.players.length < 2) { t.phase = 'waiting'; broadcastTable(t); return; }
     t.handNonce++;
@@ -508,6 +566,7 @@ wss.on('connection', (ws) => {
             };
             t = new PokerTable(BigInt(tableId), config);
             t.handNonce = Number(info[7]);
+            t.isActive  = Number(info[5]) === 1; // TableStatus.Active = 1
             tables.set(tidKey, t);
             console.log(`[Server] Loaded table ${tidKey} from chain`);
           } catch (e) {
@@ -547,8 +606,11 @@ wss.on('connection', (ws) => {
         clients.set(ws, { ...client, tableId: tidKey });
         broadcastTable(t);
 
-        if (t.players.length >= t.config.maxPlayers && t.phase === 'waiting') {
-          setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
+        if (t.players.length >= t.config.maxPlayers) {
+          t.isActive = true;
+          if (t.phase === 'waiting') {
+            setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
+          }
         }
         break;
       }
@@ -595,6 +657,15 @@ wss.on('connection', (ws) => {
         const { tableId } = payload;
         const t = tables.get(String(tableId));
         if (t) {
+          // Creator restriction: can't leave while another player has an active lock
+          const isCreator = t.creator === client.addr;
+          const anyLocked = t.players.some(
+            x => x.addr !== client.addr && (x.cashoutLockedUntil ?? 0) > t.handNonce
+          );
+          if (isCreator && anyLocked) {
+            send(ws, { type: 'TABLE_LOCKED', reason: 'A player is locked in; wait for 7 hands or all others to leave.' });
+            break;
+          }
           await signAndRemovePlayer(t, client.addr, ws);
           broadcastTable(t);
         }

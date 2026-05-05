@@ -104,6 +104,8 @@ export const ESCROW_ABI = [
   { name:"cashOutNonce", type:"function", stateMutability:"view",
     inputs:[{name:"tableId",type:"uint256"},{name:"player",type:"address"}],
     outputs:[{type:"uint256"}] },
+  { name:"closeTable", type:"function", stateMutability:"nonpayable",
+    inputs:[{name:"tableId",type:"uint256"}], outputs:[] },
   { name:"TableCreated", type:"event",
     inputs:[
       {name:"id",type:"uint256",indexed:true},
@@ -113,9 +115,36 @@ export const ESCROW_ABI = [
     ]},
 ];
 
+export const HANDLE_ABI = [
+  { name:"mintHandle", type:"function", stateMutability:"nonpayable",
+    inputs:[{name:"handle",type:"string"}], outputs:[] },
+  { name:"getHandleByAddress", type:"function", stateMutability:"view",
+    inputs:[{name:"player",type:"address"}], outputs:[{type:"string"}] },
+  { name:"getHandle", type:"function", stateMutability:"view",
+    inputs:[{name:"tokenId",type:"uint256"}], outputs:[{type:"string"}] },
+  { name:"ownerTokenId", type:"function", stateMutability:"view",
+    inputs:[{name:"",type:"address"}], outputs:[{type:"uint256"}] },
+  { name:"handleTaken", type:"function", stateMutability:"view",
+    inputs:[{name:"",type:"string"}], outputs:[{type:"bool"}] },
+  { name:"mintBurnCost", type:"function", stateMutability:"view",
+    inputs:[], outputs:[{type:"uint256"}] },
+  { name:"totalMinted", type:"function", stateMutability:"view",
+    inputs:[], outputs:[{type:"uint256"}] },
+  { name:"totalBurned", type:"function", stateMutability:"view",
+    inputs:[], outputs:[{type:"uint256"}] },
+  { name:"HandleMinted", type:"event",
+    inputs:[
+      {name:"player",type:"address",indexed:true},
+      {name:"tokenId",type:"uint256",indexed:false},
+      {name:"handle",type:"string",indexed:false},
+      {name:"burned",type:"uint256",indexed:false},
+    ]},
+];
+
 const CHIPS   = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
 const ESCROW  = process.env.NEXT_PUBLIC_ESCROW;
 const STAKING = process.env.NEXT_PUBLIC_STAKING;
+const HANDLE  = process.env.NEXT_PUBLIC_POKER_HANDLE;
 
 // ─── HOOK: WALLET STATE ───────────────────────────────────────────────────────
 export function useWallet() {
@@ -401,12 +430,15 @@ export function useTableSocket(tableId) {
   const { signMessageAsync } = useSignMessage();
   const serverUrl            = process.env.NEXT_PUBLIC_WS_URL;
 
-  const [gameState,   setGameState]   = useState(null);
-  const [handOver,    setHandOver]    = useState(null);
-  const [tableList,   setTableList]   = useState([]);
-  const [wsStatus,    setWsStatus]    = useState('disconnected');
-  const [wsError,     setWsError]     = useState(null);
-  const [cashoutSig,  setCashoutSig]  = useState(null); // { amount, sig, nonce, tableId }
+  const [gameState,      setGameState]      = useState(null);
+  const [handOver,       setHandOver]       = useState(null);
+  const [tableList,      setTableList]      = useState([]);
+  const [wsStatus,       setWsStatus]       = useState('disconnected');
+  const [wsError,        setWsError]        = useState(null);
+  const [cashoutSig,     setCashoutSig]     = useState(null); // { amount, sig, nonce, tableId }
+  const [cashoutLocked,  setCashoutLocked]  = useState(null); // { handsRemaining } or null
+  const [tableLocked,    setTableLocked]    = useState(false); // creator can't leave
+  const [refundAvailable, setRefundAvailable] = useState(false); // Open table, call refund()
   const wsRef = useRef(null);
 
   useEffect(() => {
@@ -440,15 +472,40 @@ export function useTableSocket(tableId) {
           case 'AUTH_FAIL':
             setWsError('Authentication failed — check wallet signature');
             break;
-          case 'GAME_STATE':
+          case 'GAME_STATE': {
             setGameState(msg.state);
             setHandOver(null);
+            // Sync lock state with authoritative server state
+            if (msg.state && address) {
+              const hero = msg.state.players?.find(
+                p => p.addr?.toLowerCase() === address.toLowerCase()
+              );
+              if (hero) {
+                const locked = (hero.cashoutLockedUntil ?? 0) > (msg.state.handNonce ?? 0);
+                if (locked) {
+                  setCashoutLocked({ handsRemaining: (hero.cashoutLockedUntil ?? 0) - (msg.state.handNonce ?? 0) });
+                } else {
+                  setCashoutLocked(null);
+                }
+              }
+              if (!msg.state.anyLocked) setTableLocked(false);
+            }
             break;
+          }
           case 'HAND_OVER':
             setHandOver(msg);
             break;
           case 'CASHOUT_SIG':
             setCashoutSig({ amount: msg.amount, sig: msg.sig, nonce: msg.nonce, tableId: msg.tableId });
+            break;
+          case 'CASHOUT_LOCKED':
+            setCashoutLocked({ handsRemaining: msg.handsRemaining });
+            break;
+          case 'TABLE_LOCKED':
+            setTableLocked(true);
+            break;
+          case 'REFUND_AVAILABLE':
+            setRefundAvailable(true);
             break;
           case 'REBUY_OK':
             // Stack update is reflected via next GAME_STATE broadcast; nothing extra needed
@@ -492,6 +549,7 @@ export function useTableSocket(tableId) {
   return {
     gameState, handOver, tableList, wsStatus, wsError,
     cashoutSig, setCashoutSig,
+    cashoutLocked, tableLocked, refundAvailable,
     sendAction, leaveTable, sendRebuyConfirmed, refreshTables,
   };
 }
@@ -560,6 +618,78 @@ export function useCreateTable() {
     : null;
 
   return { createTable, status, txHash, newTableId, errorMsg };
+}
+
+// ─── HOOK: POKER HANDLE NFT ───────────────────────────────────────────────────
+export function useHandle() {
+  const { address }            = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient           = usePublicClient();
+  const [txHash, setTxHash]    = useState(null);
+  const [status, setStatus]    = useState('idle');
+  const [errorMsg, setErrorMsg] = useState(null);
+
+  const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const { data: myHandle, refetch: refetchHandle } = useReadContract({
+    address: HANDLE, abi: HANDLE_ABI, functionName: "getHandleByAddress",
+    args: [address],
+    query: { enabled: !!address && !!HANDLE },
+  });
+
+  const { data: mintCostRaw } = useReadContract({
+    address: HANDLE, abi: HANDLE_ABI, functionName: "mintBurnCost",
+    query: { enabled: !!HANDLE },
+  });
+
+  const { data: totalMinted } = useReadContract({
+    address: HANDLE, abi: HANDLE_ABI, functionName: "totalMinted",
+    query: { enabled: !!HANDLE, refetchInterval: 30000 },
+  });
+
+  const mintCost = mintCostRaw ? Number(formatUnits(mintCostRaw, 18)) : 500;
+
+  const mint = useCallback(async (handle) => {
+    if (!address || !HANDLE || !CHIPS) return;
+    setErrorMsg(null);
+    try {
+      setStatus('approving');
+      const costBN = mintCostRaw ?? parseUnits("500", 18);
+      const fees = await publicClient.estimateFeesPerGas();
+      const feeOverrides = {
+        maxFeePerGas:         fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined,
+        maxPriorityFeePerGas: fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined,
+      };
+      const approveTx = await writeContractAsync({
+        address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+        args: [HANDLE, costBN], ...feeOverrides,
+      });
+      await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      setStatus('minting');
+      const mintTx = await writeContractAsync({
+        address: HANDLE, abi: HANDLE_ABI, functionName: "mintHandle",
+        args: [handle], ...feeOverrides,
+      });
+      setTxHash(mintTx);
+      setStatus('idle');
+      return mintTx;
+    } catch (e) {
+      const msg = e?.shortMessage || e?.message || String(e);
+      setErrorMsg(msg);
+      setStatus('error');
+    }
+  }, [address, mintCostRaw, writeContractAsync, publicClient]);
+
+  useEffect(() => { if (confirmed) refetchHandle(); }, [confirmed, refetchHandle]);
+
+  return {
+    myHandle: myHandle || null,
+    hasHandle: !!myHandle,
+    mintCost,
+    totalMinted: totalMinted ? Number(totalMinted) : 0,
+    mint, status, txHash, confirmed, errorMsg,
+    refetch: refetchHandle,
+  };
 }
 
 // Legacy hook kept for backwards compatibility
