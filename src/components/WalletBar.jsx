@@ -6,30 +6,34 @@ import Link from 'next/link';
 export default function WalletBar() {
   const { address, isConnected, chipsBalance, isHuman,
           connectMetaMask, disconnect } = useWallet();
-  const [hasInjected, setHasInjected] = useState(true);
+  const [mounted, setMounted] = useState(false);
+  const [hasInjected, setHasInjected] = useState(false);
   const [siteUrl, setSiteUrl] = useState('');
 
   useEffect(() => {
-    setHasInjected(typeof window !== 'undefined' && !!window.ethereum);
-    setSiteUrl(typeof window !== 'undefined' ? window.location.host : '');
+    setMounted(true);
+    setHasInjected(!!window.ethereum);
+    setSiteUrl(window.location.host);
   }, []);
 
   const short = addr => addr ? `${addr.slice(0,6)}…${addr.slice(-4)}` : '';
 
+  const headerStyle = {
+    background: 'linear-gradient(180deg, #0a140a 0%, #060e06 100%)',
+    borderBottom: '1px solid #1a3a1a',
+    padding: '0 16px',
+    height: 60,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    position: 'sticky',
+    top: 0,
+    zIndex: 100,
+    backdropFilter: 'blur(8px)',
+  };
+
   return (
-    <header style={{
-      background: 'linear-gradient(180deg, #0a140a 0%, #060e06 100%)',
-      borderBottom: '1px solid #1a3a1a',
-      padding: '0 16px',
-      height: 60,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      position: 'sticky',
-      top: 0,
-      zIndex: 100,
-      backdropFilter: 'blur(8px)',
-    }}>
+    <header style={headerStyle}>
       {/* Logo */}
       <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ fontSize: 26, lineHeight: 1 }}>♠</div>
@@ -41,7 +45,7 @@ export default function WalletBar() {
         </div>
       </Link>
 
-      {/* Center nav — hidden on small screens */}
+      {/* Center nav */}
       <nav style={{ display: 'flex', gap: 2 }}>
         {[
           { href: '/',            label: 'Lobby' },
@@ -59,9 +63,9 @@ export default function WalletBar() {
         ))}
       </nav>
 
-      {/* Wallet */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {isConnected && (
+      {/* Wallet — only rendered client-side to avoid hydration mismatch */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 120 }}>
+        {mounted && isConnected && (
           <>
             {isHuman && (
               <div style={{
@@ -94,7 +98,7 @@ export default function WalletBar() {
           </>
         )}
 
-        {!isConnected && hasInjected && (
+        {mounted && !isConnected && hasInjected && (
           <button onClick={connectMetaMask} style={{
             background: 'linear-gradient(135deg, #1a4a1a, #0c2e0c)',
             border: '1px solid #d4af3744', borderRadius: 8,
@@ -106,13 +110,13 @@ export default function WalletBar() {
           </button>
         )}
 
-        {!isConnected && !hasInjected && (
+        {mounted && !isConnected && !hasInjected && (
           <a
             href={`https://metamask.app.link/dapp/${siteUrl}`}
             style={{
               background: 'linear-gradient(135deg, #f6851b22, #f6851b11)',
               border: '1px solid #f6851b66', borderRadius: 8,
-              padding: '8px 14px', cursor: 'pointer',
+              padding: '8px 14px',
               color: '#f6851b', fontSize: 12, fontWeight: 700,
               fontFamily: 'inherit', letterSpacing: .3,
               textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6,
