@@ -15,7 +15,7 @@
     "test": "npx hardhat test",
     "setup:wallets": "node scripts/generateWallets.js",
     "setup:env": "node scripts/setupEnv.js",
-    "faucet": "npx hardhat run scripts/faucet.js --network arbitrumSepolia"
+    "faucet": "node scripts/faucet.js"
   },
   "dependencies": {
     "next": "^14.2.0",
