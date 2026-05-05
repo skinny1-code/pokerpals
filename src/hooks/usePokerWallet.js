@@ -92,6 +92,18 @@ export const ESCROW_ABI = [
     inputs:[{name:"tableId",type:"uint256"}], outputs:[{type:"uint256"}] },
   { name:"seatFeeCHIPS", type:"function", stateMutability:"view",
     inputs:[], outputs:[{type:"uint256"}] },
+  { name:"getPlayerDeposit", type:"function", stateMutability:"view",
+    inputs:[{name:"tableId",type:"uint256"},{name:"player",type:"address"}],
+    outputs:[{type:"uint256"}] },
+  { name:"cashOut", type:"function", stateMutability:"nonpayable",
+    inputs:[
+      {name:"tableId",type:"uint256"},{name:"player",type:"address"},
+      {name:"amount",type:"uint256"},{name:"nonce",type:"uint256"},
+      {name:"sig",type:"bytes"},
+    ], outputs:[] },
+  { name:"cashOutNonce", type:"function", stateMutability:"view",
+    inputs:[{name:"tableId",type:"uint256"},{name:"player",type:"address"}],
+    outputs:[{type:"uint256"}] },
   { name:"TableCreated", type:"event",
     inputs:[
       {name:"id",type:"uint256",indexed:true},
@@ -299,6 +311,62 @@ export function useEscrow(tableId) {
     } catch (e) { setStatus('error'); }
   }, [tableId, writeContractAsync]);
 
+  // rebuy: approve + on-chain rebuy, then notify the game server
+  const rebuy = useCallback(async (amount, notifyServer) => {
+    if (!address || !tableId) return;
+    try {
+      setStatus('approving');
+      const amountBN = parseUnits(String(amount), 18);
+      const fees = await publicClient.estimateFeesPerGas();
+      const feeOverrides = {
+        maxFeePerGas:         fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined,
+        maxPriorityFeePerGas: fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined,
+      };
+      const approveTx = await writeContractAsync({
+        address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+        args: [ESCROW, amountBN], ...feeOverrides,
+      });
+      await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      setStatus('buying');
+      const rebuyTx = await writeContractAsync({
+        address: ESCROW, abi: ESCROW_ABI, functionName: "rebuy",
+        args: [BigInt(tableId), amountBN], ...feeOverrides,
+      });
+      await waitForTransactionReceipt(wagmiConfig, { hash: rebuyTx, timeout: 30_000 });
+      // Tell the game server to update the in-game stack
+      notifyServer?.();
+      setStatus('idle');
+      return rebuyTx;
+    } catch (e) {
+      console.error("rebuy error:", e);
+      setStatus('error');
+    }
+  }, [address, tableId, writeContractAsync, publicClient]);
+
+  // cashOut: submit an operator-signed cashout to the contract
+  const cashOut = useCallback(async (player, amount, nonce, sig) => {
+    if (!ESCROW) return;
+    try {
+      setStatus('cashout');
+      const fees = await publicClient.estimateFeesPerGas();
+      const feeOverrides = {
+        maxFeePerGas:         fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined,
+        maxPriorityFeePerGas: fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined,
+      };
+      const tx = await writeContractAsync({
+        address: ESCROW, abi: ESCROW_ABI, functionName: "cashOut",
+        args: [BigInt(tableId), player, BigInt(amount), BigInt(nonce), sig],
+        ...feeOverrides,
+      });
+      setTxHash(tx);
+      setStatus('idle');
+      return tx;
+    } catch (e) {
+      console.error("cashOut error:", e);
+      setStatus('error');
+    }
+  }, [tableId, writeContractAsync, publicClient]);
+
   // Table info read
   const { data: tableInfo } = useReadContract({
     address: ESCROW, abi: ESCROW_ABI, functionName: "getTableInfo",
@@ -323,7 +391,7 @@ export function useEscrow(tableId) {
   // Keep seatFeeRef in sync so the buyIn callback always has the latest value
   useEffect(() => { seatFeeRef.current = seatFee; }, [seatFee]);
 
-  return { buyIn, refund, txHash, status, confirmed, tableInfo, isLeased, seatFee };
+  return { buyIn, rebuy, refund, cashOut, txHash, status, confirmed, tableInfo, isLeased, seatFee };
 }
 
 // ─── HOOK: TABLE WEBSOCKET ────────────────────────────────────────────────────
@@ -333,11 +401,12 @@ export function useTableSocket(tableId) {
   const { signMessageAsync } = useSignMessage();
   const serverUrl            = process.env.NEXT_PUBLIC_WS_URL;
 
-  const [gameState, setGameState] = useState(null);
-  const [handOver,  setHandOver]  = useState(null);
-  const [tableList, setTableList] = useState([]);
-  const [wsStatus,  setWsStatus]  = useState('disconnected');
-  const [wsError,   setWsError]   = useState(null);
+  const [gameState,   setGameState]   = useState(null);
+  const [handOver,    setHandOver]    = useState(null);
+  const [tableList,   setTableList]   = useState([]);
+  const [wsStatus,    setWsStatus]    = useState('disconnected');
+  const [wsError,     setWsError]     = useState(null);
+  const [cashoutSig,  setCashoutSig]  = useState(null); // { amount, sig, nonce, tableId }
   const wsRef = useRef(null);
 
   useEffect(() => {
@@ -378,6 +447,12 @@ export function useTableSocket(tableId) {
           case 'HAND_OVER':
             setHandOver(msg);
             break;
+          case 'CASHOUT_SIG':
+            setCashoutSig({ amount: msg.amount, sig: msg.sig, nonce: msg.nonce, tableId: msg.tableId });
+            break;
+          case 'REBUY_OK':
+            // Stack update is reflected via next GAME_STATE broadcast; nothing extra needed
+            break;
           case 'TABLE_LIST':
             setTableList(msg.tables || []);
             break;
@@ -404,12 +479,21 @@ export function useTableSocket(tableId) {
       wsRef.current.send(JSON.stringify({ type: 'LEAVE_TABLE', payload: { tableId } }));
   }, [tableId]);
 
+  const sendRebuyConfirmed = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN)
+      wsRef.current.send(JSON.stringify({ type: 'REBUY_CONFIRMED', payload: { tableId } }));
+  }, [tableId]);
+
   const refreshTables = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN)
       wsRef.current.send(JSON.stringify({ type: 'LIST_TABLES' }));
   }, []);
 
-  return { gameState, handOver, tableList, wsStatus, wsError, sendAction, leaveTable, refreshTables };
+  return {
+    gameState, handOver, tableList, wsStatus, wsError,
+    cashoutSig, setCashoutSig,
+    sendAction, leaveTable, sendRebuyConfirmed, refreshTables,
+  };
 }
 
 // ─── HOOK: CREATE TABLE ───────────────────────────────────────────────────────

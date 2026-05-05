@@ -19,16 +19,17 @@ function loadDeployment() {
 }
 const _depl = loadDeployment();
 
-const PORT            = process.env.PORT || 4000;
-const OPERATOR_KEY    = process.env.OPERATOR_PRIVATE_KEY;
-const ESCROW_ADDR     = process.env.NEXT_PUBLIC_ESCROW || process.env.ESCROW_ADDRESS || _depl?.contracts?.PokerEscrow;
-const RPC_URL         = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL || "https://arb1.arbitrum.io/rpc";
+const PORT         = process.env.PORT || 4000;
+const OPERATOR_KEY = process.env.OPERATOR_PRIVATE_KEY;
+const ESCROW_ADDR  = process.env.NEXT_PUBLIC_ESCROW || process.env.ESCROW_ADDRESS || _depl?.contracts?.PokerEscrow;
+const RPC_URL      = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL || "https://arb1.arbitrum.io/rpc";
 
 if (!ESCROW_ADDR) throw new Error("ESCROW_ADDR not set — add NEXT_PUBLIC_ESCROW to .env or deploy first");
 if (!OPERATOR_KEY) throw new Error("OPERATOR_PRIVATE_KEY not set in .env");
-const PASSPORT_URL    = "https://api.scorer.gitcoin.co";
-const PASSPORT_API    = process.env.GITCOIN_PASSPORT_API;
-const SCORER_ID       = process.env.GITCOIN_SCORER_ID;
+
+const PASSPORT_URL = "https://api.scorer.gitcoin.co";
+const PASSPORT_API = process.env.GITCOIN_PASSPORT_API;
+const SCORER_ID    = process.env.GITCOIN_SCORER_ID;
 
 // ─── CHAIN SETUP ─────────────────────────────────────────────────────────────
 const provider = new ethers.JsonRpcProvider(RPC_URL);
@@ -37,6 +38,7 @@ const operator = new ethers.Wallet(OPERATOR_KEY, provider);
 const ESCROW_ABI = [
   "function settle(uint256,uint256,address[],uint256[],bytes) external",
   "function getTableInfo(uint256 id) external view returns (uint256 tableId, uint256 buyInAmount, uint256 bigBlind, uint8 maxPlayers, uint8 gameType, uint8 status, uint256 potTotal, uint256 handNonce, uint8 playerCount)",
+  "function getPlayerDeposit(uint256 tableId, address player) external view returns (uint256)",
   "function markHuman(address,bool) external",
 ];
 const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, operator);
@@ -52,14 +54,13 @@ function makeDeck() {
 function shuffle(deck) {
   const d = [...deck];
   for (let i = d.length - 1; i > 0; i--) {
-    // Cryptographically random shuffle
     const j = crypto.randomInt(0, i + 1);
     [d[i], d[j]] = [d[j], d[i]];
   }
   return d;
 }
 
-// ─── HAND EVALUATOR (server-side authoritative) ───────────────────────────────
+// ─── HAND EVALUATOR ──────────────────────────────────────────────────────────
 function evalFive(cs) {
   const v = cs.map(c => RV[c[0] === 'T' ? 'T' : c[0]]).sort((a,b)=>b-a);
   const ss = cs.map(c => c.slice(-1));
@@ -88,8 +89,6 @@ function best7(cs) {
     }
   return b || evalFive(cs);
 }
-
-// Omaha: must use exactly 2 hole + exactly 3 community
 function bestOmaha(hole, comm) {
   let best = null;
   const holePairs = [];
@@ -109,7 +108,6 @@ function bestOmaha(hole, comm) {
 
 // ─── ANTI-BOT VERIFICATION ───────────────────────────────────────────────────
 async function verifyHuman(address) {
-  // Testnet bypass — skip all checks and mark human directly
   if (process.env.TESTNET_SKIP_HUMAN_CHECK === 'true') {
     try {
       const tx = await escrow.markHuman(address, true);
@@ -123,11 +121,9 @@ async function verifyHuman(address) {
   }
 
   try {
-    // 1. Check wallet age + tx count on-chain
     const txCount = await provider.getTransactionCount(address);
     if (txCount < 50) return { ok: false, reason: "Less than 50 on-chain transactions" };
 
-    // 2. Check Gitcoin Passport score
     if (PASSPORT_API && SCORER_ID) {
       const res = await fetch(
         `${PASSPORT_URL}/registry/score/${SCORER_ID}/${address}`,
@@ -138,10 +134,8 @@ async function verifyHuman(address) {
       if (score < 15) return { ok: false, reason: `Passport score ${score} < 15` };
     }
 
-    // 3. Mark on-chain via escrow
     const tx = await escrow.markHuman(address, true);
     await tx.wait();
-
     return { ok: true };
   } catch (e) {
     console.error("verifyHuman error:", e.message);
@@ -152,25 +146,33 @@ async function verifyHuman(address) {
 // ─── GAME STATE MACHINE ───────────────────────────────────────────────────────
 class PokerTable {
   constructor(id, config) {
-    this.id        = id;
-    this.config    = config; // { buyIn, bigBlind, maxPlayers, gameType }
-    this.players   = [];     // { addr, ws, chips, hand, bet, folded, allIn, actionLabel }
-    this.spectators = [];
-    this.deck      = [];
-    this.community = [];
-    this.pot       = 0;
-    this.maxBet    = 0;
-    this.phase     = 'waiting';
-    this.dealerIdx = 0;
-    this.actionIdx = 0;
-    this.handNonce = 0;
-    this.sideLog   = [];     // hash log for audit
+    this.id           = id;
+    this.config       = config; // { buyIn, bigBlind, maxPlayers, gameType }
+    this.players      = [];     // { addr, ws, chips, onChainDeposit, hand, bet, folded, allIn, actionLabel }
+    this.deck         = [];
+    this.community    = [];
+    this.pot          = 0;
+    this.maxBet       = 0;
+    this.phase        = 'waiting';
+    this.dealerIdx    = 0;
+    this.actionIdx    = 0;
+    this.handNonce    = 0;
+    this.sideLog      = [];
+    this.cashOutNonces   = new Map(); // addr => nonce
+    this.pendingCashouts = new Map(); // addr => { amount, sig, nonce, tableId }
   }
 
   seat(player) {
     if (this.players.length >= this.config.maxPlayers) return false;
     if (this.players.find(p => p.addr === player.addr)) return false;
-    this.players.push({ ...player, chips: this.config.buyIn, hand:[], bet:0, folded:false, allIn:false, actionLabel:'' });
+    // Use the verified on-chain deposit as the starting chip stack
+    const chips = player.onChainDeposit ?? this.config.buyIn;
+    this.players.push({
+      ...player,
+      chips,
+      onChainDeposit: chips,
+      hand: [], bet: 0, folded: false, allIn: false, actionLabel: '',
+    });
     return true;
   }
 
@@ -181,19 +183,13 @@ class PokerTable {
     this.pot       = 0;
     this.phase     = 'preflop';
     const n        = this.players.length;
-    const holeCount = this.config.gameType === 1 ? 4 : 2; // Omaha = 4 hole cards
+    const holeCount = this.config.gameType === 1 ? 4 : 2;
 
-    // Deal hole cards
-    this.players.forEach((p, i) => {
-      p.hand    = [];
-      p.bet     = 0;
-      p.folded  = false;
-      p.allIn   = false;
-      p.actionLabel = '';
+    this.players.forEach(p => {
+      p.hand = []; p.bet = 0; p.folded = false; p.allIn = false; p.actionLabel = '';
       for (let j = 0; j < holeCount; j++) p.hand.push(this.deck.shift());
     });
 
-    // Post blinds
     const sbIdx = (this.dealerIdx + 1) % n;
     const bbIdx = (this.dealerIdx + 2) % n;
     const sb    = this.config.bigBlind / 2;
@@ -204,14 +200,12 @@ class PokerTable {
     this.maxBet = bb;
     this.actionIdx = (bbIdx + 1) % n;
 
-    // Commit hand start to audit log
     const handHash = crypto.createHash('sha256')
-      .update(JSON.stringify({ id:String(this.id), nonce:this.handNonce, deck:this.deck.slice(0,5).join(','), ts:Date.now() }))
+      .update(JSON.stringify({ id: String(this.id), nonce: this.handNonce, deck: this.deck.slice(0,5).join(','), ts: Date.now() }))
       .digest('hex');
-    this.sideLog.push({ event:'hand_start', handHash, nonce:this.handNonce });
+    this.sideLog.push({ event: 'hand_start', handHash, nonce: this.handNonce });
   }
 
-  // Advance actionIdx to the next player who can act (not folded, not all-in)
   _nextActionIdx() {
     const n = this.players.length;
     let next = (this.actionIdx + 1) % n;
@@ -223,7 +217,6 @@ class PokerTable {
     this.actionIdx = next;
   }
 
-  // First active player after dealer (for new streets)
   _resetActionIdxForStreet() {
     const n = this.players.length;
     let next = (this.dealerIdx + 1) % n;
@@ -235,9 +228,14 @@ class PokerTable {
     this.actionIdx = next;
   }
 
+  // Fold a player without advancing action (used when removing a player mid-hand)
+  foldPlayer(addr) {
+    const p = this.players.find(x => x.addr === addr);
+    if (p) { p.folded = true; p.actionLabel = 'FOLD'; }
+  }
+
   applyAction(addr, action, amount = 0) {
     const idx = this.players.findIndex(x => x.addr === addr);
-    // Only the player whose turn it is may act
     if (idx < 0 || idx !== this.actionIdx) return { error: 'Not your turn' };
     const p = this.players[idx];
     if (p.folded || this.phase === 'showdown') return null;
@@ -273,13 +271,12 @@ class PokerTable {
   }
 
   advance() {
-    const alive   = this.players.filter(p => !p.folded);
-    const allBetsEq = alive.every(p => p.bet === this.maxBet || p.allIn);
+    const alive      = this.players.filter(p => !p.folded);
+    const allBetsEq  = alive.every(p => p.bet === this.maxBet || p.allIn);
 
     if (alive.length === 1) return this.doShowdown(alive);
-    if (!allBetsEq) return null; // more betting to go
+    if (!allBetsEq) return null;
 
-    // Reset bets for new street
     this.players.forEach(p => { p.bet = 0; p.actionLabel = ''; });
     this.maxBet = 0;
 
@@ -321,8 +318,15 @@ class PokerTable {
       ['uint256','uint256','address[]','uint256[]'],
       [BigInt(this.id), BigInt(this.handNonce), winners, shares.map(BigInt)]
     );
-    const sig = await operator.signMessage(ethers.getBytes(digest));
-    return sig;
+    return operator.signMessage(ethers.getBytes(digest));
+  }
+
+  async signCashOut(player, amount, nonce) {
+    const digest = ethers.solidityPackedKeccak256(
+      ['string','uint256','address','uint256','uint256'],
+      ['CASHOUT', BigInt(this.id), player, BigInt(amount), BigInt(nonce)]
+    );
+    return operator.signMessage(ethers.getBytes(digest));
   }
 
   pubState(forAddr) {
@@ -364,6 +368,89 @@ const server = createServer((req, res) => {
 
 const wss = new WebSocketServer({ server });
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function send(ws, data) {
+  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+}
+function broadcastTable(t) {
+  t.players.forEach(p => {
+    if (p.ws?.readyState === WebSocket.OPEN)
+      send(p.ws, { type: 'GAME_STATE', state: t.pubState(p.addr) });
+  });
+}
+function broadcastToTable(t, msg) {
+  t.players.forEach(p => send(p.ws, msg));
+}
+
+// Sign and send cashout to a player, removing them from the table.
+// If ws is closed, stores the pending cashout for retrieval on reconnect.
+async function signAndRemovePlayer(t, addr, ws) {
+  const p = t.players.find(x => x.addr === addr);
+  if (!p) return;
+
+  const amount = p.chips;
+  // If it's their turn in an active hand, fold them first
+  if (t.phase !== 'waiting' && t.phase !== 'showdown' && t.players[t.actionIdx]?.addr === addr) {
+    t.foldPlayer(addr);
+    // Advance action — if this creates a winner, handle hand-over
+    const result = t.advance();
+    if (result?.winners) {
+      await handleHandOver(t, result);
+    }
+  }
+
+  t.players = t.players.filter(x => x.addr !== addr);
+
+  // Pause if fewer than 2 players remain mid-hand
+  if (t.phase !== 'waiting' && t.phase !== 'showdown' && t.players.filter(x => !x.folded).length < 2) {
+    t.phase = 'waiting';
+  }
+
+  // Sign a cashout if player has chips
+  if (amount > 0) {
+    const nonce = t.cashOutNonces.get(addr) ?? 0;
+    try {
+      const sig = await t.signCashOut(addr, amount, nonce);
+      t.cashOutNonces.set(addr, nonce + 1);
+      const msg = { type: 'CASHOUT_SIG', amount, sig, nonce, tableId: String(t.id) };
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        send(ws, msg);
+      } else {
+        // Store for retrieval on next auth
+        t.pendingCashouts.set(addr, msg);
+      }
+    } catch (e) {
+      console.error(`[Server] signCashOut error for ${addr}:`, e.message);
+    }
+  }
+}
+
+// Handle a hand-over result: sign settlement, broadcast, schedule next hand.
+async function handleHandOver(t, result) {
+  const n      = result.winners.length;
+  const base   = Math.floor(1000 / n);
+  const shares = result.winners.map((_, i) => i === 0 ? base + (1000 - base * n) : base);
+  const sig    = await t.signAndSettle(result.winners, shares);
+  broadcastToTable(t, {
+    type:      'HAND_OVER',
+    winners:   result.winners,
+    results:   result.results.map(r => ({ addr: r.p.addr, hand: r.h.n })),
+    pot:       result.pot,
+    sig,
+    tableId:   String(t.id),
+    handNonce: t.handNonce,
+    shares,
+  });
+  setTimeout(() => {
+    if (t.players.length < 2) { t.phase = 'waiting'; broadcastTable(t); return; }
+    t.handNonce++;
+    t.dealerIdx = (t.dealerIdx + 1) % t.players.length;
+    t.start();
+    broadcastTable(t);
+  }, 6000);
+}
+
+// ─── WebSocket message handler ────────────────────────────────────────────────
 wss.on('connection', (ws) => {
   ws.on('message', async (raw) => {
     let msg;
@@ -374,7 +461,6 @@ wss.on('connection', (ws) => {
     switch (type) {
 
       case 'AUTH': {
-        // Verify signature: client signs nonce with their private key
         const { address, signature, nonce } = payload;
         const recovered = ethers.verifyMessage(`PPP-AUTH:${nonce}`, signature);
         if (recovered.toLowerCase() !== address.toLowerCase()) {
@@ -382,6 +468,12 @@ wss.on('connection', (ws) => {
         }
         clients.set(ws, { addr: address, tableId: null });
         send(ws, { type: 'AUTH_OK', address });
+
+        // Deliver any pending cashout from a prior disconnection
+        for (const [, t] of tables) {
+          const pending = t.pendingCashouts.get(address);
+          if (pending) { send(ws, pending); break; }
+        }
         break;
       }
 
@@ -398,11 +490,13 @@ wss.on('connection', (ws) => {
         const tidKey = String(tableId);
         let t = tables.get(tidKey);
 
-        // If not in memory, fetch config from on-chain
+        const addr = client.addr;
+        if (!addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+
+        // If not in memory, load config from chain
         if (!t) {
           try {
             const info = await escrow.getTableInfo(BigInt(tableId));
-            // info: (tableId, buyInAmount, bigBlind, maxPlayers, gameType, status, potTotal, handNonce, playerCount)
             if (!info || info[0] === 0n) {
               return send(ws, { type: 'ERROR', error: 'Table not found on chain' });
             }
@@ -422,16 +516,38 @@ wss.on('connection', (ws) => {
           }
         }
 
-        const addr = client.addr;
-        if (!addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+        // Verify player has bought in on-chain before seating them
+        let onChainDeposit;
+        try {
+          onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+        } catch (e) {
+          console.error(`[Server] getPlayerDeposit error:`, e.message);
+          return send(ws, { type: 'ERROR', error: 'Could not verify buy-in' });
+        }
+        if (onChainDeposit === 0) {
+          return send(ws, { type: 'ERROR', error: 'Buy in on-chain first' });
+        }
 
-        const seated = t.seat({ addr, ws });
+        // Deliver pending cashout if this player has one from a prior disconnection
+        const pending = t.pendingCashouts.get(addr);
+        if (pending) { send(ws, pending); return; }
+
+        // If player is already seated (reconnect), just update their ws reference
+        const existing = t.players.find(p => p.addr === addr);
+        if (existing) {
+          existing.ws = ws;
+          clients.set(ws, { ...client, tableId: tidKey });
+          broadcastTable(t);
+          return;
+        }
+
+        const seated = t.seat({ addr, ws, onChainDeposit });
         if (!seated) return send(ws, { type: 'ERROR', error: 'Cannot join table' });
 
         clients.set(ws, { ...client, tableId: tidKey });
         broadcastTable(t);
 
-        if (t.players.length >= t.config.maxPlayers) {
+        if (t.players.length >= t.config.maxPlayers && t.phase === 'waiting') {
           setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
         }
         break;
@@ -443,31 +559,34 @@ wss.on('connection', (ws) => {
         if (!t) return;
         const result = t.applyAction(client.addr, action, amount);
         broadcastTable(t);
+        if (result?.winners) await handleHandOver(t, result);
+        break;
+      }
 
-        if (result?.winners) {
-          // Hand over — sign settlement
-          const base   = Math.floor(1000 / result.winners.length);
-          const shares = result.winners.map((_, i) =>
-            i === 0 ? base + (1000 - base * result.winners.length) : base
-          );
-          const sig = await t.signAndSettle(result.winners, shares);
-          broadcastToTable(t, {
-            type: 'HAND_OVER',
-            winners: result.winners,
-            results: result.results.map(r => ({ addr: r.p.addr, hand: r.h.n })),
-            pot: result.pot,
-            sig,
-            tableId: String(tableId),
-            handNonce: t.handNonce,
-            shares,
-          });
-          // Auto-restart after 6s
-          setTimeout(() => {
-            t.handNonce++;
-            t.dealerIdx = (t.dealerIdx + 1) % t.players.length;
-            t.start();
-            broadcastTable(t);
-          }, 6000);
+      case 'REBUY_CONFIRMED': {
+        // Client sends this after their on-chain rebuy transaction confirms.
+        // Server verifies by reading the updated deposit from chain.
+        const { tableId } = payload;
+        const t = tables.get(String(tableId));
+        if (!t) return send(ws, { type: 'ERROR', error: 'Table not found' });
+        const addr = client.addr;
+        if (!addr) return;
+        const p = t.players.find(x => x.addr === addr);
+        if (!p) return send(ws, { type: 'ERROR', error: 'Not seated at table' });
+
+        try {
+          const newDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+          const rebuyAmount = newDeposit - p.onChainDeposit;
+          if (rebuyAmount <= 0) {
+            return send(ws, { type: 'ERROR', error: 'Rebuy not detected on-chain yet' });
+          }
+          p.chips          += rebuyAmount;
+          p.onChainDeposit  = newDeposit;
+          broadcastTable(t);
+          send(ws, { type: 'REBUY_OK', amount: rebuyAmount, newStack: p.chips });
+        } catch (e) {
+          console.error(`[Server] REBUY_CONFIRMED error:`, e.message);
+          send(ws, { type: 'ERROR', error: 'Could not verify rebuy on-chain' });
         }
         break;
       }
@@ -476,7 +595,7 @@ wss.on('connection', (ws) => {
         const { tableId } = payload;
         const t = tables.get(String(tableId));
         if (t) {
-          t.players = t.players.filter(p => p.addr !== client.addr);
+          await signAndRemovePlayer(t, client.addr, ws);
           broadcastTable(t);
         }
         clients.set(ws, { ...client, tableId: null });
@@ -493,29 +612,17 @@ wss.on('connection', (ws) => {
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', async () => {
     const client = clients.get(ws);
     if (client?.tableId) {
       const t = tables.get(client.tableId);
-      if (t) { t.players = t.players.filter(p => p.addr !== client.addr); broadcastTable(t); }
+      if (t) {
+        await signAndRemovePlayer(t, client.addr, null); // null ws = store pending cashout
+        broadcastTable(t);
+      }
     }
     clients.delete(ws);
   });
 });
-
-function send(ws, data) {
-  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
-}
-
-function broadcastTable(t) {
-  t.players.forEach(p => {
-    if (p.ws?.readyState === WebSocket.OPEN)
-      send(p.ws, { type: 'GAME_STATE', state: t.pubState(p.addr) });
-  });
-}
-
-function broadcastToTable(t, msg) {
-  t.players.forEach(p => send(p.ws, msg));
-}
 
 server.listen(PORT, () => console.log(`PokerPartyPals WS server on :${PORT}`));

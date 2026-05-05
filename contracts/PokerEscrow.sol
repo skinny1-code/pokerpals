@@ -81,6 +81,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     uint256 public tableCount;
     mapping(uint256 => Table)  private tables;
     mapping(uint256 => uint256) public tableRoom;  // tableId => roomId (0 = open table)
+    mapping(uint256 => mapping(address => uint256)) public cashOutNonce;
     mapping(bytes32 => bool)   public usedSettleHashes;
     mapping(address => bool)   public humanVerified;
 
@@ -93,6 +94,8 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
 
     event TableCreated(uint256 indexed id, address creator, uint256 buyIn, GameType g);
     event PlayerJoined(uint256 indexed id, address player, uint256 buyIn, uint256 seatFee);
+    event PlayerRebuyed(uint256 indexed id, address indexed player, uint256 amount);
+    event PlayerCashedOut(uint256 indexed id, address indexed player, uint256 amount);
     event HandSettled(
         uint256 indexed id, uint256 nonce,
         address[] winners, uint256[] payouts,
@@ -189,6 +192,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         t.deposits[msg.sender] += amount;
         t.chips[msg.sender]    += amount;
         t.potTotal             += amount;
+        emit PlayerRebuyed(tableId, msg.sender, amount);
     }
 
     // ─── SETTLE ───────────────────────────────────────────────────────────────
@@ -289,7 +293,46 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         uint256 dep = t.deposits[msg.sender];
         require(dep > 0);
         t.deposits[msg.sender] = 0; t.chips[msg.sender] = 0; t.potTotal -= dep;
+        // Remove from players array
+        for (uint i = 0; i < t.players.length; i++) {
+            if (t.players[i] == msg.sender) {
+                t.players[i] = t.players[t.players.length - 1];
+                t.players.pop();
+                break;
+            }
+        }
         chipsToken.safeTransfer(msg.sender, dep);
+    }
+
+    /// @notice Operator-signed individual cash-out. Player sends this when they want to leave an active table.
+    ///         The operator signs the player's current chip count (tracked in server memory).
+    ///         Uses a per-player nonce to prevent replay.
+    function cashOut(
+        uint256 tableId, address player, uint256 amount, uint256 nonce, bytes calldata sig
+    ) external nonReentrant {
+        Table storage t = tables[tableId];
+        require(t.status == TableStatus.Active, "Not active");
+        require(t.deposits[player] > 0, "Not seated");
+        require(nonce == cashOutNonce[tableId][player], "Bad nonce");
+        require(amount <= t.potTotal, "Exceeds pot");
+
+        bytes32 digest = MessageHashUtils.toEthSignedMessageHash(
+            keccak256(abi.encodePacked("CASHOUT", tableId, player, amount, nonce))
+        );
+        if (digest.recover(sig) != operatorSigner) revert InvalidSig();
+
+        cashOutNonce[tableId][player]++;
+        t.deposits[player] = 0;
+        t.potTotal -= amount;
+        for (uint i = 0; i < t.players.length; i++) {
+            if (t.players[i] == player) {
+                t.players[i] = t.players[t.players.length - 1];
+                t.players.pop();
+                break;
+            }
+        }
+        chipsToken.safeTransfer(player, amount);
+        emit PlayerCashedOut(tableId, player, amount);
     }
 
     // ─── RAKEBACK ─────────────────────────────────────────────────────────────
@@ -320,6 +363,10 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
             totalSeatFeesCollected, totalReferralsPaid,
             totalRakeCollected + totalSeatFeesCollected
         );
+    }
+
+    function getPlayerDeposit(uint256 tableId, address player) external view returns (uint256) {
+        return tables[tableId].deposits[player];
     }
 
     function getTableInfo(uint256 id) external view returns (

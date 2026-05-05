@@ -5,8 +5,9 @@ import Link from 'next/link';
 import WalletBar from '../../../components/WalletBar';
 import PokerTable from '../../../components/PokerTable';
 import BettingControls from '../../../components/BettingControls';
-import { useTableSocket } from '../../../hooks/usePokerWallet';
+import { useTableSocket, useEscrow } from '../../../hooks/usePokerWallet';
 import { useAccount } from 'wagmi';
+import { formatUnits } from 'viem';
 
 // ── action label from server → badge key ─────────────────────────────────────
 function parseActionLabel(label) {
@@ -157,7 +158,15 @@ export default function TablePage() {
   useEffect(() => setMounted(true), []);
   const address = mounted ? rawAddress : undefined;
 
-  const { gameState, handOver, wsStatus, wsError, sendAction, leaveTable } = useTableSocket(id);
+  const {
+    gameState, handOver, wsStatus, wsError,
+    cashoutSig, setCashoutSig,
+    sendAction, leaveTable, sendRebuyConfirmed,
+  } = useTableSocket(id);
+  const { rebuy, cashOut, status: escrowStatus } = useEscrow(id);
+
+  const [showRebuy, setShowRebuy] = useState(false);
+  const [rebuyAmt, setRebuyAmt]   = useState('');
 
   const [log, setLog] = useState([
     { type:'system', text:`Joined table ${id}` },
@@ -210,9 +219,23 @@ export default function TablePage() {
   const seats = useMemo(() => mapToSeats(gameState, address), [gameState, address]);
 
   const handleLeave = useCallback(() => {
-    leaveTable();
+    leaveTable(); // server will sign cashout if chips > 0; we wait for CASHOUT_SIG
+  }, [leaveTable]);
+
+  const handleCashOut = useCallback(async () => {
+    if (!cashoutSig || !address) return;
+    await cashOut(address, cashoutSig.amount, cashoutSig.nonce, cashoutSig.sig);
+    setCashoutSig(null);
     router.push('/');
-  }, [leaveTable, router]);
+  }, [cashoutSig, address, cashOut, setCashoutSig, router]);
+
+  const handleRebuy = useCallback(async () => {
+    const amt = Number(rebuyAmt);
+    if (!amt || amt <= 0) return;
+    setShowRebuy(false);
+    await rebuy(amt, sendRebuyConfirmed);
+    setRebuyAmt('');
+  }, [rebuyAmt, rebuy, sendRebuyConfirmed]);
 
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg-deep)', display:'flex', flexDirection:'column' }}>
@@ -360,16 +383,72 @@ export default function TablePage() {
             </div>
           )}
 
+          {/* Cashout banner — shown after server sends CASHOUT_SIG */}
+          {cashoutSig && (
+            <div style={{ background:'rgba(212,175,55,.08)', border:'1px solid #d4af3766',
+              borderRadius:8, padding:'12px' }}>
+              <div style={{ fontSize:9, color:'#d4af37', letterSpacing:1, marginBottom:6 }}>READY TO WITHDRAW</div>
+              <div style={{ fontSize:16, color:'#d4af37', fontWeight:700,
+                fontFamily:"'JetBrains Mono',monospace", marginBottom:8 }}>
+                ◈ {Number(cashoutSig.amount).toLocaleString()}
+              </div>
+              <button onClick={handleCashOut} disabled={escrowStatus !== 'idle'}
+                style={{ width:'100%', background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
+                  border:'1px solid #d4af37', borderRadius:6, padding:'8px',
+                  color:'#d4af37', fontSize:11, fontWeight:700, fontFamily:'inherit',
+                  cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer' }}>
+                {escrowStatus === 'cashout' ? 'Withdrawing…' : 'Claim Chips + Leave'}
+              </button>
+            </div>
+          )}
+
+          {/* Rebuy section */}
+          {mounted && gameState && heroPlayer && heroPlayer.chips < gameState.config?.buyIn && (
+            <div>
+              {!showRebuy ? (
+                <button onClick={() => setShowRebuy(true)} style={{
+                  width:'100%', background:'transparent', border:'1px solid #1a5a1a',
+                  borderRadius:6, padding:'7px', cursor:'pointer',
+                  color:'#27ae60', fontSize:11, fontFamily:'inherit', transition:'all .15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor='#27ae60'}
+                onMouseLeave={e => e.currentTarget.style.borderColor='#1a5a1a'}>
+                  + Rebuy
+                </button>
+              ) : (
+                <div style={{ display:'flex', gap:4 }}>
+                  <input type="number" value={rebuyAmt} onChange={e => setRebuyAmt(e.target.value)}
+                    placeholder="Amount"
+                    style={{ flex:1, background:'#060e06', border:'1px solid #1a3a1a',
+                      borderRadius:6, padding:'6px 8px', color:'#d4af37', fontSize:11,
+                      fontFamily:"'JetBrains Mono',monospace", outline:'none' }} />
+                  <button onClick={handleRebuy} disabled={escrowStatus !== 'idle'}
+                    style={{ background:'#0c2e0c', border:'1px solid #27ae60',
+                      borderRadius:6, padding:'6px 10px', cursor:'pointer',
+                      color:'#27ae60', fontSize:11, fontFamily:'inherit' }}>
+                    {escrowStatus !== 'idle' ? '…' : 'OK'}
+                  </button>
+                  <button onClick={() => setShowRebuy(false)}
+                    style={{ background:'transparent', border:'1px solid #1a3a1a',
+                      borderRadius:6, padding:'6px 8px', cursor:'pointer',
+                      color:'#3a6a3a', fontSize:11, fontFamily:'inherit' }}>✕</button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Leave */}
-          <button onClick={handleLeave} style={{
-            background:'transparent', border:'1px solid #3a1a1a',
-            borderRadius:6, padding:'8px', cursor:'pointer',
-            color:'#6a4a4a', fontSize:11, fontFamily:'inherit', transition:'all .15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color='#e74c3c'; e.currentTarget.style.borderColor='#c0392b'; }}
-          onMouseLeave={e => { e.currentTarget.style.color='#6a4a4a'; e.currentTarget.style.borderColor='#3a1a1a'; }}>
-            Leave Table
-          </button>
+          {!cashoutSig && (
+            <button onClick={handleLeave} style={{
+              background:'transparent', border:'1px solid #3a1a1a',
+              borderRadius:6, padding:'8px', cursor:'pointer',
+              color:'#6a4a4a', fontSize:11, fontFamily:'inherit', transition:'all .15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color='#e74c3c'; e.currentTarget.style.borderColor='#c0392b'; }}
+            onMouseLeave={e => { e.currentTarget.style.color='#6a4a4a'; e.currentTarget.style.borderColor='#3a1a1a'; }}>
+              Leave Table
+            </button>
+          )}
         </div>
       </div>
 
