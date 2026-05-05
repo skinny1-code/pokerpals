@@ -382,10 +382,11 @@ export function useTableSocket(tableId) {
 
 // ─── HOOK: CREATE TABLE ───────────────────────────────────────────────────────
 export function useCreateTable() {
-  const { address }            = useAccount();
+  const { address, chainId }   = useAccount();
   const { writeContractAsync } = useWriteContract();
   const [txHash, setTxHash]    = useState(null);
   const [status, setStatus]    = useState('idle');
+  const [errorMsg, setErrorMsg] = useState(null);
 
   const { data: receipt } = useWaitForTransactionReceipt({
     hash: txHash,
@@ -396,10 +397,14 @@ export function useCreateTable() {
     if (receipt?.status === 'success') setStatus('confirmed');
   }, [receipt]);
 
+  const EXPECTED_CHAIN = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
+
   const createTable = useCallback(async ({ buyIn, bigBlind, maxPlayers, gameType }) => {
-    if (!address) return null;
-    if (!ESCROW) {
-      alert('Contract addresses not configured. Run "npm run setup:env" in your Codespace terminal, then restart the dev server.');
+    setErrorMsg(null);
+    if (!address) { setErrorMsg('Connect your wallet first.'); return null; }
+    if (!ESCROW)  { setErrorMsg('Contract not configured — run npm run setup:env and restart.'); return null; }
+    if (chainId !== EXPECTED_CHAIN) {
+      setErrorMsg(`Wrong network — switch MetaMask to ${EXPECTED_CHAIN === 421614 ? 'Arbitrum Sepolia' : 'Arbitrum One'} (chain ${EXPECTED_CHAIN}).`);
       return null;
     }
     setStatus('pending');
@@ -409,15 +414,17 @@ export function useCreateTable() {
       const hash = await writeContractAsync({
         address: ESCROW, abi: ESCROW_ABI, functionName: 'createTable',
         args: [buyInBN, bigBlindBN, maxPlayers, gameType, 0n],
+        chainId: EXPECTED_CHAIN,
       });
       setTxHash(hash);
       return hash;
     } catch (e) {
-      console.error('createTable error:', e);
+      const msg = e?.shortMessage || e?.message || String(e);
+      setErrorMsg(msg);
       setStatus('error');
       return null;
     }
-  }, [address, writeContractAsync]);
+  }, [address, chainId, writeContractAsync, EXPECTED_CHAIN]);
 
   // Extract tableId from receipt logs (TableCreated event first indexed param)
   const newTableId = receipt?.logs?.[0]
@@ -429,7 +436,7 @@ export function useCreateTable() {
       })()
     : null;
 
-  return { createTable, status, txHash, newTableId };
+  return { createTable, status, txHash, newTableId, errorMsg };
 }
 
 // Legacy hook kept for backwards compatibility

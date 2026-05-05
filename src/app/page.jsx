@@ -100,7 +100,7 @@ function TableRow({ table }) {
 // ── Create Table Modal ────────────────────────────────────────────────────────
 function CreateTableModal({ onClose }) {
   const router = useRouter();
-  const { createTable, status, newTableId } = useCreateTable();
+  const { createTable, status, newTableId, errorMsg } = useCreateTable();
   const [form, setForm] = useState({ buyIn: 1000, bigBlind: 20, maxPlayers: 6, gameType: 0 });
   const loading = status === 'pending';
 
@@ -153,6 +153,13 @@ function CreateTableModal({ onClose }) {
         {form.buyIn < form.bigBlind * 10 && (
           <div style={{ marginTop:10, fontSize:10, color:'#e67e22' }}>
             Buy-in must be ≥ 10× big blind (◈ {form.bigBlind * 10})
+          </div>
+        )}
+        {errorMsg && (
+          <div style={{ marginTop:10, fontSize:11, color:'#e74c3c',
+            background:'#1a0808', border:'1px solid #5a1a1a',
+            borderRadius:6, padding:'8px 12px', wordBreak:'break-word' }}>
+            ⚠ {errorMsg}
           </div>
         )}
         <div style={{ display:'flex', gap:8, marginTop:20 }}>
