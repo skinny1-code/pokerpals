@@ -276,14 +276,23 @@ export default function TablePage() {
   useEffect(() => setMounted(true), []);
   const address = mounted ? rawAddress : undefined;
 
+  const { buyIn, rebuy, cashOut, refund, status: escrowStatus, tableInfo } = useEscrow(id);
+
+  // Build config to send server when TESTNET_SKIP_CHAIN_VERIFY is active (no on-chain lookup)
+  const tableConfig = tableInfo ? {
+    buyIn:      Number(tableInfo.buyIn) / 1e18,
+    bigBlind:   Number(tableInfo.bigBlind) / 1e18,
+    maxPlayers: Number(tableInfo.maxPlayers),
+    gameType:   Number(tableInfo.gameType),
+  } : null;
+
   const {
     gameState, handOver, wsStatus, wsError,
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData,
     sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat,
-  } = useTableSocket(id);
-  const { buyIn, rebuy, cashOut, refund, status: escrowStatus, tableInfo } = useEscrow(id);
+  } = useTableSocket(id, tableConfig);
 
   const [showRebuy,    setShowRebuy]    = useState(false);
   const [rebuyAmt,     setRebuyAmt]     = useState('');

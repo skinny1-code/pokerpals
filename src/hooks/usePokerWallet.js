@@ -431,7 +431,7 @@ export function useEscrow(tableId) {
 
 // ─── HOOK: TABLE WEBSOCKET ────────────────────────────────────────────────────
 // Connects, authenticates, and manages real-time game state for a single table.
-export function useTableSocket(tableId) {
+export function useTableSocket(tableId, tableConfig) {
   const { address }          = useAccount();
   const { signMessageAsync } = useSignMessage();
   const serverUrl            = process.env.NEXT_PUBLIC_WS_URL;
@@ -447,11 +447,28 @@ export function useTableSocket(tableId) {
   const [refundAvailable, setRefundAvailable] = useState(false);
   const [seatPickerData,  setSeatPickerData]  = useState(null); // { maxPlayers, takenSeats }
   const [reconnectKey,    setReconnectKey]    = useState(0);
-  const wsRef      = useRef(null);
-  const authCacheRef = useRef(null); // { address, nonce, signature } — reused on reconnect
+  const wsRef           = useRef(null);
+  const authCacheRef    = useRef(null); // { address, nonce, signature } — reused on reconnect
+  const tableConfigRef  = useRef(tableConfig); // keep latest config accessible inside ws callbacks
+  const authedRef       = useRef(false); // true after AUTH_OK received this connection
+  const joinSentRef     = useRef(false); // true once JOIN_TABLE sent this connection
+  tableConfigRef.current = tableConfig;
+
+  // If tableConfig arrives after AUTH_OK but JOIN_TABLE hadn't been sent yet, send it now
+  useEffect(() => {
+    if (!tableId || !tableConfig || !authedRef.current || joinSentRef.current) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      joinSentRef.current = true;
+      wsRef.current.send(JSON.stringify({
+        type: 'JOIN_TABLE', payload: { tableId, config: tableConfig },
+      }));
+    }
+  }, [tableId, tableConfig]);
 
   useEffect(() => {
     if (!serverUrl || !address) return;
+    authedRef.current = false;
+    joinSentRef.current = false;
 
     setWsStatus('connecting');
     const ws = new WebSocket(serverUrl);
@@ -481,8 +498,18 @@ export function useTableSocket(tableId) {
         switch (msg.type) {
           case 'AUTH_OK':
             setWsStatus('authed');
-            if (tableId) ws.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId } }));
-            else         ws.send(JSON.stringify({ type: 'LIST_TABLES' }));
+            authedRef.current = true;
+            if (tableId) {
+              // If config is already available, send immediately; else the tableConfig effect fires it
+              const cfg = tableConfigRef.current;
+              if (cfg || !tableId) {
+                joinSentRef.current = true;
+                ws.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, config: cfg || undefined } }));
+              }
+              // else: wait for tableConfig effect to fire once tableInfo loads
+            } else {
+              ws.send(JSON.stringify({ type: 'LIST_TABLES' }));
+            }
             break;
           case 'AUTH_FAIL':
             // Clear cache so next attempt prompts a fresh sign
@@ -538,6 +565,8 @@ export function useTableSocket(tableId) {
     ws.onclose = () => {
       setWsStatus('disconnected');
       wsRef.current = null;
+      authedRef.current = false;
+      joinSentRef.current = false;
       // Auto-reconnect after 3s (no new sign needed — cached auth is reused)
       setTimeout(() => setReconnectKey(k => k + 1), 3000);
     };
@@ -571,8 +600,8 @@ export function useTableSocket(tableId) {
 
   const joinWithSeat = useCallback((seatIndex) => {
     if (wsRef.current?.readyState === WebSocket.OPEN)
-      wsRef.current.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, seatIndex } }));
-  }, [tableId]);
+      wsRef.current.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, seatIndex, config: tableConfig || undefined } }));
+  }, [tableId, tableConfig]);
 
   return {
     gameState, handOver, tableList, wsStatus, wsError,

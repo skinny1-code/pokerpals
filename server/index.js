@@ -514,11 +514,13 @@ async function signAndRemovePlayer(t, addr, ws) {
 
   // Close table when last player exits
   if (t.players.length === 0) {
-    try {
-      const tx = await escrow.closeTable(BigInt(t.id));
-      await tx.wait();
-    } catch (e) {
-      console.error(`[Server] closeTable error:`, e.message);
+    if (process.env.TESTNET_SKIP_CHAIN_VERIFY !== 'true') {
+      try {
+        const tx = await escrow.closeTable(BigInt(t.id));
+        await tx.wait();
+      } catch (e) {
+        console.error(`[Server] closeTable error:`, e.message);
+      }
     }
     tables.delete(t.id);
   }
@@ -597,44 +599,57 @@ wss.on('connection', (ws) => {
       }
 
       case 'JOIN_TABLE': {
-        const { tableId, seatIndex } = payload;
+        const { tableId, seatIndex, config: clientConfig } = payload;
         const tidKey = String(tableId);
         let t = tables.get(tidKey);
 
         const addr = client.addr;
         if (!addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
 
-        // If not in memory, load config from chain
+        const skipChainVerify = process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true';
+
+        // If not in memory, load config from chain (or use client-provided config in testnet mode)
         if (!t) {
-          try {
-            const info = await escrow.getTableInfo(BigInt(tableId));
-            if (!info || info[0] === 0n) {
-              return send(ws, { type: 'ERROR', error: 'Table not found on chain' });
-            }
-            const config = {
-              buyIn:      Number(info[1]),
-              bigBlind:   Number(info[2]),
-              maxPlayers: Number(info[3]),
-              gameType:   Number(info[4]),
-            };
-            t = new PokerTable(BigInt(tableId), config);
-            t.handNonce = Number(info[7]);
-            t.isActive  = Number(info[5]) === 1; // TableStatus.Active = 1
+          if (skipChainVerify) {
+            const cfg = clientConfig || { buyIn: 1000, bigBlind: 20, maxPlayers: 6, gameType: 0 };
+            t = new PokerTable(BigInt(tableId), cfg);
             tables.set(tidKey, t);
-            console.log(`[Server] Loaded table ${tidKey} from chain`);
-          } catch (e) {
-            console.error(`[Server] getTableInfo(${tidKey}) failed:`, e.message);
-            return send(ws, { type: 'ERROR', error: 'Table not found' });
+            console.log(`[Server] Created table ${tidKey} from client config (TESTNET_SKIP_CHAIN_VERIFY)`);
+          } else {
+            try {
+              const info = await escrow.getTableInfo(BigInt(tableId));
+              if (!info || info[0] === 0n) {
+                return send(ws, { type: 'ERROR', error: 'Table not found on chain' });
+              }
+              const config = {
+                buyIn:      Number(info[1]),
+                bigBlind:   Number(info[2]),
+                maxPlayers: Number(info[3]),
+                gameType:   Number(info[4]),
+              };
+              t = new PokerTable(BigInt(tableId), config);
+              t.handNonce = Number(info[7]);
+              t.isActive  = Number(info[5]) === 1; // TableStatus.Active = 1
+              tables.set(tidKey, t);
+              console.log(`[Server] Loaded table ${tidKey} from chain`);
+            } catch (e) {
+              console.error(`[Server] getTableInfo(${tidKey}) failed:`, e.message);
+              return send(ws, { type: 'ERROR', error: 'Table not found' });
+            }
           }
         }
 
-        // Verify player has bought in on-chain before seating them
+        // Verify player has bought in on-chain before seating them (skipped in testnet mode)
         let onChainDeposit;
-        try {
-          onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
-        } catch (e) {
-          console.error(`[Server] getPlayerDeposit error:`, e.message);
-          return send(ws, { type: 'ERROR', error: 'Could not verify buy-in' });
+        if (skipChainVerify) {
+          onChainDeposit = t.config.buyIn; // trust client, treat as fully bought-in
+        } else {
+          try {
+            onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+          } catch (e) {
+            console.error(`[Server] getPlayerDeposit error:`, e.message);
+            return send(ws, { type: 'ERROR', error: 'Could not verify buy-in' });
+          }
         }
         if (onChainDeposit === 0) {
           // Player hasn't bought in yet — send current seat occupancy so UI can show seat picker
