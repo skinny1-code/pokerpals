@@ -450,25 +450,10 @@ export function useTableSocket(tableId, tableConfig) {
   const wsRef           = useRef(null);
   const authCacheRef    = useRef(null); // { address, nonce, signature } — reused on reconnect
   const tableConfigRef  = useRef(tableConfig); // keep latest config accessible inside ws callbacks
-  const authedRef       = useRef(false); // true after AUTH_OK received this connection
-  const joinSentRef     = useRef(false); // true once JOIN_TABLE sent this connection
   tableConfigRef.current = tableConfig;
-
-  // If tableConfig arrives after AUTH_OK but JOIN_TABLE hadn't been sent yet, send it now
-  useEffect(() => {
-    if (!tableId || !tableConfig || !authedRef.current || joinSentRef.current) return;
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      joinSentRef.current = true;
-      wsRef.current.send(JSON.stringify({
-        type: 'JOIN_TABLE', payload: { tableId, config: tableConfig },
-      }));
-    }
-  }, [tableId, tableConfig]);
 
   useEffect(() => {
     if (!serverUrl || !address) return;
-    authedRef.current = false;
-    joinSentRef.current = false;
 
     setWsStatus('connecting');
     const ws = new WebSocket(serverUrl);
@@ -498,15 +483,9 @@ export function useTableSocket(tableId, tableConfig) {
         switch (msg.type) {
           case 'AUTH_OK':
             setWsStatus('authed');
-            authedRef.current = true;
             if (tableId) {
-              // If config is already available, send immediately; else the tableConfig effect fires it
-              const cfg = tableConfigRef.current;
-              if (cfg || !tableId) {
-                joinSentRef.current = true;
-                ws.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, config: cfg || undefined } }));
-              }
-              // else: wait for tableConfig effect to fire once tableInfo loads
+              // Always send JOIN_TABLE immediately; include config if available (server uses defaults otherwise)
+              ws.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, config: tableConfigRef.current || undefined } }));
             } else {
               ws.send(JSON.stringify({ type: 'LIST_TABLES' }));
             }
@@ -565,8 +544,6 @@ export function useTableSocket(tableId, tableConfig) {
     ws.onclose = () => {
       setWsStatus('disconnected');
       wsRef.current = null;
-      authedRef.current = false;
-      joinSentRef.current = false;
       // Auto-reconnect after 3s (no new sign needed — cached auth is reused)
       setTimeout(() => setReconnectKey(k => k + 1), 3000);
     };
