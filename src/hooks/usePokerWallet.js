@@ -152,6 +152,19 @@ const ESCROW  = process.env.NEXT_PUBLIC_ESCROW;
 const STAKING = process.env.NEXT_PUBLIC_STAKING;
 const HANDLE  = process.env.NEXT_PUBLIC_POKER_HANDLE;
 
+// Safe fee estimation — returns {} if blocked (Codespace sandbox) so MetaMask estimates instead
+async function safeFeeOverrides(publicClient) {
+  try {
+    const fees = await publicClient.estimateFeesPerGas();
+    return {
+      maxFeePerGas:         fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined,
+      maxPriorityFeePerGas: fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined,
+    };
+  } catch {
+    return {}; // let wallet estimate fees
+  }
+}
+
 // ─── HOOK: WALLET STATE ───────────────────────────────────────────────────────
 export function useWallet() {
   const { address, isConnected, chainId } = useAccount();
@@ -302,12 +315,7 @@ export function useEscrow(tableId) {
       setStatus('approving');
       const amountBN    = parseUnits(String(buyInAmount), 18);
       const seatFeeAmt  = seatFeeRef.current; // 0 for open tables, >0 for leased tables
-      // Fetch live gas fees with 20% buffer to avoid base fee underrun
-      const fees = await publicClient.estimateFeesPerGas();
-      const feeOverrides = {
-        maxFeePerGas:         fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined,
-        maxPriorityFeePerGas: fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined,
-      };
+      const feeOverrides = await safeFeeOverrides(publicClient);
       // Step 1: Approve escrow to spend only what's needed
       const approveTx = await writeContractAsync({
         address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
@@ -352,11 +360,7 @@ export function useEscrow(tableId) {
     try {
       setStatus('approving');
       const amountBN = parseUnits(String(amount), 18);
-      const fees = await publicClient.estimateFeesPerGas();
-      const feeOverrides = {
-        maxFeePerGas:         fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined,
-        maxPriorityFeePerGas: fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined,
-      };
+      const feeOverrides = await safeFeeOverrides(publicClient);
       const approveTx = await writeContractAsync({
         address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
         args: [ESCROW, amountBN], ...feeOverrides,
@@ -383,11 +387,7 @@ export function useEscrow(tableId) {
     if (!ESCROW) return;
     try {
       setStatus('cashout');
-      const fees = await publicClient.estimateFeesPerGas();
-      const feeOverrides = {
-        maxFeePerGas:         fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined,
-        maxPriorityFeePerGas: fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined,
-      };
+      const feeOverrides = await safeFeeOverrides(publicClient);
       const tx = await writeContractAsync({
         address: ESCROW, abi: ESCROW_ABI, functionName: "cashOut",
         args: [BigInt(tableId), player, BigInt(amount), BigInt(nonce), sig],
@@ -621,16 +621,12 @@ export function useCreateTable() {
     try {
       const buyInBN    = parseUnits(String(buyIn), 18);
       const bigBlindBN = parseUnits(String(bigBlind), 18);
-      // Fetch live fees and add 20% buffer so we don't land below the block base fee
-      const fees = await publicClient.estimateFeesPerGas();
-      const maxFeePerGas         = fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined;
-      const maxPriorityFeePerGas = fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined;
+      const feeOverrides = await safeFeeOverrides(publicClient);
       const hash = await writeContractAsync({
         address: ESCROW, abi: ESCROW_ABI, functionName: 'createTable',
         args: [buyInBN, bigBlindBN, maxPlayers, gameType, 0n],
         chainId: EXPECTED_CHAIN,
-        maxFeePerGas,
-        maxPriorityFeePerGas,
+        ...feeOverrides,
       });
       setTxHash(hash);
       return hash;

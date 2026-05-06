@@ -564,12 +564,15 @@ async function handleHandOver(t, result) {
 }
 
 // ─── WebSocket message handler ────────────────────────────────────────────────
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+  console.log(`[WS] New connection from ${req.socket.remoteAddress}`);
+  ws.on('close', () => console.log(`[WS] Connection closed`));
   ws.on('message', async (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     const { type, payload } = msg;
     const client = clients.get(ws) || {};
+    console.log(`[WS] ← ${type}`, payload?.tableId ? `tableId=${payload.tableId}` : payload?.address ? `addr=${payload.address.slice(0,10)}` : '');
 
     switch (type) {
 
@@ -581,6 +584,7 @@ wss.on('connection', (ws) => {
         }
         clients.set(ws, { addr: address, tableId: null });
         send(ws, { type: 'AUTH_OK', address });
+        console.log(`[WS] → AUTH_OK for ${address.slice(0,10)}`);
 
         // Deliver any pending cashout from a prior disconnection
         for (const [, t] of tables) {
@@ -674,6 +678,7 @@ wss.on('connection', (ws) => {
         if (!seated) return send(ws, { type: 'ERROR', error: 'Cannot join table' });
 
         clients.set(ws, { ...client, tableId: tidKey });
+        console.log(`[WS] Seated ${addr.slice(0,10)} at table ${tidKey} (${t.players.length}/${t.config.maxPlayers})`);
         broadcastTable(t);
 
         if (t.players.length >= t.config.maxPlayers) {
