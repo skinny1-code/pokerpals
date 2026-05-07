@@ -1,6 +1,6 @@
 'use client';
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import WalletBar from '../../../components/WalletBar';
 import PokerTable from '../../../components/PokerTable';
@@ -268,9 +268,10 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
 }
 
 // ── main table page ───────────────────────────────────────────────────────────
-export default function TablePage() {
+function TablePageInner() {
   const { id }   = useParams();
   const router   = useRouter();
+  const searchParams = useSearchParams();
   const { address: rawAddress } = useAccount();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -278,13 +279,25 @@ export default function TablePage() {
 
   const { buyIn, rebuy, cashOut, refund, status: escrowStatus, tableInfo } = useEscrow(id);
 
-  // Build config to send server when TESTNET_SKIP_CHAIN_VERIFY is active (no on-chain lookup)
-  const tableConfig = tableInfo ? {
+  // URL params carry config immediately (before RPC loads) — prevents wrong-default-config bug
+  const tableConfigFromUrl = useMemo(() => {
+    const buyIn = searchParams.get('buyIn');
+    if (!buyIn) return null;
+    return {
+      buyIn:      Number(buyIn),
+      bigBlind:   Number(searchParams.get('bigBlind') || 20),
+      maxPlayers: Number(searchParams.get('maxPlayers') || 6),
+      gameType:   Number(searchParams.get('gameType') || 0),
+    };
+  }, [searchParams]);
+
+  // Use URL config first (available immediately), fall back to on-chain data once loaded
+  const tableConfig = tableConfigFromUrl || (tableInfo ? {
     buyIn:      Number(tableInfo.buyIn) / 1e18,
     bigBlind:   Number(tableInfo.bigBlind) / 1e18,
     maxPlayers: Number(tableInfo.maxPlayers),
     gameType:   Number(tableInfo.gameType),
-  } : null;
+  } : null);
 
   const {
     gameState, handOver, wsStatus, wsError,
@@ -519,6 +532,32 @@ export default function TablePage() {
             </div>
           </div>
 
+          {/* Waiting for players banner */}
+          {gameState?.phase === 'waiting' && heroPlayer && (
+            <div style={{
+              background:'#060e06', border:'1px solid #1a3a1a', borderRadius:8,
+              padding:'10px 12px',
+            }}>
+              <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:2, marginBottom:6 }}>
+                WAITING FOR PLAYERS — {gameState.players.length}/{gameState.config?.maxPlayers}
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(window.location.href);
+                  alert('Table link copied! Share it with your opponents.');
+                }}
+                style={{
+                  width:'100%', background:'#0c1e0c', border:'1px solid #1a3a1a',
+                  borderRadius:6, padding:'6px 10px', cursor:'pointer',
+                  color:'#6a9a6a', fontSize:10, fontFamily:'inherit', fontWeight:600,
+                  transition:'all .15s',
+                }}
+              >
+                Copy Table Link
+              </button>
+            </div>
+          )}
+
           {/* Table log */}
           <div style={{ flex:1, minHeight:180 }}>
             <ChatPanel messages={log} />
@@ -644,5 +683,13 @@ export default function TablePage() {
         onDismiss={() => setShowHandOver(false)}
       />
     </div>
+  );
+}
+
+export default function TablePage() {
+  return (
+    <Suspense fallback={null}>
+      <TablePageInner />
+    </Suspense>
   );
 }

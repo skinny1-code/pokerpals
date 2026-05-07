@@ -112,8 +112,12 @@ function CreateTableModal({ onClose }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   useEffect(() => {
-    if (newTableId) { onClose(); router.push(`/table/${newTableId}`); }
-  }, [newTableId, onClose, router]);
+    if (newTableId) {
+      onClose();
+      const q = `?buyIn=${form.buyIn}&bigBlind=${form.bigBlind}&maxPlayers=${form.maxPlayers}&gameType=${form.gameType}`;
+      router.push(`/table/${newTableId}${q}`);
+    }
+  }, [newTableId, form, onClose, router]);
 
   const fields = [
     { label:'Game Type',        key:'gameType',   type:'select',
