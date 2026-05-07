@@ -362,8 +362,12 @@ function TablePageInner() {
   const seats = useMemo(() => mapToSeats(gameState, address), [gameState, address]);
 
   const handleLeave = useCallback(() => {
+    const isWaiting = gameState?.phase === 'waiting' || !gameState;
+    if (isWaiting) {
+      if (!window.confirm('Leave the waiting room and return to lobby?')) return;
+    }
     leaveTable(); // server will sign cashout if chips > 0; we wait for CASHOUT_SIG
-  }, [leaveTable]);
+  }, [leaveTable, gameState]);
 
   const handleCashOut = useCallback(async () => {
     if (!cashoutSig || !address) return;
@@ -381,7 +385,11 @@ function TablePageInner() {
   }, [rebuyAmt, rebuy, sendRebuyConfirmed]);
 
   const handleRefund = useCallback(async () => {
-    await refund();
+    // On testnet (no real on-chain deposit exists in SKIP_CHAIN_VERIFY mode), skip the refund call.
+    const isTestnet = process.env.NEXT_PUBLIC_CHAIN_ID === '421614';
+    if (!isTestnet) {
+      await refund();
+    }
     router.push('/');
   }, [refund, router]);
 
@@ -402,7 +410,15 @@ function TablePageInner() {
         padding:'8px 16px', borderBottom:'1px solid #1a3a1a',
         display:'flex', alignItems:'center', gap:8, fontSize:10, color:'#3a6a3a',
       }}>
-        <Link href="/" style={{ color:'#3a6a3a', textDecoration:'none' }}>Lobby</Link>
+        <Link href="/" onClick={e => {
+          if (heroPlayer && gameState?.phase === 'waiting') {
+            e.preventDefault();
+            if (window.confirm('Leave the waiting room and return to lobby?')) {
+              leaveTable();
+              router.push('/');
+            }
+          }
+        }} style={{ color:'#3a6a3a', textDecoration:'none' }}>Lobby</Link>
         <span>›</span>
         <span style={{ color:'#6a9a6a' }}>
           Table #{id}
@@ -433,6 +449,43 @@ function TablePageInner() {
               <div style={{ fontSize:32, marginBottom:12 }}>♠</div>
               <div>Connecting to game server…</div>
               {wsError && <div style={{ color:'#c0392b', marginTop:8, fontSize:11 }}>{wsError}</div>}
+            </div>
+          )}
+
+          {/* Waiting for players — prominent banner in main area */}
+          {gameState?.phase === 'waiting' && heroPlayer && (
+            <div style={{
+              background:'linear-gradient(135deg,#0a1f0a,#060e06)',
+              border:'1px solid #1a4a1a', borderRadius:12,
+              padding:'20px 24px', marginBottom:16, textAlign:'center',
+              boxShadow:'0 0 20px rgba(39,174,96,.08)',
+            }}>
+              <div style={{ fontSize:24, marginBottom:8 }}>♠</div>
+              <div style={{ fontSize:14, color:'#27ae60', fontWeight:700,
+                fontFamily:"'Playfair Display',serif", marginBottom:6 }}>
+                You're at the table!
+              </div>
+              <div style={{ fontSize:11, color:'#6a9a6a', marginBottom:12 }}>
+                Waiting for {(gameState.config?.maxPlayers || 2) - gameState.players.length} more player{((gameState.config?.maxPlayers || 2) - gameState.players.length) !== 1 ? 's' : ''} to join ({gameState.players.length}/{gameState.config?.maxPlayers || 2} seated)
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(window.location.href).catch(() => {});
+                  alert('Table link copied!\n\n' + window.location.href + '\n\nShare this with your opponent.');
+                }}
+                style={{
+                  background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
+                  border:'1px solid #27ae6066', borderRadius:8,
+                  padding:'10px 20px', cursor:'pointer',
+                  color:'#27ae60', fontSize:11, fontFamily:'inherit', fontWeight:700,
+                  letterSpacing:1,
+                }}
+              >
+                COPY & SHARE TABLE LINK
+              </button>
+              <div style={{ fontSize:9, color:'#3a6a3a', marginTop:10, letterSpacing:1 }}>
+                The game starts automatically when all seats are filled
+              </div>
             </div>
           )}
 
@@ -532,29 +585,14 @@ function TablePageInner() {
             </div>
           </div>
 
-          {/* Waiting for players banner */}
+          {/* Waiting status compact badge */}
           {gameState?.phase === 'waiting' && heroPlayer && (
             <div style={{
-              background:'#060e06', border:'1px solid #1a3a1a', borderRadius:8,
-              padding:'10px 12px',
+              background:'rgba(39,174,96,.06)', border:'1px solid #27ae6033',
+              borderRadius:6, padding:'6px 10px',
+              fontSize:9, color:'#27ae60', letterSpacing:1, textAlign:'center',
             }}>
-              <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:2, marginBottom:6 }}>
-                WAITING FOR PLAYERS — {gameState.players.length}/{gameState.config?.maxPlayers}
-              </div>
-              <button
-                onClick={() => {
-                  navigator.clipboard?.writeText(window.location.href);
-                  alert('Table link copied! Share it with your opponents.');
-                }}
-                style={{
-                  width:'100%', background:'#0c1e0c', border:'1px solid #1a3a1a',
-                  borderRadius:6, padding:'6px 10px', cursor:'pointer',
-                  color:'#6a9a6a', fontSize:10, fontFamily:'inherit', fontWeight:600,
-                  transition:'all .15s',
-                }}
-              >
-                Copy Table Link
-              </button>
+              WAITING — {gameState.players.length}/{gameState.config?.maxPlayers} seated
             </div>
           )}
 
@@ -644,13 +682,18 @@ function TablePageInner() {
 
           {/* Refund available (table not yet active) */}
           {refundAvailable && !cashoutSig && (
-            <button onClick={handleRefund} disabled={escrowStatus !== 'idle'} style={{
-              background:'rgba(212,175,55,.08)', border:'1px solid #d4af3766',
-              borderRadius:6, padding:'8px', cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer',
-              color:'#d4af37', fontSize:11, fontFamily:'inherit', fontWeight:700,
-            }}>
-              {escrowStatus !== 'idle' ? 'Processing…' : 'Claim Refund'}
-            </button>
+            <div>
+              <div style={{ fontSize:9, color:'#d4af3799', letterSpacing:1, marginBottom:6 }}>
+                You left the waiting room
+              </div>
+              <button onClick={handleRefund} disabled={escrowStatus !== 'idle'} style={{
+                width:'100%', background:'rgba(212,175,55,.08)', border:'1px solid #d4af3766',
+                borderRadius:6, padding:'8px', cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer',
+                color:'#d4af37', fontSize:11, fontFamily:'inherit', fontWeight:700,
+              }}>
+                {escrowStatus !== 'idle' ? 'Processing…' : 'Return to Lobby'}
+              </button>
+            </div>
           )}
 
           {/* Leave — locked badge or button */}

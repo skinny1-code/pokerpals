@@ -453,7 +453,11 @@ async function signAndRemovePlayer(t, addr, ws) {
       if (t.players.length === 0) tables.delete(t.id);
       broadcastTable(t);
     } else {
-      p.ws = null; // keep seated; they can reconnect and resume waiting
+      // Only null the WS reference if the player hasn't already reconnected with a new WS.
+      // (Race condition: reconnect can update p.ws before this close handler fires.)
+      if (!p.ws || p.ws.readyState !== WebSocket.OPEN) {
+        p.ws = null; // keep seated; they can reconnect and resume waiting
+      }
     }
     return;
   }
