@@ -267,6 +267,40 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
   );
 }
 
+// ── confirm modal (replaces window.confirm which is broken in mobile WebViews) ─
+function ConfirmModal({ message, onConfirm, onCancel }) {
+  return (
+    <div style={{
+      position:'fixed', inset:0, background:'rgba(0,0,0,.75)',
+      display:'flex', alignItems:'center', justifyContent:'center', zIndex:400,
+      padding:16,
+    }}>
+      <div style={{
+        background:'linear-gradient(160deg,#0d1f0d,#060e06)',
+        border:'1px solid #3a6a3a', borderRadius:14, padding:'24px 20px',
+        width:'100%', maxWidth:340, textAlign:'center',
+      }}>
+        <div style={{ fontSize:12, color:'#8aaa8a', lineHeight:1.6, marginBottom:20 }}>
+          {message}
+        </div>
+        <div style={{ display:'flex', gap:10 }}>
+          <button onClick={onCancel} style={{
+            flex:1, background:'transparent', border:'1px solid #1a3a1a',
+            borderRadius:8, padding:'12px', cursor:'pointer',
+            color:'#5a7a5a', fontSize:12, fontFamily:'inherit',
+          }}>Stay</button>
+          <button onClick={onConfirm} style={{
+            flex:1, background:'linear-gradient(135deg,#3a0f0f,#1f0707)',
+            border:'1px solid #7a2a2a', borderRadius:8, padding:'12px',
+            cursor:'pointer', color:'#e74c3c', fontSize:12,
+            fontFamily:'inherit', fontWeight:700,
+          }}>Leave</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── main table page ───────────────────────────────────────────────────────────
 function TablePageInner() {
   const { id }   = useParams();
@@ -307,9 +341,10 @@ function TablePageInner() {
     sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat,
   } = useTableSocket(id, tableConfig);
 
-  const [showRebuy,    setShowRebuy]    = useState(false);
-  const [rebuyAmt,     setRebuyAmt]     = useState('');
-  const [pendingSeat,  setPendingSeat]  = useState(null); // chosen seat index before buy-in
+  const [showRebuy,       setShowRebuy]       = useState(false);
+  const [rebuyAmt,        setRebuyAmt]        = useState('');
+  const [pendingSeat,     setPendingSeat]     = useState(null);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   const [log, setLog] = useState([
     { type:'system', text:`Joined table ${id}` },
@@ -364,9 +399,10 @@ function TablePageInner() {
   const handleLeave = useCallback(() => {
     const isWaiting = gameState?.phase === 'waiting' || !gameState;
     if (isWaiting) {
-      if (!window.confirm('Leave the waiting room and return to lobby?')) return;
+      setShowLeaveConfirm(true); // show React modal instead of window.confirm
+      return;
     }
-    leaveTable(); // server will sign cashout if chips > 0; we wait for CASHOUT_SIG
+    leaveTable();
   }, [leaveTable, gameState]);
 
   const handleCashOut = useCallback(async () => {
@@ -411,12 +447,9 @@ function TablePageInner() {
         display:'flex', alignItems:'center', gap:8, fontSize:10, color:'#3a6a3a',
       }}>
         <Link href="/" onClick={e => {
-          if (heroPlayer && gameState?.phase === 'waiting') {
+          if (heroPlayer && (gameState?.phase === 'waiting' || !gameState)) {
             e.preventDefault();
-            if (window.confirm('Leave the waiting room and return to lobby?')) {
-              leaveTable();
-              router.push('/');
-            }
+            setShowLeaveConfirm(true);
           }
         }} style={{ color:'#3a6a3a', textDecoration:'none' }}>Lobby</Link>
         <span>›</span>
@@ -429,7 +462,7 @@ function TablePageInner() {
 
       {/* Layout */}
       <div className="table-layout" style={{
-        flex:1, display:'grid', gridTemplateColumns:'1fr 260px',
+        flex:1, display:'grid', gridTemplateColumns:'minmax(0,1fr) min(260px,35vw)',
         overflow:'hidden',
       }}>
 
@@ -725,6 +758,18 @@ function TablePageInner() {
         handOver={showHandOver ? handOver : null}
         onDismiss={() => setShowHandOver(false)}
       />
+
+      {/* Leave confirmation modal — used instead of window.confirm (broken in mobile WebViews) */}
+      {showLeaveConfirm && (
+        <ConfirmModal
+          message="Leave the waiting room? You can rejoin later with the same table link."
+          onConfirm={() => {
+            setShowLeaveConfirm(false);
+            leaveTable();
+          }}
+          onCancel={() => setShowLeaveConfirm(false)}
+        />
+      )}
     </div>
   );
 }
