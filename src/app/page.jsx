@@ -38,8 +38,9 @@ function TableCard({ table }) {
   const bigBlind = table.config?.bigBlind || 0;
   const gameType = table.config?.gameType || 0;
 
+  const q = `?buyIn=${buyIn}&bigBlind=${bigBlind}&maxPlayers=${max}&gameType=${gameType}`;
   return (
-    <Link href={`/table/${table.id}`} style={{ textDecoration:'none' }}>
+    <Link href={`/table/${table.id}${q}`} style={{ textDecoration:'none' }}>
       <div
         onMouseEnter={() => setHov(true)}
         onMouseLeave={() => setHov(false)}
@@ -242,7 +243,6 @@ export default function LobbyPage() {
   const [tableList, setTableList] = useState([]);
   const [serverOnline, setServerOnline] = useState(false);
   const [filter, setFilter]     = useState('all');
-  const [showCreate, setShowCreate] = useState(false);
   const [mounted, setMounted]   = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
@@ -336,25 +336,9 @@ export default function LobbyPage() {
             ))}
           </div>
 
-          {/* CTA */}
-          {mounted && address && (
-            <button onClick={() => setShowCreate(true)} style={{
-              background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-              border:'1px solid #d4af3766', borderRadius:10,
-              padding:'12px 32px', cursor:'pointer',
-              color:'#d4af37', fontSize:14, fontWeight:700,
-              fontFamily:'inherit', letterSpacing:.3,
-              boxShadow:'0 4px 20px rgba(212,175,55,.12)',
-              transition:'all .2s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor='#d4af37aa'; e.currentTarget.style.boxShadow='0 4px 24px rgba(212,175,55,.25)'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor='#d4af3766'; e.currentTarget.style.boxShadow='0 4px 20px rgba(212,175,55,.12)'; }}>
-              + Create Table
-            </button>
-          )}
           {mounted && !address && (
             <div style={{ fontSize:12, color:'#3a6a3a' }}>
-              Connect your wallet to create or join a table
+              Connect your wallet to join a table
             </div>
           )}
         </div>
@@ -414,18 +398,8 @@ export default function LobbyPage() {
                   </div>
                 </div>
               ) : (
-                <div>
-                  <div style={{ color:'#5a8a5a', fontSize:13, fontWeight:500, marginBottom:8 }}>
-                    No tables yet — be the first!
-                  </div>
-                  <button onClick={() => setShowCreate(true)} style={{
-                    background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-                    border:'1px solid #d4af3744', borderRadius:8,
-                    padding:'8px 20px', cursor:'pointer',
-                    color:'#d4af37', fontSize:12, fontWeight:700, fontFamily:'inherit',
-                  }}>
-                    Create Table
-                  </button>
+                <div style={{ color:'#3a6a3a', fontSize:13, fontWeight:500 }}>
+                  No tables right now — check back soon.
                 </div>
               )}
             </div>
@@ -460,7 +434,6 @@ export default function LobbyPage() {
         </div>
       </div>
 
-      {showCreate && <CreateTableModal onClose={() => setShowCreate(false)} />}
     </div>
   );
 }

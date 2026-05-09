@@ -410,12 +410,26 @@ class PokerTable {
 const tables  = new Map();
 const clients = new Map(); // ws => { addr, tableId }
 
+// Pre-seeded permanent tables — always available, reset (not deleted) when empty
+const SEED_TABLES = [
+  { id: 9001n, name: 'Micro — NLH 2-Max',    buyIn: 1000,  bigBlind: 20,  maxPlayers: 2, gameType: 0 },
+  { id: 9002n, name: 'Standard — NLH 6-Max',  buyIn: 5000,  bigBlind: 50,  maxPlayers: 6, gameType: 0 },
+  { id: 9003n, name: 'High Stakes — NLH 2-Max', buyIn: 10000, bigBlind: 100, maxPlayers: 2, gameType: 0 },
+];
+for (const { id, name, ...config } of SEED_TABLES) {
+  const t = new PokerTable(id, config);
+  t.name = name;
+  t.isPermanent = true;
+  tables.set(String(id), t);
+}
+console.log(`[Server] Seeded ${SEED_TABLES.length} permanent tables`);
+
 const server = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.url === '/tables') {
     const list = [...tables.values()].map(t => ({
-      id: String(t.id), config: t.config, seated: t.players.length, phase: t.phase,
+      id: String(t.id), name: t.name || null, config: t.config, seated: t.players.length, phase: t.phase,
     }));
     res.writeHead(200);
     res.end(JSON.stringify({ tables: list }));
@@ -520,17 +534,29 @@ async function signAndRemovePlayer(t, addr, ws) {
     }
   }
 
-  // Close table when last player exits
+  // Close or reset table when last player exits
   if (t.players.length === 0) {
-    if (process.env.TESTNET_SKIP_CHAIN_VERIFY !== 'true') {
-      try {
-        const tx = await escrow.closeTable(BigInt(t.id));
-        await tx.wait();
-      } catch (e) {
-        console.error(`[Server] closeTable error:`, e.message);
+    if (t.isPermanent) {
+      // Reset permanent table so it's ready for the next game
+      t.phase     = 'waiting';
+      t.community = [];
+      t.pot       = 0;
+      t.maxBet    = 0;
+      t.deck      = [];
+      t.creator   = null;
+      t.isActive  = false;
+      console.log(`[Server] Permanent table ${t.id} reset after last player left`);
+    } else {
+      if (process.env.TESTNET_SKIP_CHAIN_VERIFY !== 'true') {
+        try {
+          const tx = await escrow.closeTable(BigInt(t.id));
+          await tx.wait();
+        } catch (e) {
+          console.error(`[Server] closeTable error:`, e.message);
+        }
       }
+      tables.delete(t.id);
     }
-    tables.delete(t.id);
   }
 }
 
