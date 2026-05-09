@@ -468,7 +468,7 @@ async function signAndRemovePlayer(t, addr, ws) {
     if (ws?.readyState === WebSocket.OPEN) {
       t.players = t.players.filter(x => x.addr !== addr);
       send(ws, { type: 'REFUND_AVAILABLE', tableId: String(t.id) });
-      if (t.players.length === 0) tables.delete(t.id);
+      if (t.players.length === 0 && !t.isPermanent) tables.delete(t.id);
       broadcastTable(t);
     } else {
       // Only null the WS reference if the player hasn't already reconnected with a new WS.
