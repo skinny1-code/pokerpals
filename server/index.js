@@ -10,6 +10,10 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 
+// Prevent unhandled rejections from crashing the server
+process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
+process.on('unhandledRejection',   e => console.error('[Server] unhandledRejection:', e?.message ?? e));
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function loadDeployment() {

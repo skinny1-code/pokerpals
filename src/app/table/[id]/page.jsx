@@ -447,9 +447,10 @@ function TablePageInner() {
         display:'flex', alignItems:'center', gap:8, fontSize:10, color:'#3a6a3a',
       }}>
         <Link href="/" onClick={e => {
-          if (heroPlayer && (gameState?.phase === 'waiting' || !gameState)) {
+          // Block navigation while connecting/authing (heroPlayer may not be set yet)
+          if (wsStatus !== 'disconnected') {
             e.preventDefault();
-            setShowLeaveConfirm(true);
+            if (heroPlayer) setShowLeaveConfirm(true);
           }
         }} style={{ color:'#3a6a3a', textDecoration:'none' }}>Lobby</Link>
         <span>›</span>
