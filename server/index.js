@@ -644,7 +644,8 @@ wss.on('connection', (ws, req) => {
         const addr = client.addr;
         if (!addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
 
-        const skipChainVerify = process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true';
+        // Permanent tables always skip chain verify — they don't exist on-chain
+        const skipChainVerify = (t?.isPermanent === true) || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true';
 
         // If not in memory, load config from chain (or use client-provided config in testnet mode)
         if (!t) {

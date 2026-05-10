@@ -429,6 +429,21 @@ export function useEscrow(tableId) {
   return { buyIn, rebuy, refund, cashOut, txHash, status, confirmed, tableInfo, isLeased, seatFee };
 }
 
+// ─── AUTH CACHE (sessionStorage) ─────────────────────────────────────────────
+// Survives page navigation within the same tab so PPP-AUTH fires only once per session.
+function getAuthCache(address) {
+  try {
+    const c = JSON.parse(sessionStorage.getItem('ppp-auth') || 'null');
+    return c?.address?.toLowerCase() === address?.toLowerCase() ? c : null;
+  } catch { return null; }
+}
+function setAuthCache(auth) {
+  try { sessionStorage.setItem('ppp-auth', JSON.stringify(auth)); } catch {}
+}
+function clearAuthCache() {
+  try { sessionStorage.removeItem('ppp-auth'); } catch {}
+}
+
 // ─── HOOK: TABLE WEBSOCKET ────────────────────────────────────────────────────
 // Connects, authenticates, and manages real-time game state for a single table.
 export function useTableSocket(tableId, tableConfig) {
@@ -462,14 +477,15 @@ export function useTableSocket(tableId, tableConfig) {
     ws.onopen = async () => {
       setWsStatus('connected');
       try {
-        // Reuse cached sig for same address to avoid repeated MetaMask popups on reconnect
-        let auth = authCacheRef.current;
-        if (!auth || auth.address !== address) {
+        // Check sessionStorage first — survives page navigation, so only one sign per tab session
+        let auth = getAuthCache(address);
+        if (!auth) {
           const nonce     = Date.now().toString();
           const signature = await signMessageAsync({ message: `PPP-AUTH:${nonce}` });
           auth = { address, nonce, signature };
-          authCacheRef.current = auth;
+          setAuthCache(auth);
         }
+        authCacheRef.current = auth; // keep ref in sync for fast reconnect reuse
         ws.send(JSON.stringify({ type: 'AUTH', payload: auth }));
       } catch {
         setWsError('Wallet signature required to connect');
@@ -491,7 +507,7 @@ export function useTableSocket(tableId, tableConfig) {
             }
             break;
           case 'AUTH_FAIL':
-            // Clear cache so next attempt prompts a fresh sign
+            clearAuthCache();
             authCacheRef.current = null;
             setWsError('Authentication failed — check wallet signature');
             break;

@@ -430,12 +430,13 @@ function TablePageInner() {
   }, [refund, router]);
 
   const handleBuyIn = useCallback(async (seatIndex) => {
-    const amount = tableInfo?.buyInAmount ? Number(tableInfo.buyInAmount) / 1e18 : null;
+    // Use URL-param config first — permanent tables don't exist on-chain so tableInfo returns 0
+    const amount = tableConfig?.buyIn
+      || (tableInfo?.buyInAmount ? Number(tableInfo.buyInAmount) / 1e18 : 0);
     if (!amount) return;
     await buyIn(amount);
-    // After buy-in tx confirms, re-send JOIN_TABLE with chosen seat
     joinWithSeat(seatIndex);
-  }, [buyIn, joinWithSeat, tableInfo]);
+  }, [buyIn, joinWithSeat, tableConfig, tableInfo]);
 
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg-deep)', display:'flex', flexDirection:'column' }}>
@@ -531,7 +532,7 @@ function TablePageInner() {
               pendingSeat={pendingSeat}
               onSelect={setPendingSeat}
               onBuyIn={handleBuyIn}
-              buyInAmount={tableInfo?.buyInAmount ? Number(tableInfo.buyInAmount) / 1e18 : 0}
+              buyInAmount={tableConfig?.buyIn || (tableInfo?.buyInAmount ? Number(tableInfo.buyInAmount) / 1e18 : 0)}
               escrowStatus={escrowStatus}
             />
           )}
