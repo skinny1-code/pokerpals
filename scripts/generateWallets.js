@@ -1,7 +1,7 @@
 // scripts/generateWallets.js
 // Run: npm run setup:wallets
-// Generates 7 fresh wallets for every role and writes them to .env.
-// Run it again any time you need to replace all wallets with new ones.
+// Generates wallets for any roles NOT already in .env.
+// Existing keys and addresses are NEVER overwritten — safe to re-run.
 
 const { ethers } = require("ethers");
 const fs   = require("fs");
@@ -24,7 +24,7 @@ const ROLES = [
   },
   {
     label:      "RAKE WALLET",
-    note:       "Receives all rake revenue",
+    note:       "Receives ongoing rake revenue (20% of rake + all seat fees) — your personal income stream",
     keyVar:     "RAKE_WALLET_KEY",
     addrVar:    "RAKE_WALLET",
   },
@@ -36,19 +36,25 @@ const ROLES = [
   },
   {
     label:      "DEV WALLET",
-    note:       "Receives 10% of token supply (100M PPP)",
+    note:       "Receives 10% of token supply (100M CHIPS) vested linearly over 24 months — your equity stake",
     keyVar:     "DEV_WALLET_KEY",
     addrVar:    "DEV_WALLET",
   },
   {
+    label:      "OPS WALLET",
+    note:       "Receives 10% of token supply (100M CHIPS) — devops budget: servers, staff, marketing",
+    keyVar:     "OPS_WALLET_KEY",
+    addrVar:    "OPS_WALLET",
+  },
+  {
     label:      "COMMUNITY WALLET",
-    note:       "Receives 40% of token supply (400M PPP)",
+    note:       "Receives 10% of token supply (100M CHIPS) — tournaments, airdrops, grants",
     keyVar:     "COMMUNITY_WALLET_KEY",
     addrVar:    "COMMUNITY_WALLET",
   },
   {
     label:      "LIQUIDITY WALLET",
-    note:       "Receives 50% of token supply (500M PPP)",
+    note:       "Receives 50% of token supply (500M CHIPS) — DEX liquidity pools",
     keyVar:     "LIQUIDITY_WALLET_KEY",
     addrVar:    "LIQUIDITY_WALLET",
   },
@@ -56,38 +62,60 @@ const ROLES = [
 
 function line(char = "═", len = 62) { return char.repeat(len); }
 
+// Read existing .env so we can check which roles already have keys
+const existingEnv = fs.existsSync(ENV_PATH)
+  ? Object.fromEntries(
+      fs.readFileSync(ENV_PATH, "utf8")
+        .split("\n")
+        .filter(l => l.includes("=") && !l.startsWith("#"))
+        .map(l => { const [k, ...v] = l.split("="); return [k.trim(), v.join("=").trim()]; })
+    )
+  : {};
+
+// Only generate wallets for roles that are missing from .env
 const generated = ROLES.map(role => {
+  const alreadyHasKey  = existingEnv[role.keyVar]  && existingEnv[role.keyVar]  !== "";
+  const alreadyHasAddr = !role.addrVar || (existingEnv[role.addrVar] && existingEnv[role.addrVar] !== "");
+  if (alreadyHasKey && alreadyHasAddr) {
+    return { ...role, key: existingEnv[role.keyVar], address: existingEnv[role.addrVar] || null, isNew: false };
+  }
   const wallet = ethers.Wallet.createRandom();
-  return { ...role, key: wallet.privateKey, address: wallet.address };
+  return { ...role, key: wallet.privateKey, address: wallet.address, isNew: true };
 });
 
-// Build .env content — start with any non-wallet lines from existing .env
+const newEntries = generated.filter(r => r.isNew);
+if (newEntries.length === 0) {
+  console.log("\n✅ All wallet roles already configured in .env — nothing to generate.\n");
+  process.exit(0);
+}
+
+// Build updated .env: keep all existing lines, append only new wallet entries
 const WALLET_KEYS = new Set([
   ...ROLES.map(r => r.keyVar),
   ...ROLES.filter(r => r.addrVar).map(r => r.addrVar),
 ]);
 
-let existingLines = [];
-if (fs.existsSync(ENV_PATH)) {
-  existingLines = fs.readFileSync(ENV_PATH, "utf8")
-    .split("\n")
-    .filter(l => {
-      const key = l.split("=")[0].trim();
-      return !WALLET_KEYS.has(key);
-    });
-}
+const existingLines = fs.existsSync(ENV_PATH)
+  ? fs.readFileSync(ENV_PATH, "utf8").split("\n")
+      .filter(l => {
+        const key = l.split("=")[0].trim();
+        // Remove lines whose key we are about to write as new
+        const isNewKey = newEntries.some(e => e.keyVar === key || e.addrVar === key);
+        return !isNewKey;
+      })
+  : [];
 
-const walletLines = [];
-generated.forEach(({ keyVar, addrVar, key, address }) => {
-  walletLines.push(`${keyVar}=${key}`);
-  if (addrVar) walletLines.push(`${addrVar}=${address}`);
+const newWalletLines = [];
+newEntries.forEach(({ keyVar, addrVar, key, address }) => {
+  newWalletLines.push(`${keyVar}=${key}`);
+  if (addrVar) newWalletLines.push(`${addrVar}=${address}`);
 });
 
 const envContent = [
-  ...existingLines.filter(l => l.trim() !== ""),
+  ...existingLines.filter((l, i, arr) => !(l.trim() === "" && arr[i-1]?.trim() === "")),
   "",
   "# ── GENERATED WALLETS ───────────────────────────────────────────",
-  ...walletLines,
+  ...newWalletLines,
   "",
 ].join("\n");
 
@@ -99,14 +127,14 @@ const PRINT_PATH = path.resolve(__dirname, "../WALLETS-PRINT-ME.txt");
 
 const printLines = [
   "================================================================",
-  "  PokerPartyPals — WALLET KEYS",
+  "  PokerVsPals — WALLET KEYS",
   `  Generated: ${now}`,
   "  KEEP THIS SAFE — DO NOT SHARE — DO NOT LOSE",
   "================================================================",
   "",
 ];
 
-generated.forEach(({ label, note, key, address, addrVar, keyVar }) => {
+newEntries.forEach(({ label, note, key, address, addrVar, keyVar }) => {
   printLines.push(`[ ${label} ]`);
   printLines.push(`  Role    : ${note}`);
   printLines.push(`  Address : ${address}`);
@@ -128,16 +156,21 @@ fs.writeFileSync(PRINT_PATH, printLines.join("\n") + "\n");
 
 // Terminal summary
 console.log("\n" + line());
-console.log("  PokerPartyPals — NEW WALLETS GENERATED");
+console.log("  PokerVsPals — NEW WALLETS GENERATED");
 console.log("  Write these down and store them safely!");
 console.log(line());
 
-generated.forEach(({ label, note, key, address }) => {
-  console.log(`\n  ${label}`);
+newEntries.forEach(({ label, note, key, address }) => {
+  console.log(`\n  ${label}  ★ NEW`);
   console.log(`  ${note}`);
   console.log(`  Address : ${address}`);
   console.log(`  Key     : ${key}`);
 });
+
+const kept = generated.filter(r => !r.isNew);
+if (kept.length > 0) {
+  console.log(`\n  (${kept.length} existing wallet${kept.length > 1 ? 's' : ''} preserved unchanged: ${kept.map(r => r.label).join(", ")})`);
+}
 
 console.log("\n" + line());
 console.log("  All keys saved to .env");

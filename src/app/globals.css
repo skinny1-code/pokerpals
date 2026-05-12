@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --felt:        #1a4a2e;
+  --felt-light:  #1f5a36;
+  --felt-edge:   #0f3020;
+  --rail:        #2c1a0e;
+  --gold:        #d4af37;
+  --gold-dim:    #8a7020;
+  --gold-pale:   #f1d77a;
+  --cream:       #e8e0cc;
+  --red:         #c0392b;
+  --bg:          #0d1a0d;
+  --bg-deep:     #060e06;
+  --bg-card:     #0c1a0c;
+  --bg-raised:   #111f11;
+  --border:      #1a3a1a;
+  --border-mid:  #234a23;
+  --text-primary:   #e8e0cc;
+  --text-secondary: #8aaa8a;
+  --text-muted:     #3a6a3a;
+  --green:       #27ae60;
+  --orange:      #e67e22;
+  --chip-red:    #c0392b;
+  --chip-blue:   #2980b9;
+  --chip-green:  #27ae60;
+}
+
+html, body { height: 100%; background: var(--bg-deep); color: var(--cream); }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, .serif { font-family: 'Playfair Display', Georgia, serif; }
+code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
+
+/* ── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
+
+/* ── Animations ─────────────────────────────────────────── */
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(212,175,55,.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(212,175,55,0); }
+  100% { box-shadow: 0 0 0 0 rgba(212,175,55,0); }
+}
+@keyframes deal-card {
+  from { transform: translate(-50%, -200px) rotate(-15deg) scale(.4); opacity: 0; }
+  to   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+}
+@keyframes chip-toss {
+  0%   { transform: translateY(0) scale(1); }
+  50%  { transform: translateY(-20px) scale(1.1); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes winner-glow {
+  0%,100% { box-shadow: 0 0 15px rgba(212,175,55,.2); }
+  50%      { box-shadow: 0 0 40px rgba(212,175,55,.8), 0 0 60px rgba(212,175,55,.3); }
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+@keyframes timer-drain {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: 126; }
+}
+@keyframes live-dot {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%     { opacity: .4; transform: scale(.8); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-in     { animation: fade-in .25s ease forwards; }
+.animate-up     { animation: fade-up .35s ease forwards; }
+.pulse          { animation: pulse-ring 1.5s infinite; }
+.winner-glow    { animation: winner-glow 1s ease-in-out infinite; }
+
+/* ── Glass card ─────────────────────────────────────────── */
+.glass {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+/* ── Skeleton loader ─────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, #0c1a0c 25%, #152815 50%, #0c1a0c 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: 4px;
+}
+
+/* ── Mobile ──────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .table-layout {
+    grid-template-columns: 1fr !important;
+  }
+  .table-side-panel {
+    border-left: none !important;
+    border-top: 1px solid var(--border);
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .lobby-col-header { display: none !important; }
+  .lobby-row-grid {
+    grid-template-columns: 1fr auto !important;
+    grid-template-rows: auto auto;
+  }
+  .lobby-row-game   { display: none !important; }
+  .lobby-row-blinds { display: none !important; }
+  .betting-controls { max-width: 100% !important; }
+  .lb-winrate       { display: none !important; }
+  .hide-mobile      { display: none !important; }
+}
+@media (min-width: 641px) {
+  .show-mobile { display: none !important; }
+}

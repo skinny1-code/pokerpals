@@ -5,9 +5,9 @@
 import { ethers } from "ethers";
 import fetch from "node-fetch";
 
-const RPC_URL        = process.env.RPC_URL;
+const RPC_URL        = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL;
 const OPERATOR_KEY   = process.env.OPERATOR_PRIVATE_KEY;
-const ESCROW_ADDR    = process.env.ESCROW_ADDRESS;
+const ESCROW_ADDR    = process.env.NEXT_PUBLIC_ESCROW || process.env.ESCROW_ADDRESS;
 const PASSPORT_API   = process.env.GITCOIN_PASSPORT_API;
 const SCORER_ID      = process.env.GITCOIN_SCORER_ID;
 const ALCHEMY_API    = process.env.ALCHEMY_API_KEY;
@@ -25,7 +25,7 @@ const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, signer);
 
 // 1. On-chain activity (via Alchemy API)
 async function checkOnChainActivity(address) {
-  const url = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API}`;
+  const url = `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API}`;
   const body = JSON.stringify({
     jsonrpc:"2.0", id:1, method:"alchemy_getAssetTransfers",
     params:[{ fromAddress:address, category:["external","erc20"], withMetadata:true, maxCount:"0x64" }]
@@ -74,7 +74,7 @@ async function checkPassportScore(address) {
 // 3. Contract interaction diversity (degens touch multiple contracts, bots repeat same calls)
 async function checkContractDiversity(address) {
   // Simplified: check token interactions via Alchemy token balances
-  const url = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API}`;
+  const url = `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API}`;
   const body = JSON.stringify({
     jsonrpc:"2.0", id:1, method:"alchemy_getTokenBalances",
     params:[address, "erc20"]

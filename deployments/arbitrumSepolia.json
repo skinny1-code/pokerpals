@@ -1,0 +1,15 @@
+{
+  "network": "arbitrumSepolia",
+  "chainId": "421614",
+  "deployedAt": "2026-05-04T07:04:16.046Z",
+  "deployer": "0x0B58C02408E095F8f7527FF42184E3FC54e6Df86",
+  "contracts": {
+    "PvPToken": "0x6b846a7E181366Cf08aeefF3097585d6C2e52d8d",
+    "PvPStaking": "0xB1E0d93EFb18b33A3B4CDA53f1024c5a4d727AF1",
+    "ReferralRegistry": "0x658Af7900371bB1ee90B08F280247C502b4D0C90",
+    "PokerEscrow": "0x39a268fEAffbB1aa816d205492ae0E3B588992f7",
+    "TournamentManager": "0x7dE0B7554a799F83b210234993C6Db5776bDf99c",
+    "TableRegistry": "0xA77b07A16e18ef81d1f419d413A20Be087aB5947",
+    "PokerHandle": "0xA61481266CB0d1ec5F0e32af6A4B673f396CA4cC"
+  }
+}
