@@ -17,7 +17,7 @@ const ESCROW_ABI = [
       {name:"refs",type:"uint256"},{name:"total",type:"uint256"}
     ]},
   { name:"tierRakeNum",   type:"function", stateMutability:"view", inputs:[{type:"uint256"}], outputs:[{type:"uint256"}] },
-  { name:"seatFeePPP",    type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"seatFeeCHIPS",  type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
   { name:"tableCount",    type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
 ];
 const TOURN_ABI = [
@@ -36,7 +36,7 @@ const REFERRAL_ABI = [
 ];
 
 const fmt   = n  => typeof n === 'bigint' ? Number(formatUnits(n, 18)).toLocaleString(undefined,{maximumFractionDigits:1}) : n;
-const ppp   = n  => `◈ ${fmt(n)} PPP`;
+const chips = n  => `◈ ${fmt(n)} CHIPS`;
 const gold  = '#d4af37';
 const green = '#4caf50';
 
@@ -59,7 +59,7 @@ function Bar({ label, value, max, color = gold }) {
     <div style={{marginBottom:10}}>
       <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
         <span style={{fontSize:11,color:'#6a8a6a'}}>{label}</span>
-        <span style={{fontSize:11,color,fontFamily:'monospace'}}>{fmt(value)} PPP</span>
+        <span style={{fontSize:11,color,fontFamily:'monospace'}}>{fmt(value)} CHIPS</span>
       </div>
       <div style={{height:4,background:'#0d1a0d',borderRadius:2}}>
         <div style={{height:'100%',width:`${pct}%`,background:`linear-gradient(90deg,${color}66,${color})`,borderRadius:2,transition:'width .5s'}}/>
@@ -99,7 +99,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
     address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'tableCount',
   });
   const { data: seatFee } = useReadContract({
-    address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'seatFeePPP',
+    address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'seatFeeCHIPS',
   });
 
   const rake      = escrowSummary?.[0] || 0n;
@@ -124,7 +124,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
         display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
         <div>
           <div style={{fontSize:18,color:gold,fontWeight:700,letterSpacing:2}}>♠ Revenue Dashboard</div>
-          <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:3}}>POKERPALS™ OPERATOR VIEW</div>
+          <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:3}}>POKERVSPALS™ OPERATOR VIEW</div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
           <div style={{width:6,height:6,borderRadius:'50%',background:green,
@@ -153,11 +153,11 @@ export default function RevenueDashboard({ address: ownerAddr }) {
           <>
             {/* KPI row */}
             <div style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap'}}>
-              <StatCard icon="◈" label="TOTAL REVENUE"     value={ppp(cashTotal)}  color={gold}  sub="Rake + seats + tournaments"/>
-              <StatCard icon="♠" label="CASH GAME RAKE"    value={ppp(rake)}       color={gold}  sub={`${Number(tableCount)||0} tables lifetime`}/>
-              <StatCard icon="🪑" label="SEAT FEES"         value={ppp(seats)}      color='#29b6f6' sub={seatFee?`${fmt(seatFee)} PPP/seat`:''}/>
-              <StatCard icon="🏆" label="TOURNAMENT RAKE"   value={ppp(tournRevenue||0n)} color='#ff9800' sub={`${Number(tournCount)||0} tournaments`}/>
-              <StatCard icon="👥" label="REFERRAL PAYOUTS"  value={ppp(refs)}       color='#ab47bc' sub="20% of rake to referrers"/>
+              <StatCard icon="◈" label="TOTAL REVENUE"     value={chips(cashTotal)}  color={gold}  sub="Rake + seats + tournaments"/>
+              <StatCard icon="♠" label="CASH GAME RAKE"    value={chips(rake)}       color={gold}  sub={`${Number(tableCount)||0} tables lifetime`}/>
+              <StatCard icon="🪑" label="SEAT FEES"         value={chips(seats)}      color='#29b6f6' sub={seatFee?`${fmt(seatFee)} CHIPS/seat`:''}/>
+              <StatCard icon="🏆" label="TOURNAMENT RAKE"   value={chips(tournRevenue||0n)} color='#ff9800' sub={`${Number(tournCount)||0} tournaments`}/>
+              <StatCard icon="👥" label="REFERRAL PAYOUTS"  value={chips(refs)}       color='#ab47bc' sub="20% of rake to referrers"/>
             </div>
 
             {/* Revenue timeline (simulated — wire to Alchemy events in prod) */}
@@ -165,7 +165,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
               padding:'16px 18px',marginBottom:16}}>
               <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:2,marginBottom:14}}>REVENUE BREAKDOWN</div>
               <Bar label="Cash Game Rake (1.5%)" value={rake} max={cashTotal} color={gold}/>
-              <Bar label="Seat Fees (2 PPP/seat)" value={seats} max={cashTotal} color='#29b6f6'/>
+              <Bar label="Seat Fees (2 CHIPS/seat)" value={seats} max={cashTotal} color='#29b6f6'/>
               <Bar label="Tournament Rake (10%)" value={tournRevenue||0n} max={cashTotal} color='#ff9800'/>
             </div>
 
@@ -174,10 +174,10 @@ export default function RevenueDashboard({ address: ownerAddr }) {
               padding:'16px 18px'}}>
               <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:2,marginBottom:14}}>PROJECTED EARNINGS</div>
               {[
-                ['50 tables × 30 hands/hr × avg 1k PPP pot × 1.5%', '22,500 PPP/hr'],
-                ['50 tables × 5 players × 2 PPP seat fee',           '500 PPP/hr'],
-                ['1 daily tournament × 100 players × 100 PPP × 10%', '1,000 PPP/day'],
-                ['PPP token appreciation (500M float)',               'variable'],
+                ['50 tables × 30 hands/hr × avg 1k CHIPS pot × 1.5%', '22,500 CHIPS/hr'],
+                ['50 tables × 5 players × 2 CHIPS seat fee',           '500 CHIPS/hr'],
+                ['1 daily tournament × 100 players × 100 CHIPS × 10%', '1,000 CHIPS/day'],
+                ['CHIPS token appreciation (500M float)',               'variable'],
               ].map(([calc,val])=>(
                 <div key={calc} style={{display:'flex',justifyContent:'space-between',
                   padding:'7px 0',borderBottom:'1px solid #0d1a0d',gap:12}}>
@@ -196,13 +196,13 @@ export default function RevenueDashboard({ address: ownerAddr }) {
               { icon:'♠', title:'Cash Game Rake', color:gold,
                 lines:[
                   ['Rate','Standard 1.5% → Whale 0.6%'],
-                  ['Cap','50 PPP per pot max'],
+                  ['Cap','50 CHIPS per pot max'],
                   ['When','Every hand settled via PokerEscrow.settle()'],
                   ['Contract','PokerEscrow.sol → tierRakeNum[]'],
                 ]},
               { icon:'🪑', title:'Seat Fees', color:'#29b6f6',
                 lines:[
-                  ['Rate','2 PPP per buy-in, 1 PPP per rebuy'],
+                  ['Rate','2 CHIPS per buy-in, 1 CHIPS per rebuy'],
                   ['When','Charged at buyIn() + rebuy() calls'],
                   ['Note','Instant transfer to rakeRecipient — never in escrow'],
                   ['Tune','escrow.setRakeParams() — owner only'],
@@ -212,14 +212,14 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                   ['Rate','10% of entry pool (up to 15% max)'],
                   ['When','TournamentManager.startTournament()'],
                   ['Types','Scheduled, Sit-n-Go, Guaranteed Prize'],
-                  ['Example','100 players × 100 PPP = 1,000 PPP rake'],
+                  ['Example','100 players × 100 CHIPS = 1,000 CHIPS rake'],
                 ]},
               { icon:'💎', title:'VIP Staking', color:'#ab47bc',
                 lines:[
-                  ['Bronze 1k PPP','1.3% rake + 2% APR yield'],
-                  ['Silver 10k PPP','1.1% rake + 4% APR yield'],
-                  ['Gold 50k PPP', '0.9% rake + 7% APR yield'],
-                  ['Whale 200k PPP','0.6% rake + 12% APR yield'],
+                  ['Bronze 1k CHIPS','1.3% rake + 2% APR yield'],
+                  ['Silver 10k CHIPS','1.1% rake + 4% APR yield'],
+                  ['Gold 50k CHIPS', '0.9% rake + 7% APR yield'],
+                  ['Whale 200k CHIPS','0.6% rake + 12% APR yield'],
                   ['Yield source','Funded from rake via fundYieldPool()'],
                 ]},
               { icon:'👥', title:'Referrals', color:'#4caf50',
@@ -231,10 +231,10 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                 ]},
               { icon:'◈', title:'PPP Token Float', color:'#00e5ff',
                 lines:[
-                  ['Your allocation','500M PPP liquidity'],
-                  ['Demand driver','Every buy-in requires PPP — continuous buy pressure'],
+                  ['Your allocation','500M CHIPS liquidity'],
+                  ['Demand driver','Every buy-in requires CHIPS — continuous buy pressure'],
                   ['LP fees','Seed Uniswap/Camelot pool — earn 0.3% of all swaps'],
-                  ['Governance','Lock PPP for voting rights → future feature'],
+                  ['Governance','Lock CHIPS for voting rights → future feature'],
                 ]},
             ].map(({icon,title,color,lines})=>(
               <div key={title} style={{background:'#08140888',border:`1px solid ${color}22`,
@@ -255,7 +255,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
         {/* ── STAKING ── */}
         {tab==='staking' && (
           <>
-            <StatCard icon="⛏" label="TOTAL PPP STAKED" value={ppp(totalStaked||0n)} color='#ab47bc'
+            <StatCard icon="⛏" label="TOTAL CHIPS STAKED" value={chips(totalStaked||0n)} color='#ab47bc'
               sub="Locked by VIP players"/>
             <div style={{height:12}}/>
             <div style={{background:'#08140888',border:'1px solid #162a16',borderRadius:10,
@@ -271,7 +271,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                     <div style={{width:6,height:6,borderRadius:'50%',background:TIER_COLORS[i],flexShrink:0}}/>
                     <div style={{flex:1,minWidth:80}}>
                       <div style={{fontSize:12,color:TIER_COLORS[i],fontWeight:700}}>{name}</div>
-                      <div style={{fontSize:9,color:'#3a5a3a'}}>≥ {fmt(thresh)} PPP · {Number(apr)/100}% APR</div>
+                      <div style={{fontSize:9,color:'#3a5a3a'}}>≥ {fmt(thresh)} CHIPS · {Number(apr)/100}% APR</div>
                     </div>
                     <div style={{textAlign:'right'}}>
                       <div style={{fontSize:12,color:'#8aaa6a',fontFamily:'monospace'}}>{fmt(count)}</div>

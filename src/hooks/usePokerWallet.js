@@ -430,18 +430,18 @@ export function useEscrow(tableId) {
 }
 
 // ─── AUTH CACHE (sessionStorage) ─────────────────────────────────────────────
-// Survives page navigation within the same tab so PPP-AUTH fires only once per session.
+// Survives page navigation within the same tab so PVP-AUTH fires only once per session.
 function getAuthCache(address) {
   try {
-    const c = JSON.parse(sessionStorage.getItem('ppp-auth') || 'null');
+    const c = JSON.parse(sessionStorage.getItem('pvp-auth') || 'null');
     return c?.address?.toLowerCase() === address?.toLowerCase() ? c : null;
   } catch { return null; }
 }
 function setAuthCache(auth) {
-  try { sessionStorage.setItem('ppp-auth', JSON.stringify(auth)); } catch {}
+  try { sessionStorage.setItem('pvp-auth', JSON.stringify(auth)); } catch {}
 }
 function clearAuthCache() {
-  try { sessionStorage.removeItem('ppp-auth'); } catch {}
+  try { sessionStorage.removeItem('pvp-auth'); } catch {}
 }
 
 // ─── HOOK: TABLE WEBSOCKET ────────────────────────────────────────────────────
@@ -481,7 +481,7 @@ export function useTableSocket(tableId, tableConfig) {
         let auth = getAuthCache(address);
         if (!auth) {
           const nonce     = Date.now().toString();
-          const signature = await signMessageAsync({ message: `PPP-AUTH:${nonce}` });
+          const signature = await signMessageAsync({ message: `PVP-AUTH:${nonce}` });
           auth = { address, nonce, signature };
           setAuthCache(auth);
         }
