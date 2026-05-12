@@ -58,7 +58,7 @@ Post-deploy wiring (done in `scripts/deploy.js`):
 - `token.setEscrowFactory(escrowAddr)`
 
 **2. WebSocket game server** (`server/index.js`) — Node.js using ES module syntax (`import`). Manages game state in memory (`Map<id, PokerTable>`). Key responsibilities:
-- Authenticates players via wallet signature (`PPP-AUTH:<nonce>`)
+- Authenticates players via wallet signature (`PVP-AUTH:<nonce>`)
 - Runs the card game state machine (`PokerTable` class): dealing, betting rounds, showdown
 - Signs settlement payouts with the operator key: `operator.signMessage(keccak256(tableId, handNonce, winners, shares))`
 - Broadcasts per-player `GAME_STATE` (hole cards hidden for opponents) after every action

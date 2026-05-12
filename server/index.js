@@ -434,7 +434,7 @@ const server = createServer((req, res) => {
     res.end(JSON.stringify({ tables: list }));
   } else {
     res.writeHead(200);
-    res.end(JSON.stringify({ service: 'PokerPartyPals WS', tables: tables.size }));
+    res.end(JSON.stringify({ service: 'PokerVsPals WS', tables: tables.size }));
   }
 });
 
@@ -611,7 +611,7 @@ wss.on('connection', (ws, req) => {
 
       case 'AUTH': {
         const { address, signature, nonce } = payload;
-        const recovered = ethers.verifyMessage(`PPP-AUTH:${nonce}`, signature);
+        const recovered = ethers.verifyMessage(`PVP-AUTH:${nonce}`, signature);
         if (recovered.toLowerCase() !== address.toLowerCase()) {
           return send(ws, { type: 'AUTH_FAIL', error: 'Bad signature' });
         }
@@ -805,4 +805,4 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-server.listen(PORT, () => console.log(`PokerPartyPals WS server on :${PORT}`));
+server.listen(PORT, () => console.log(`PokerVsPals WS server on :${PORT}`));
