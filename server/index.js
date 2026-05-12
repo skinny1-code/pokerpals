@@ -412,9 +412,8 @@ const clients = new Map(); // ws => { addr, tableId }
 
 // Pre-seeded permanent tables — always available, reset (not deleted) when empty
 const SEED_TABLES = [
-  { id: 9001n, name: 'Micro — NLH 2-Max',    buyIn: 1000,  bigBlind: 20,  maxPlayers: 2, gameType: 0 },
-  { id: 9002n, name: 'Standard — NLH 6-Max',  buyIn: 5000,  bigBlind: 50,  maxPlayers: 6, gameType: 0 },
-  { id: 9003n, name: 'High Stakes — NLH 2-Max', buyIn: 10000, bigBlind: 100, maxPlayers: 2, gameType: 0 },
+  { id: 9001n, name: 'Micro — NLH 2-Max',      buyIn: 1000, bigBlind: 20, maxPlayers: 2, gameType: 0 },
+  { id: 9002n, name: 'High Stakes — NLH 2-Max', buyIn: 5000, bigBlind: 50, maxPlayers: 2, gameType: 0 },
 ];
 for (const { id, name, ...config } of SEED_TABLES) {
   const t = new PokerTable(id, config);
