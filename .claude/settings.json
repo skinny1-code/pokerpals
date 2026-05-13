@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(npm run *)",
+      "Bash(node *)",
+      "Bash(curl *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(jq *)",
+      "Read",
+      "Edit",
+      "Write",
+      "Skill"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath // empty' | { read -r f; [ -f \"$f\" ] && echo \"Saved: $f\"; } 2>/dev/null || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "verbose": false,
+  "theme": "dark"
+}

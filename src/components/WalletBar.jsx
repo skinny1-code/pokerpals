@@ -8,17 +8,21 @@ const CHAIN_NAMES = { 421614: 'Arbitrum Sepolia', 42161: 'Arbitrum One' };
 const EXPECTED = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
 
 export default function WalletBar() {
-  const { address, isConnected, chipsBalance, isHuman, connectMetaMask, disconnect } = useWallet();
+  const { address, isConnected, chipsBalance, isHuman,
+          connectMetaMask, connectWalletConnect, connectCoinbase, disconnect } = useWallet();
   const { chainId } = useAccount();
-  const [mounted, setMounted]       = useState(false);
+  const [mounted, setMounted]         = useState(false);
   const [hasInjected, setHasInjected] = useState(false);
-  const [siteUrl, setSiteUrl]       = useState('');
+  const [siteUrl, setSiteUrl]         = useState('');
+  const [showPicker, setShowPicker]   = useState(false);
 
   useEffect(() => {
     setMounted(true);
     setHasInjected(!!window.ethereum);
     setSiteUrl(window.location.host);
   }, []);
+
+  function pick(fn) { fn(); setShowPicker(false); }
 
   const short = a => a ? `${a.slice(0,6)}…${a.slice(-4)}` : '';
   const wrongNet = mounted && isConnected && chainId && chainId !== EXPECTED;
@@ -151,34 +155,91 @@ export default function WalletBar() {
           </>
         )}
 
-        {mounted && !isConnected && hasInjected && (
-          <button onClick={connectMetaMask} style={{
-            background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-            border:'1px solid #d4af3755', borderRadius:8,
-            padding:'8px 20px', cursor:'pointer',
-            color:'#d4af37', fontSize:13, fontWeight:700,
-            fontFamily:'inherit', letterSpacing:.3,
-            transition:'all .15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor='#d4af37aa'; e.currentTarget.style.boxShadow='0 0 16px #d4af3722'; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor='#d4af3755'; e.currentTarget.style.boxShadow='none'; }}>
-            Connect Wallet
-          </button>
-        )}
+        {mounted && !isConnected && (
+          <div style={{ position:'relative' }}>
+            <button onClick={() => setShowPicker(p => !p)} style={{
+              background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
+              border:'1px solid #d4af3755', borderRadius:8,
+              padding:'8px 20px', cursor:'pointer',
+              color:'#d4af37', fontSize:13, fontWeight:700,
+              fontFamily:'inherit', letterSpacing:.3,
+              transition:'all .15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor='#d4af37aa'; e.currentTarget.style.boxShadow='0 0 16px #d4af3722'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor='#d4af3755'; e.currentTarget.style.boxShadow='none'; }}>
+              Connect Wallet ▾
+            </button>
 
-        {mounted && !isConnected && !hasInjected && (
-          <a href={`https://metamask.app.link/dapp/${siteUrl}`} style={{
-            background:'linear-gradient(135deg,#f6851b22,#f6851b11)',
-            border:'1px solid #f6851b66', borderRadius:8,
-            padding:'8px 14px',
-            color:'#f6851b', fontSize:12, fontWeight:700,
-            fontFamily:'inherit', letterSpacing:.2,
-            textDecoration:'none', display:'flex', alignItems:'center', gap:6,
-          }}>
-            🦊 MetaMask
-          </a>
+            {showPicker && (
+              <>
+                {/* backdrop to close */}
+                <div onClick={() => setShowPicker(false)} style={{
+                  position:'fixed', inset:0, zIndex:199,
+                }} />
+                <div style={{
+                  position:'absolute', top:'calc(100% + 8px)', right:0,
+                  background:'#0a140a', border:'1px solid #1a3a1a',
+                  borderRadius:12, padding:8, zIndex:200,
+                  minWidth:220, boxShadow:'0 8px 32px #000a',
+                  display:'flex', flexDirection:'column', gap:4,
+                }}>
+                  <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:2,
+                    padding:'4px 10px', fontWeight:700 }}>CHOOSE WALLET</div>
+
+                  {/* MetaMask / injected */}
+                  <WalletOption
+                    icon="🦊"
+                    label="MetaMask"
+                    sub={hasInjected ? 'Detected' : 'Install →'}
+                    onClick={hasInjected
+                      ? () => pick(connectMetaMask)
+                      : () => { window.open(`https://metamask.app.link/dapp/${siteUrl}`,'_blank'); setShowPicker(false); }
+                    }
+                  />
+
+                  {/* WalletConnect */}
+                  <WalletOption
+                    icon="🔗"
+                    label="WalletConnect"
+                    sub="Scan QR code"
+                    onClick={() => pick(connectWalletConnect)}
+                  />
+
+                  {/* Coinbase Wallet */}
+                  <WalletOption
+                    icon="🔵"
+                    label="Coinbase Wallet"
+                    sub="Mobile or extension"
+                    onClick={() => pick(connectCoinbase)}
+                  />
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
     </header>
+  );
+}
+
+function WalletOption({ icon, label, sub, onClick }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        background: hover ? '#0c2e0c' : 'transparent',
+        border: `1px solid ${hover ? '#d4af3733' : 'transparent'}`,
+        borderRadius:8, padding:'8px 12px', cursor:'pointer',
+        display:'flex', alignItems:'center', gap:10, width:'100%',
+        transition:'all .12s',
+      }}>
+      <span style={{ fontSize:20 }}>{icon}</span>
+      <div style={{ textAlign:'left' }}>
+        <div style={{ color:'#d4af37', fontSize:13, fontWeight:700, fontFamily:'inherit' }}>{label}</div>
+        <div style={{ color:'#3a6a3a', fontSize:10 }}>{sub}</div>
+      </div>
+    </button>
   );
 }
