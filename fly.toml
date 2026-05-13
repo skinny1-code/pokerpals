@@ -1,0 +1,26 @@
+app = "pokervspals-server"
+primary_region = "iad"
+
+[processes]
+  app = "node server/index.js"
+
+[env]
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = "off"
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout  = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path   = "/"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus     = 1
+  memory   = "256mb"
