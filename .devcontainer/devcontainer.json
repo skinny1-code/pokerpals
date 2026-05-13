@@ -1,0 +1,9 @@
+{
+  "name": "PokerVsPals",
+  "forwardPorts": [3000, 4000],
+  "portsAttributes": {
+    "3000": { "label": "Frontend", "onAutoForward": "openBrowser", "visibility": "public" },
+    "4000": { "label": "Game Server", "onAutoForward": "notify", "visibility": "public" }
+  },
+  "postStartCommand": "node --env-file=.env server/index.js & npm run dev"
+}
