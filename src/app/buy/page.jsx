@@ -16,23 +16,21 @@ const CAMELOT_URL = CHIPS
   ? `https://app.camelot.exchange/?token2=${CHIPS}`
   : 'https://app.camelot.exchange';
 
-const ONRAMPER_KEY = process.env.NEXT_PUBLIC_ONRAMPER_KEY || '';
+const RAMP_KEY = process.env.NEXT_PUBLIC_RAMP_KEY || '';
 
-function OnramperWidget({ walletAddress }) {
+function RampWidget({ walletAddress }) {
   const params = new URLSearchParams({
-    apiKey: ONRAMPER_KEY || 'pk_test_x0zHfCFTQiPqKFl0BVgGPUKjqm1ouvFGISx',
-    defaultCrypto: 'ETH',
-    onlyNetworks: 'arbitrum',
+    hostApiKey: RAMP_KEY,
+    hostAppName: 'PokerVsPals',
+    swapAsset: 'ARBITRUM_ETH',
+    userAddress: walletAddress || '',
     primaryColor: 'd4af37',
-    containerColor: '0a140a',
-    secondaryContainerColor: '0c1e0c',
-    borderRadius: '1',
-    darkMode: 'true',
-    ...(walletAddress && { wallets: `ETH:${walletAddress}` }),
+    borderRadius: '12',
+    variant: 'embedded-mobile',
   });
   return (
     <iframe
-      src={`https://widget.onramper.com?${params}`}
+      src={`https://app.ramp.network/?${params}`}
       allow="payment; camera; microphone; fullscreen"
       style={{ width: '100%', height: 620, border: 'none', borderRadius: 12 }}
       title="Buy crypto with card"
@@ -205,14 +203,14 @@ export default function BuyPage() {
         {tab === 'card' && (
           <div>
             <div style={{ fontSize: 12, color: '#5a8a5a', marginBottom: 12 }}>
-              Buy ETH with your debit/credit card, then swap to CHIPS on Uniswap.
-              {!ONRAMPER_KEY && (
+              Buy ETH on Arbitrum with your debit/credit card, then swap to CHIPS.
+              {!RAMP_KEY && (
                 <span style={{ color: '#e67e22' }}>
-                  {' '}(Demo mode — add NEXT_PUBLIC_ONRAMPER_KEY to Vercel env vars for production)
+                  {' '}(Add NEXT_PUBLIC_RAMP_KEY to Vercel env vars — free at ramp.network)
                 </span>
               )}
             </div>
-            <OnramperWidget walletAddress={mounted ? address : undefined} />
+            <RampWidget walletAddress={mounted ? address : undefined} />
             <div style={{ marginTop: 12, fontSize: 11, color: '#3a6a3a', textAlign: 'center' }}>
               After purchasing ETH, go to the Swap tab to exchange it for CHIPS.
             </div>
