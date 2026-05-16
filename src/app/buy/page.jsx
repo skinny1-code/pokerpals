@@ -30,7 +30,7 @@ function RampWidget({ walletAddress }) {
   });
   return (
     <iframe
-      src={`https://app.ramp.network/?${params}`}
+      src={`https://buy.ramp.network/?${params}`}
       allow="payment; camera; microphone; fullscreen"
       style={{ width: '100%', height: 620, border: 'none', borderRadius: 12 }}
       title="Buy crypto with card"
