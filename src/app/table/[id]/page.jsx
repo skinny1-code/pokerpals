@@ -5,7 +5,7 @@ import Link from 'next/link';
 import WalletBar from '../../../components/WalletBar';
 import PokerTable from '../../../components/PokerTable';
 import BettingControls from '../../../components/BettingControls';
-import { useTableSocket, useEscrow } from '../../../hooks/usePokerWallet';
+import { useTableSocket, useEscrow, useHandleMap } from '../../../hooks/usePokerWallet';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 
@@ -24,7 +24,7 @@ function parseActionLabel(label) {
 }
 
 // ── map server pubState → PokerTable seats array (uses seatIndex for position) ──
-function mapToSeats(state, heroAddr) {
+function mapToSeats(state, heroAddr, handleMap = {}) {
   if (!state) return Array(9).fill(null);
 
   const seats = Array(9).fill(null);
@@ -36,6 +36,7 @@ function mapToSeats(state, heroAddr) {
     seats[idx] = {
       player: {
         address:  p.addr,
+        handle:   handleMap[p.addr?.toLowerCase()] || null,
         chips:    p.chips,
         isHero:   p.addr?.toLowerCase() === heroAddr?.toLowerCase(),
         isFolded: p.folded,
@@ -102,7 +103,7 @@ function ChatPanel({ messages }) {
 }
 
 // ── hand-over overlay ─────────────────────────────────────────────────────────
-function HandOverOverlay({ handOver, onDismiss }) {
+function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
   if (!handOver) return null;
   const winners = handOver.winners || [];
   const results = handOver.results || [];
@@ -121,11 +122,12 @@ function HandOverOverlay({ handOver, onDismiss }) {
         <div style={{ fontSize:9, color:'#d4af3799', letterSpacing:4, marginBottom:8 }}>HAND COMPLETE</div>
         {winners.map((w, i) => {
           const res = results.find(r => r.addr === w);
+          const displayName = handleMap[w?.toLowerCase()] || `${w.slice(0,8)}…`;
           return (
             <div key={i}>
               <div style={{ fontSize:22, color:'#d4af37', fontWeight:700,
                 fontFamily:"'Playfair Display',serif" }}>
-                {w.slice(0,8)}…
+                {displayName}
               </div>
               {res?.hand && (
                 <div style={{ fontSize:12, color:'#d4af3777', letterSpacing:1, marginTop:4 }}>
@@ -358,22 +360,25 @@ function TablePageInner() {
     if (acted) {
       setLog(prev => {
         const last = prev[prev.length - 1];
-        const entry = { type:'action', text:`${acted.addr.slice(0,8)}… ${acted.actionLabel}` };
+        const name = handleMap[acted.addr?.toLowerCase()] || `${acted.addr.slice(0,8)}…`;
+        const entry = { type:'action', text:`${name} ${acted.actionLabel}` };
         if (last?.text === entry.text) return prev;
         return [...prev.slice(-60), entry];
       });
     }
-  }, [gameState]);
+  }, [gameState, handleMap]);
 
   useEffect(() => {
     if (!handOver) return;
     setShowHandOver(true);
-    const names = handOver.winners?.map(w => w.slice(0,8)+'…').join(', ') || '?';
+    const names = handOver.winners?.map(w =>
+      handleMap[w?.toLowerCase()] || w.slice(0,8)+'…'
+    ).join(', ') || '?';
     setLog(prev => [...prev.slice(-60), {
       type: 'winner',
       text: `Winner: ${names}  ◈${handOver.pot?.toLocaleString()}  (${handOver.results?.[0]?.hand || ''})`,
     }]);
-  }, [handOver]);
+  }, [handOver, handleMap]);
 
   useEffect(() => {
     if (wsError) setLog(prev => [...prev, { type:'system', text:`⚠ ${wsError}` }]);
@@ -394,7 +399,10 @@ function TablePageInner() {
   const bigBlind   = gameState?.config?.bigBlind || 100;
   const minRaise   = bigBlind * 2;
 
-  const seats = useMemo(() => mapToSeats(gameState, address), [gameState, address]);
+  const playerAddrs = useMemo(() => gameState?.players?.map(p => p.addr).filter(Boolean) || [], [gameState]);
+  const handleMap   = useHandleMap(playerAddrs);
+
+  const seats = useMemo(() => mapToSeats(gameState, address, handleMap), [gameState, address, handleMap]);
 
   const handleLeave = useCallback(() => {
     const isWaiting = gameState?.phase === 'waiting' || !gameState;
@@ -758,6 +766,7 @@ function TablePageInner() {
 
       <HandOverOverlay
         handOver={showHandOver ? handOver : null}
+        handleMap={handleMap}
         onDismiss={() => setShowHandOver(false)}
       />
 

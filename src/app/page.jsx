@@ -1,8 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import WalletBar from '../components/WalletBar';
 import { useAccount } from 'wagmi';
+import { useCreateTable } from '../hooks/usePokerWallet';
 
 const GAME_LABEL = { 0:"No Limit Hold'em", 1:'Pot Limit Omaha' };
 
@@ -103,12 +105,173 @@ function TableCard({ table }) {
   );
 }
 
+const BLINDS_PRESETS = [10, 20, 50, 100, 200];
+const GAME_OPTIONS   = [{ v:0, label:"No Limit Hold'em" }, { v:1, label:'Pot Limit Omaha' }];
+
+function CreateTableModal({ onClose }) {
+  const router = useRouter();
+  const { createTable, status, newTableId, errorMsg } = useCreateTable();
+
+  const [gameType,    setGameType]    = useState(0);
+  const [bigBlind,    setBigBlind]    = useState(20);
+  const [customBB,    setCustomBB]    = useState('');
+  const [buyIn,       setBuyIn]       = useState(2000);
+  const [maxPlayers,  setMaxPlayers]  = useState(6);
+
+  const effectiveBB = customBB ? Number(customBB) : bigBlind;
+
+  // Auto-set buy-in to 100× BB when preset changes
+  useEffect(() => { if (!customBB) setBuyIn(effectiveBB * 100); }, [effectiveBB]);
+
+  // Navigate to new table when confirmed
+  useEffect(() => {
+    if (newTableId) {
+      const q = `?buyIn=${buyIn}&bigBlind=${effectiveBB}&maxPlayers=${maxPlayers}&gameType=${gameType}`;
+      router.push(`/table/${newTableId}${q}`);
+    }
+  }, [newTableId]);
+
+  const handleSubmit = () => {
+    if (!effectiveBB || !buyIn || buyIn < effectiveBB * 2) return;
+    createTable({ buyIn, bigBlind: effectiveBB, maxPlayers, gameType });
+  };
+
+  const busy = status === 'pending';
+
+  return (
+    <div style={{
+      position:'fixed', inset:0, background:'rgba(0,0,0,.75)',
+      display:'flex', alignItems:'center', justifyContent:'center',
+      zIndex:300, padding:16,
+    }} onClick={onClose}>
+      <div style={{
+        background:'linear-gradient(160deg,#0d1f0d,#060e06)',
+        border:'1px solid #2a5a2a', borderRadius:16, padding:'28px 24px',
+        width:'100%', maxWidth:420,
+      }} onClick={e => e.stopPropagation()}>
+
+        <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:3, marginBottom:16 }}>CREATE TABLE</div>
+
+        {/* Game type */}
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontSize:10, color:'#5a8a5a', marginBottom:6, letterSpacing:.5 }}>GAME TYPE</div>
+          <div style={{ display:'flex', gap:8 }}>
+            {GAME_OPTIONS.map(o => (
+              <button key={o.v} onClick={() => setGameType(o.v)} style={{
+                flex:1, padding:'9px 0', borderRadius:8, cursor:'pointer',
+                fontFamily:'inherit', fontSize:11, fontWeight:700,
+                background: gameType===o.v ? 'linear-gradient(135deg,#1a4a1a,#0c2e0c)' : 'transparent',
+                border:`1px solid ${gameType===o.v ? '#d4af37' : '#1a3a1a'}`,
+                color: gameType===o.v ? '#d4af37' : '#5a8a5a',
+                transition:'all .15s',
+              }}>{o.label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Big Blind */}
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontSize:10, color:'#5a8a5a', marginBottom:6, letterSpacing:.5 }}>BIG BLIND</div>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            {BLINDS_PRESETS.map(b => (
+              <button key={b} onClick={() => { setBigBlind(b); setCustomBB(''); }} style={{
+                padding:'7px 14px', borderRadius:6, cursor:'pointer',
+                fontFamily:"'JetBrains Mono',monospace", fontSize:11, fontWeight:700,
+                background: bigBlind===b && !customBB ? '#0c2e0c' : 'transparent',
+                border:`1px solid ${bigBlind===b && !customBB ? '#d4af37' : '#1a3a1a'}`,
+                color: bigBlind===b && !customBB ? '#d4af37' : '#5a8a5a',
+                transition:'all .15s',
+              }}>{b}</button>
+            ))}
+            <input
+              type="number" placeholder="Custom"
+              value={customBB}
+              onChange={e => setCustomBB(e.target.value)}
+              style={{
+                width:80, padding:'7px 10px', borderRadius:6,
+                background:'transparent', border:`1px solid ${customBB ? '#d4af37' : '#1a3a1a'}`,
+                color: customBB ? '#d4af37' : '#5a8a5a',
+                fontFamily:"'JetBrains Mono',monospace", fontSize:11,
+                outline:'none',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Buy-in */}
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontSize:10, color:'#5a8a5a', marginBottom:6, letterSpacing:.5 }}>
+            BUY-IN (CHIPS)
+          </div>
+          <input
+            type="number" value={buyIn}
+            onChange={e => setBuyIn(Number(e.target.value))}
+            style={{
+              width:'100%', padding:'9px 12px', borderRadius:8, boxSizing:'border-box',
+              background:'#0a1a0a', border:'1px solid #1a3a1a',
+              color:'#d4af37', fontFamily:"'JetBrains Mono',monospace", fontSize:13,
+              outline:'none',
+            }}
+          />
+          <div style={{ fontSize:9, color:'#3a6a3a', marginTop:4 }}>
+            = {effectiveBB ? Math.round(buyIn / effectiveBB) : 0}× big blind
+          </div>
+        </div>
+
+        {/* Max players */}
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontSize:10, color:'#5a8a5a', marginBottom:6, letterSpacing:.5 }}>MAX SEATS</div>
+          <div style={{ display:'flex', gap:6 }}>
+            {[2,4,6,9].map(n => (
+              <button key={n} onClick={() => setMaxPlayers(n)} style={{
+                flex:1, padding:'7px 0', borderRadius:6, cursor:'pointer',
+                fontFamily:"'JetBrains Mono',monospace", fontSize:12, fontWeight:700,
+                background: maxPlayers===n ? '#0c2e0c' : 'transparent',
+                border:`1px solid ${maxPlayers===n ? '#d4af37' : '#1a3a1a'}`,
+                color: maxPlayers===n ? '#d4af37' : '#5a8a5a',
+                transition:'all .15s',
+              }}>{n}</button>
+            ))}
+          </div>
+        </div>
+
+        {errorMsg && (
+          <div style={{ fontSize:11, color:'#e74c3c', marginBottom:12,
+            background:'#1a0707', border:'1px solid #c0392b44',
+            borderRadius:6, padding:'8px 12px', lineHeight:1.5 }}>
+            {errorMsg}
+          </div>
+        )}
+
+        <div style={{ display:'flex', gap:10 }}>
+          <button onClick={onClose} style={{
+            flex:1, padding:'12px', borderRadius:8, cursor:'pointer',
+            background:'transparent', border:'1px solid #1a3a1a',
+            color:'#5a7a5a', fontSize:12, fontFamily:'inherit',
+          }}>Cancel</button>
+          <button onClick={handleSubmit} disabled={busy} style={{
+            flex:2, padding:'12px', borderRadius:8, cursor: busy ? 'not-allowed' : 'pointer',
+            background: busy ? '#0a160a' : 'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
+            border:`1px solid ${busy ? '#1a3a1a' : '#d4af37'}`,
+            color: busy ? '#3a6a3a' : '#d4af37',
+            fontSize:12, fontWeight:700, fontFamily:'inherit',
+            transition:'all .15s',
+          }}>
+            {busy ? 'Confirming…' : '＋ Create Table'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LobbyPage() {
   const { address } = useAccount();
   const [tableList, setTableList] = useState([]);
   const [serverOnline, setServerOnline] = useState(false);
   const [filter, setFilter]     = useState('all');
   const [mounted, setMounted]   = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
   // Poll server for table list via plain HTTP — no WS auth required
@@ -209,6 +372,9 @@ export default function LobbyPage() {
         </div>
       </div>
 
+      {/* Create Table Modal */}
+      {showCreate && <CreateTableModal onClose={() => setShowCreate(false)} />}
+
       {/* Main content */}
       <div style={{ maxWidth:800, margin:'0 auto', padding:'24px 16px' }}>
 
@@ -227,6 +393,20 @@ export default function LobbyPage() {
               }}>{f.label}</button>
             ))}
           </div>
+
+          {mounted && address && (
+            <button onClick={() => setShowCreate(true)} style={{
+              background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
+              border:'1px solid #d4af3744', borderRadius:6,
+              padding:'6px 14px', cursor:'pointer',
+              color:'#d4af37', fontSize:12, fontWeight:700, fontFamily:'inherit',
+              letterSpacing:.3, transition:'all .15s', flexShrink:0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor='#d4af37aa'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor='#d4af3744'; }}>
+              ＋ Create Table
+            </button>
+          )}
 
           {/* Connection status */}
           <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:10, color:'#3a6a3a' }}>

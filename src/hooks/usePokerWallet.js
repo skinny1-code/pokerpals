@@ -1,14 +1,14 @@
 // src/hooks/usePokerWallet.js
 // wagmi v2 + viem — real EVM wallet integration
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createConfig, http, useAccount, useConnect, useDisconnect,
-         useReadContract, useWriteContract, useWaitForTransactionReceipt,
+         useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt,
          useBalance, useSignMessage, usePublicClient } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
-import { parseUnits, formatUnits } from "viem";
+import { parseUnits, formatUnits, parseAbiItem } from "viem";
 
 // ─── WAGMI CONFIG (export and wrap your app in <WagmiProvider config={wagmiConfig}>) ──
 const _connectors = [injected()];
@@ -147,10 +147,29 @@ export const HANDLE_ABI = [
     ]},
 ];
 
-const CHIPS   = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
-const ESCROW  = process.env.NEXT_PUBLIC_ESCROW;
-const STAKING = process.env.NEXT_PUBLIC_STAKING;
-const HANDLE  = process.env.NEXT_PUBLIC_POKER_HANDLE;
+export const TOURNAMENT_ABI = [
+  { name:"tournamentCount", type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"tournaments", type:"function", stateMutability:"view",
+    inputs:[{name:"",type:"uint256"}],
+    outputs:[
+      {name:"id",type:"uint256"},{name:"name",type:"string"},{name:"entryFee",type:"uint256"},
+      {name:"startTime",type:"uint256"},{name:"maxPlayers",type:"uint8"},
+      {name:"gameType",type:"uint8"},{name:"status",type:"uint8"},
+      {name:"entrants",type:"address[]"},{name:"prizePool",type:"uint256"},
+      {name:"rakeCollected",type:"uint256"},{name:"guaranteed",type:"bool"},
+      {name:"guaranteedPrize",type:"uint256"},
+    ]},
+  { name:"register", type:"function", stateMutability:"nonpayable",
+    inputs:[{name:"tournId",type:"uint256"}], outputs:[] },
+  { name:"registered", type:"function", stateMutability:"view",
+    inputs:[{name:"",type:"uint256"},{name:"",type:"address"}], outputs:[{type:"bool"}] },
+];
+
+const CHIPS      = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
+const ESCROW     = process.env.NEXT_PUBLIC_ESCROW;
+const STAKING    = process.env.NEXT_PUBLIC_STAKING;
+const HANDLE     = process.env.NEXT_PUBLIC_POKER_HANDLE;
+const TOURNAMENT = process.env.NEXT_PUBLIC_TOURNAMENT;
 
 // Safe fee estimation — returns {} if blocked (Codespace sandbox) so MetaMask estimates instead
 async function safeFeeOverrides(publicClient) {
@@ -759,6 +778,169 @@ export function useHandle() {
     mint, status, txHash, confirmed, errorMsg,
     refetch: refetchHandle,
   };
+}
+
+// ─── HOOK: HANDLE MAP (batch lookup address → handle) ────────────────────────
+export function useHandleMap(addresses) {
+  const cleaned = useMemo(() => (addresses || []).filter(Boolean), [addresses?.join(',')]);
+  const { data } = useReadContracts({
+    contracts: cleaned.map(addr => ({
+      address: HANDLE, abi: HANDLE_ABI,
+      functionName: 'getHandleByAddress', args: [addr],
+    })),
+    query: { enabled: !!HANDLE && cleaned.length > 0 },
+  });
+  return useMemo(() => {
+    const map = {};
+    cleaned.forEach((addr, i) => {
+      const h = data?.[i]?.result;
+      if (h) map[addr.toLowerCase()] = h;
+    });
+    return map;
+  }, [data, cleaned]);
+}
+
+// ─── HOOK: LEADERBOARD (handle holders sorted by staked CHIPS) ───────────────
+export function useLeaderboard() {
+  const publicClient = usePublicClient();
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!HANDLE || !STAKING || !publicClient) return;
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const logs = await publicClient.getLogs({
+          address: HANDLE,
+          event: parseAbiItem('event HandleMinted(address indexed player, uint256 indexed tokenId, string handle, uint256 burned)'),
+          fromBlock: 0n,
+        });
+        if (cancelled) return;
+        const addrMap = {};
+        logs.forEach(l => { addrMap[l.args.player.toLowerCase()] = l.args.handle; });
+        const addrs = Object.keys(addrMap);
+        if (!addrs.length) { setEntries([]); setLoading(false); return; }
+
+        const results = await publicClient.multicall({
+          contracts: addrs.map(a => ({
+            address: STAKING, abi: STAKING_ABI,
+            functionName: 'getStakeInfo', args: [a],
+          })),
+        });
+        if (cancelled) return;
+
+        const rows = addrs.map((addr, i) => {
+          const info = results[i]?.result;
+          return {
+            addr,
+            handle: addrMap[addr],
+            staked: info ? Number(formatUnits(info[0], 18)) : 0,
+            tier:   info ? Number(info[1]) : 0,
+          };
+        }).sort((a, b) => b.staked - a.staked)
+          .map((r, idx) => ({ ...r, rank: idx + 1 }));
+
+        setEntries(rows);
+      } catch (e) {
+        console.error('[useLeaderboard]', e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [publicClient]);
+
+  return { entries, loading };
+}
+
+// ─── HOOK: TOURNAMENTS ────────────────────────────────────────────────────────
+export function useTournaments() {
+  const { address }  = useAccount();
+
+  const { data: countRaw } = useReadContract({
+    address: TOURNAMENT, abi: TOURNAMENT_ABI, functionName: 'tournamentCount',
+    query: { enabled: !!TOURNAMENT, refetchInterval: 15000 },
+  });
+  const count = countRaw ? Number(countRaw) : 0;
+  const ids   = Array.from({ length: count }, (_, i) => BigInt(i + 1));
+
+  const { data: tournData } = useReadContracts({
+    contracts: ids.map(id => ({
+      address: TOURNAMENT, abi: TOURNAMENT_ABI,
+      functionName: 'tournaments', args: [id],
+    })),
+    query: { enabled: !!TOURNAMENT && count > 0, refetchInterval: 15000 },
+  });
+
+  const { data: regData } = useReadContracts({
+    contracts: ids.map(id => ({
+      address: TOURNAMENT, abi: TOURNAMENT_ABI,
+      functionName: 'registered', args: [id, address],
+    })),
+    query: { enabled: !!TOURNAMENT && count > 0 && !!address },
+  });
+
+  const tournaments = useMemo(() =>
+    ids.map((id, i) => {
+      const t = tournData?.[i]?.result;
+      if (!t) return null;
+      return {
+        id:              Number(t[0]),
+        name:            t[1],
+        entryFee:        Number(formatUnits(t[2], 18)),
+        startTime:       Number(t[3]),
+        maxPlayers:      Number(t[4]),
+        gameType:        Number(t[5]),
+        status:          Number(t[6]),   // 0=Registration 1=Running 2=Settled 3=Cancelled
+        entrantCount:    t[7]?.length ?? 0,
+        prizePool:       Number(formatUnits(t[8], 18)),
+        guaranteed:      t[10],
+        guaranteedPrize: Number(formatUnits(t[11], 18)),
+        isRegistered:    !!(regData?.[i]?.result),
+      };
+    }).filter(Boolean),
+  [tournData, regData, ids]);
+
+  return { tournaments, count };
+}
+
+export function useRegisterTournament() {
+  const { address }            = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient           = usePublicClient();
+  const [status, setStatus]    = useState('idle');
+  const [txHash, setTxHash]    = useState(null);
+
+  const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const register = useCallback(async (tournId, entryFee) => {
+    if (!address || !TOURNAMENT || !CHIPS) return;
+    try {
+      setStatus('approving');
+      const feeBN = parseUnits(String(entryFee), 18);
+      const feeOverrides = await safeFeeOverrides(publicClient);
+      const approveTx = await writeContractAsync({
+        address: CHIPS, abi: CHIPS_ABI, functionName: 'approve',
+        args: [TOURNAMENT, feeBN], ...feeOverrides,
+      });
+      await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      setStatus('registering');
+      const tx = await writeContractAsync({
+        address: TOURNAMENT, abi: TOURNAMENT_ABI, functionName: 'register',
+        args: [BigInt(tournId)], ...feeOverrides,
+      });
+      setTxHash(tx);
+      setStatus('idle');
+      return tx;
+    } catch (e) {
+      console.error('register error:', e);
+      setStatus('error');
+    }
+  }, [address, writeContractAsync, publicClient]);
+
+  return { register, status, txHash, confirmed };
 }
 
 // Legacy hook kept for backwards compatibility
