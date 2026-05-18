@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "PokerVsPals — Onchain PvP Crypto Poker Network",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "dev:clean": "rm -rf .next && next dev",
@@ -13,7 +14,7 @@
     "compile": "npx hardhat compile",
     "deploy:testnet": "npx hardhat run scripts/deploy.js --network arbitrumSepolia",
     "deploy:mainnet": "npx hardhat run scripts/deploy.js --network arbitrum",
-    "test": "npx hardhat test",
+    "test": "node test/holdem.test.mjs && npx hardhat test",
     "setup:wallets": "node scripts/generateWallets.js",
     "setup:env": "node scripts/setupEnv.js",
     "faucet": "node scripts/faucet.js"

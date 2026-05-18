@@ -2,8 +2,8 @@
 // Usage: npm run faucet                                        → 10,000 CHIPS to deployer
 //        FAUCET_TO=0xADDR npm run faucet                      → 10,000 CHIPS to 0xADDR
 //        FAUCET_TO=0xADDR FAUCET_AMOUNT=50000 npm run faucet  → 50,000 CHIPS to 0xADDR
-require("dotenv").config();
-const { ethers } = require("ethers");
+import "dotenv/config";
+import { ethers } from "ethers";
 
 const RPCS = [
   process.env.ARB_SEPOLIA_RPC,

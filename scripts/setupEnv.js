@@ -3,8 +3,11 @@
 // Re-syncs .env with contract addresses from the latest deployment JSON.
 // Run: npm run setup:env
 
-const fs   = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const ROOT     = path.resolve(__dirname, "..");
 const ENV_PATH = path.join(ROOT, ".env");

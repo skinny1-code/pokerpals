@@ -2,9 +2,11 @@
 // Called automatically by deploy.js to write contract addresses into .env
 // Usage: node scripts/updateEnv.js KEY=value KEY2=value2 ...
 
-const fs   = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = path.resolve(__dirname, "../.env");
 
 const updates = {};
