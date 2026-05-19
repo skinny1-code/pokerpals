@@ -3,10 +3,12 @@
 // Generates wallets for any roles NOT already in .env.
 // Existing keys and addresses are NEVER overwritten — safe to re-run.
 
-const { ethers } = require("ethers");
-const fs   = require("fs");
-const path = require("path");
+import { ethers } from "ethers";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = path.resolve(__dirname, "../.env");
 
 const ROLES = [
@@ -90,11 +92,6 @@ if (newEntries.length === 0) {
 }
 
 // Build updated .env: keep all existing lines, append only new wallet entries
-const WALLET_KEYS = new Set([
-  ...ROLES.map(r => r.keyVar),
-  ...ROLES.filter(r => r.addrVar).map(r => r.addrVar),
-]);
-
 const existingLines = fs.existsSync(ENV_PATH)
   ? fs.readFileSync(ENV_PATH, "utf8").split("\n")
       .filter(l => {

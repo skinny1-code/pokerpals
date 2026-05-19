@@ -1,7 +1,13 @@
 // scripts/deploy.js — deploys all PokerVsPals contracts in order
 // npx hardhat run scripts/deploy.js --network arbitrumSepolia
-require("dotenv").config();
-const { ethers } = require("hardhat");
+import "dotenv/config";
+import { ethers } from "hardhat";
+import fs from "fs";
+import path from "path";
+import { execSync } from "child_process";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -115,9 +121,8 @@ async function main() {
   console.log("\n── Handle NFT ────────────────────────────────────────");
   console.log("  Mint cost: 500 CHIPS burned (fully deflationary)");
   console.log("  Fully on-chain SVG — no IPFS needed");
+
   // Save deployment manifest
-  const fs   = require("fs");
-  const path = require("path");
   const deplDir = path.resolve(__dirname, "../deployments");
   if (!fs.existsSync(deplDir)) fs.mkdirSync(deplDir, { recursive: true });
   fs.writeFileSync(
@@ -141,7 +146,6 @@ async function main() {
   console.log("✅ deployments/arbitrumSepolia.json saved");
 
   // Auto-write contract addresses into .env
-  const { execSync } = require("child_process");
   const envArgs = [
     `NEXT_PUBLIC_CHIPS_TOKEN=${tokenAddr}`,
     `NEXT_PUBLIC_ESCROW=${escrowAddr}`,

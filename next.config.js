@@ -1,14 +1,17 @@
 /** @type {import('next').NextConfig} */
-const fs   = require('fs');
-const path = require('path');
+import { readFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Auto-load contract addresses from deployment JSON if not already in .env
 // This means you never need to run setup:env manually — just deploy and go.
 function loadDeployedAddresses() {
   for (const net of ['arbitrumSepolia', 'arbitrum']) {
-    const p = path.join(__dirname, 'deployments', `${net}.json`);
-    if (!fs.existsSync(p)) continue;
-    const c = JSON.parse(fs.readFileSync(p, 'utf8')).contracts;
+    const p = join(__dirname, 'deployments', `${net}.json`);
+    if (!existsSync(p)) continue;
+    const c = JSON.parse(readFileSync(p, 'utf8')).contracts;
     return {
       NEXT_PUBLIC_CHIPS_TOKEN:    c.PvPToken       || c.ChipsToken       || '',
       NEXT_PUBLIC_ESCROW:         c.PokerEscrow    || '',
@@ -35,4 +38,4 @@ const nextConfig = {
   env,
 };
 
-module.exports = nextConfig;
+export default nextConfig;
