@@ -32,7 +32,7 @@ export const CHIPS_ABI = [
   { name:"allowance",  type:"function", stateMutability:"view",
     inputs:[{name:"owner",type:"address"},{name:"spender",type:"address"}], outputs:[{type:"uint256"}] },
 ];
-export const PPP_ABI = CHIPS_ABI;
+export const PPP_ABI = CHIPS_ABI; // kept for backwards compat
 
 export const STAKING_ABI = [
   { name:"stake",   type:"function", stateMutability:"nonpayable",

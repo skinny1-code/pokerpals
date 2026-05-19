@@ -229,7 +229,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                   ['Net cost','~1.2% from your rake — drives free user acquisition'],
                   ['Code','keccak(address)[0:8] — shareable link'],
                 ]},
-              { icon:'◈', title:'PPP Token Float', color:'#00e5ff',
+              { icon:'◈', title:'CHIPS Token Float', color:'#00e5ff',
                 lines:[
                   ['Your allocation','500M CHIPS liquidity'],
                   ['Demand driver','Every buy-in requires CHIPS — continuous buy pressure'],
@@ -275,7 +275,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                     </div>
                     <div style={{textAlign:'right'}}>
                       <div style={{fontSize:12,color:'#8aaa6a',fontFamily:'monospace'}}>{fmt(count)}</div>
-                      <div style={{fontSize:9,color:'#3a5a3a'}}>PPP locked</div>
+                      <div style={{fontSize:9,color:'#3a5a3a'}}>CHIPS locked</div>
                     </div>
                   </div>
                 );
@@ -309,7 +309,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                   </div>
                   <div style={{textAlign:'right'}}>
                     <div style={{fontSize:12,color:gold,fontFamily:'monospace'}}>◈ {fmt(earned)}</div>
-                    <div style={{fontSize:9,color:'#3a5a3a'}}>PPP earned</div>
+                    <div style={{fontSize:9,color:'#3a5a3a'}}>CHIPS earned</div>
                   </div>
                 </div>
               );
