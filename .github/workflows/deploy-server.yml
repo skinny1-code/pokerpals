@@ -1,0 +1,37 @@
+name: Deploy Game Server to Fly.io
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'deployments/**'
+      - 'Dockerfile'
+      - 'fly.toml'
+      - '.github/workflows/deploy-server.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Create app if it does not exist
+        run: flyctl apps create pokerpals --org personal 2>/dev/null || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Set secrets and deploy
+        run: |
+          flyctl secrets set \
+            OPERATOR_PRIVATE_KEY="${{ secrets.OPERATOR_PRIVATE_KEY }}" \
+            ARB_SEPOLIA_RPC="${ARB_SEPOLIA_RPC}" \
+            TESTNET_SKIP_HUMAN_CHECK=true \
+            --stage
+          flyctl deploy --remote-only --wait-timeout 180
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC || 'https://sepolia-rollup.arbitrum.io/rpc' }}
