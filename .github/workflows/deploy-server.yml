@@ -17,40 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install ethers
-        run: npm install ethers@6
-        working-directory: /tmp
-
-      - name: Rotate operatorSigner on-chain
-        run: |
-          node --input-type=module << 'SCRIPT'
-          import { ethers } from '/tmp/node_modules/ethers/lib.esm/index.js';
-
-          const RPC = process.env.ARB_SEPOLIA_RPC || 'https://sepolia-rollup.arbitrum.io/rpc';
-          const provider = new ethers.JsonRpcProvider(RPC);
-          const deployer = new ethers.Wallet(process.env.DEPLOYER_KEY, provider);
-          const escrow = new ethers.Contract(
-            '0x39a268fEAffbB1aa816d205492ae0E3B588992f7',
-            ['function setOperatorSigner(address s) external'],
-            deployer
-          );
-          const newOp = new ethers.Wallet(process.env.OPERATOR_PRIVATE_KEY).address;
-          console.log('Setting operatorSigner to', newOp);
-          const tx = await escrow.setOperatorSigner(newOp);
-          console.log('tx:', tx.hash);
-          await tx.wait();
-          console.log('operatorSigner updated');
-          SCRIPT
-        env:
-          DEPLOYER_KEY: ${{ secrets.DEPLOYER_KEY }}
-          OPERATOR_PRIVATE_KEY: ${{ secrets.OPERATOR_PRIVATE_KEY }}
-          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC }}
-
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Create Fly.io app if needed
@@ -62,13 +28,13 @@ jobs:
         run: |
           flyctl secrets set \
             OPERATOR_PRIVATE_KEY="${{ secrets.OPERATOR_PRIVATE_KEY }}" \
-            ARB_SEPOLIA_RPC="${{ secrets.ARB_SEPOLIA_RPC || 'https://sepolia-rollup.arbitrum.io/rpc' }}" \
             TESTNET_SKIP_HUMAN_CHECK=true \
+            ARB_SEPOLIA_RPC="https://sepolia-rollup.arbitrum.io/rpc" \
             --stage
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Deploy to Fly.io
+      - name: Deploy
         run: flyctl deploy --remote-only --wait-timeout 180
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
