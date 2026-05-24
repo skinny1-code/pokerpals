@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useWallet } from '../hooks/usePokerWallet';
+import { useWallet, useHandle } from '../hooks/usePokerWallet';
 import { useAccount } from 'wagmi';
 import Link from 'next/link';
 
@@ -10,6 +10,8 @@ const EXPECTED = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
 export default function WalletBar() {
   const { address, isConnected, chipsBalance, isHuman,
           connectMetaMask, connectWalletConnect, connectCoinbase, disconnect } = useWallet();
+  const { address, isConnected, chipsBalance, isHuman, connectMetaMask, disconnect } = useWallet();
+  const { myHandle } = useHandle();
   const { chainId } = useAccount();
   const [mounted, setMounted]         = useState(false);
   const [hasInjected, setHasInjected] = useState(false);
@@ -27,6 +29,7 @@ export default function WalletBar() {
   const short = a => a ? `${a.slice(0,6)}…${a.slice(-4)}` : '';
   const wrongNet = mounted && isConnected && chainId && chainId !== EXPECTED;
   const chainName = CHAIN_NAMES[chainId] || `Chain ${chainId}`;
+  const displayName = myHandle || short(address);
 
   return (
     <header style={{
@@ -68,6 +71,7 @@ export default function WalletBar() {
       <nav style={{ display:'flex', gap:2, flex:1, justifyContent:'center' }}>
         {[
           { href:'/',            label:'Lobby' },
+          { href:'/tournament',  label:'Tournaments' },
           { href:'/leaderboard', label:'Leaderboard' },
           { href:'/stake',       label:'Stake' },
           { href:'/buy',         label:'Buy CHIPS' },
@@ -139,7 +143,7 @@ export default function WalletBar() {
               </span>
             </div>
 
-            {/* Address / disconnect */}
+            {/* Handle/Address + disconnect */}
             <button onClick={disconnect} style={{
               background:'#0c1e0c', border:'1px solid #1a3a1a',
               borderRadius:8, padding:'5px 12px', cursor:'pointer',
@@ -150,7 +154,7 @@ export default function WalletBar() {
             onMouseEnter={e => { e.currentTarget.style.borderColor='#c0392b55'; e.currentTarget.style.color='#e74c3c'; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor='#1a3a1a'; e.currentTarget.style.color='#8aaa8a'; }}>
               <div style={{ width:6, height:6, borderRadius:'50%', background:'#27ae60', flexShrink:0 }} />
-              {short(address)}
+              {displayName}
             </button>
           </>
         )}

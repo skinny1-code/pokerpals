@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "PokerVsPals — Onchain PvP Crypto Poker Network",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "dev:clean": "rm -rf .next && next dev",
@@ -13,13 +14,13 @@
     "compile": "npx hardhat compile",
     "deploy:testnet": "npx hardhat run scripts/deploy.js --network arbitrumSepolia",
     "deploy:mainnet": "npx hardhat run scripts/deploy.js --network arbitrum",
-    "test": "npx hardhat test",
+    "test": "node test/holdem.test.mjs && npx hardhat test",
     "setup:wallets": "node scripts/generateWallets.js",
     "setup:env": "node scripts/setupEnv.js",
     "faucet": "node scripts/faucet.js"
   },
   "dependencies": {
-    "next": "^14.2.0",
+    "next": "^15.5.18",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "wagmi": "^2.12.0",
@@ -31,9 +32,9 @@
     "@openzeppelin/contracts": "^5.0.0"
   },
   "devDependencies": {
-    "hardhat": "^2.22.0",
-    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "hardhat": "^3.4.5",
+    "@nomicfoundation/hardhat-toolbox": "^7.0.0",
+    "@nomicfoundation/hardhat-ethers": "^4.0.11",
     "dotenv": "^16.4.0"
   }
 }
