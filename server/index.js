@@ -28,8 +28,8 @@ const OPERATOR_KEY = process.env.OPERATOR_PRIVATE_KEY;
 const ESCROW_ADDR  = process.env.NEXT_PUBLIC_ESCROW || process.env.ESCROW_ADDRESS || _depl?.contracts?.PokerEscrow;
 const RPC_URL      = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL || "https://arb1.arbitrum.io/rpc";
 
-if (!ESCROW_ADDR) throw new Error("ESCROW_ADDR not set — add NEXT_PUBLIC_ESCROW to .env or deploy first");
-if (!OPERATOR_KEY) throw new Error("OPERATOR_PRIVATE_KEY not set in .env");
+if (!ESCROW_ADDR) { console.error('[Server] FATAL: ESCROW_ADDR not set — add NEXT_PUBLIC_ESCROW to secrets or deploy first'); process.exit(1); }
+if (!OPERATOR_KEY) { console.error('[Server] FATAL: OPERATOR_PRIVATE_KEY not set in secrets'); process.exit(1); }
 
 const PASSPORT_URL = "https://api.scorer.gitcoin.co";
 const PASSPORT_API = process.env.GITCOIN_PASSPORT_API;

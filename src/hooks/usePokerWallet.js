@@ -7,11 +7,17 @@ import { createConfig, http, useAccount, useConnect, useDisconnect,
          useBalance, useSignMessage, usePublicClient } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
+import { injected, walletConnect, coinbaseWallet } from "wagmi/connectors";
+import { parseUnits, formatUnits } from "viem";
 import { injected } from "wagmi/connectors";
 import { parseUnits, formatUnits, parseAbiItem } from "viem";
 
 // ─── WAGMI CONFIG (export and wrap your app in <WagmiProvider config={wagmiConfig}>) ──
-const _connectors = [injected()];
+const _connectors = [
+  injected(),
+  walletConnect({ projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID || '' }),
+  coinbaseWallet({ appName: 'PokerVsPals' }),
+];
 
 export const wagmiConfig = createConfig({
   chains:     [arbitrum, arbitrumSepolia],
@@ -206,8 +212,9 @@ export function useWallet() {
     args: [address], query: { enabled: !!address, refetchInterval: 30000 },
   });
 
-  const connectMetaMask   = () => connect({ connector: connectors.find(c => c.id === 'injected') });
+  const connectMetaMask      = () => connect({ connector: connectors.find(c => c.id === 'injected') });
   const connectWalletConnect = () => connect({ connector: connectors.find(c => c.id === 'walletConnect') });
+  const connectCoinbase      = () => connect({ connector: connectors.find(c => c.id === 'coinbaseWalletSDK') });
 
   return {
     address,
@@ -219,6 +226,7 @@ export function useWallet() {
     isHuman: !!isHuman,
     connectMetaMask,
     connectWalletConnect,
+    connectCoinbase,
     disconnect,
   };
 }

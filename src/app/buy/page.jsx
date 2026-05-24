@@ -16,28 +16,44 @@ const CAMELOT_URL = CHIPS
   ? `https://app.camelot.exchange/?token2=${CHIPS}`
   : 'https://app.camelot.exchange';
 
-const TRANSAK_KEY = process.env.NEXT_PUBLIC_TRANSAK_API_KEY || '';
+const EXCHANGES = [
+  { name: 'Coinbase', desc: 'Buy ETH with debit/credit card, then withdraw to Arbitrum.', logo: '🔵', url: 'https://www.coinbase.com/price/ethereum', color: '#0052ff' },
+  { name: 'Binance', desc: 'Buy ETH with card or bank transfer.', logo: '🟡', url: 'https://www.binance.com/en/buy-sell-crypto?fiat=USD&crypto=ETH', color: '#f0b90b' },
+  { name: 'Kraken', desc: 'Buy ETH with debit card or wire transfer.', logo: '🟣', url: 'https://www.kraken.com/buy-crypto/ethereum', color: '#9945ff' },
+];
 
-function TransakWidget({ walletAddress }) {
-  const params = new URLSearchParams({
-    ...(TRANSAK_KEY && { apiKey: TRANSAK_KEY }),
-    defaultCryptoCurrency: 'ETH',
-    network: 'arbitrum',
-    themeColor: 'd4af37',
-    exchangeScreenTitle: 'Buy ETH for PokerVsPals',
-    hideMenu: 'true',
-    ...(walletAddress && { walletAddress }),
-  });
-  const base = TRANSAK_KEY
-    ? 'https://global.transak.com/'
-    : 'https://staging-global.transak.com/';
+function CardOnRamp() {
   return (
-    <iframe
-      src={`${base}?${params}`}
-      allow="payment; camera; microphone"
-      style={{ width: '100%', height: 620, border: 'none', borderRadius: 12 }}
-      title="Buy crypto with card"
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ fontSize: 12, color: '#5a8a5a', marginBottom: 4, lineHeight: 1.7 }}>
+        Buy ETH on any exchange with your card, then withdraw to{' '}
+        <strong style={{ color: '#d4af37' }}>Arbitrum One</strong> network and swap to CHIPS.
+      </div>
+      {EXCHANGES.map(ex => (
+        <a key={ex.name} href={ex.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+          <div
+            style={{ background: '#0c1e0c', border: '1px solid #1a3a1a', borderRadius: 12, padding: '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = ex.color + '66'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = '#1a3a1a'}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ fontSize: 28 }}>{ex.logo}</div>
+              <div>
+                <div style={{ fontSize: 14, color: ex.color, fontWeight: 700 }}>{ex.name}</div>
+                <div style={{ fontSize: 11, color: '#5a8a5a', marginTop: 2 }}>{ex.desc}</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 16, color: '#3a6a3a' }}>↗</div>
+          </div>
+        </a>
+      ))}
+      <div style={{ background: '#0a160a', border: '1px solid #1a3a1a', borderRadius: 8, padding: '12px 16px', marginTop: 4 }}>
+        <div style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 2, marginBottom: 6 }}>IMPORTANT — WITHDRAW TO ARBITRUM</div>
+        <div style={{ fontSize: 11, color: '#5a8a5a', lineHeight: 1.6 }}>
+          When withdrawing from the exchange, select <strong style={{ color: '#a8c8a8' }}>Arbitrum One</strong> as the network — not Ethereum mainnet (fees are 100× higher there).
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -203,22 +219,7 @@ export default function BuyPage() {
         )}
 
         {/* Card tab */}
-        {tab === 'card' && (
-          <div>
-            <div style={{ fontSize: 12, color: '#5a8a5a', marginBottom: 12 }}>
-              Buy ETH with your debit/credit card, then swap to CHIPS on Uniswap.
-              {!TRANSAK_KEY && (
-                <span style={{ color: '#e67e22' }}>
-                  {' '}(Demo mode — add NEXT_PUBLIC_TRANSAK_API_KEY to .env for production)
-                </span>
-              )}
-            </div>
-            <TransakWidget walletAddress={mounted ? address : undefined} />
-            <div style={{ marginTop: 12, fontSize: 11, color: '#3a6a3a', textAlign: 'center' }}>
-              After purchasing ETH, go to the Swap tab to exchange it for CHIPS.
-            </div>
-          </div>
-        )}
+        {tab === 'card' && <CardOnRamp />}
 
         {/* Testnet faucet tab */}
         {tab === 'faucet' && IS_TESTNET && (
