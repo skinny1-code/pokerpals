@@ -6,6 +6,7 @@ import Link from 'next/link';
 
 const CHAIN_NAMES = { 421614: 'Arbitrum Sepolia', 42161: 'Arbitrum One' };
 const EXPECTED = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
+const HAS_WC = !!process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 
 export default function WalletBar() {
   const { address, isConnected, chipsBalance, isHuman,
@@ -200,13 +201,15 @@ export default function WalletBar() {
                     }
                   />
 
-                  {/* WalletConnect */}
-                  <WalletOption
-                    icon="🔗"
-                    label="WalletConnect"
-                    sub="Scan QR code"
-                    onClick={() => pick(connectWalletConnect)}
-                  />
+                  {/* WalletConnect — only shown when project ID is configured */}
+                  {HAS_WC && (
+                    <WalletOption
+                      icon="🔗"
+                      label="WalletConnect"
+                      sub="Scan QR code"
+                      onClick={() => pick(connectWalletConnect)}
+                    />
+                  )}
 
                   {/* Coinbase Wallet */}
                   <WalletOption

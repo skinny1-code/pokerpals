@@ -11,9 +11,10 @@ import { injected, walletConnect, coinbaseWallet } from "wagmi/connectors";
 import { parseUnits, formatUnits, parseAbiItem } from "viem";
 
 // ─── WAGMI CONFIG (export and wrap your app in <WagmiProvider config={wagmiConfig}>) ──
+const _wcProjectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 const _connectors = [
   injected(),
-  walletConnect({ projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID || '' }),
+  ...(_wcProjectId ? [walletConnect({ projectId: _wcProjectId })] : []),
   coinbaseWallet({ appName: 'PokerVsPals' }),
 ];
 
@@ -211,7 +212,11 @@ export function useWallet() {
   });
 
   const connectMetaMask      = () => connect({ connector: connectors.find(c => c.id === 'injected') });
-  const connectWalletConnect = () => connect({ connector: connectors.find(c => c.id === 'walletConnect') });
+  const connectWalletConnect = () => {
+    const wc = connectors.find(c => c.id === 'walletConnect');
+    if (wc) connect({ connector: wc });
+    else alert('WalletConnect is not configured. Set NEXT_PUBLIC_WC_PROJECT_ID.');
+  };
   const connectCoinbase      = () => connect({ connector: connectors.find(c => c.id === 'coinbaseWalletSDK') });
 
   return {
