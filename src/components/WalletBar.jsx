@@ -10,7 +10,6 @@ const EXPECTED = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
 export default function WalletBar() {
   const { address, isConnected, chipsBalance, isHuman,
           connectMetaMask, connectWalletConnect, connectCoinbase, disconnect } = useWallet();
-  const { address, isConnected, chipsBalance, isHuman, connectMetaMask, disconnect } = useWallet();
   const { myHandle } = useHandle();
   const { chainId } = useAccount();
   const [mounted, setMounted]         = useState(false);

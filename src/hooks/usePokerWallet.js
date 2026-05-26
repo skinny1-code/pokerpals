@@ -8,8 +8,6 @@ import { createConfig, http, useAccount, useConnect, useDisconnect,
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
 import { injected, walletConnect, coinbaseWallet } from "wagmi/connectors";
-import { parseUnits, formatUnits } from "viem";
-import { injected } from "wagmi/connectors";
 import { parseUnits, formatUnits, parseAbiItem } from "viem";
 
 // ─── WAGMI CONFIG (export and wrap your app in <WagmiProvider config={wagmiConfig}>) ──
