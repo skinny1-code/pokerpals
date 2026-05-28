@@ -17,7 +17,8 @@
     "test": "node test/holdem.test.mjs && npx hardhat test",
     "setup:wallets": "node scripts/generateWallets.js",
     "setup:env": "node scripts/setupEnv.js",
-    "faucet": "node scripts/faucet.js"
+    "faucet": "node scripts/faucet.js",
+    "launch": "npm run server & npm run dev"
   },
   "dependencies": {
     "next": "^15.5.18",
