@@ -36,6 +36,17 @@ for (const [k, v] of Object.entries(deployed)) {
 const nextConfig = {
   reactStrictMode: true,
   env,
+  webpack: (config) => {
+    // MetaMask SDK and WalletConnect pull in React Native / Node-only modules
+    // that don't exist in a browser bundle. Stub them out so webpack treats
+    // them as empty modules instead of crashing at runtime.
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@react-native-async-storage/async-storage': false,
+      'pino-pretty': false,
+    };
+    return config;
+  },
 };
 
 export default nextConfig;
