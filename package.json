@@ -22,21 +22,24 @@
     "launch": "npm run server & npm run dev"
   },
   "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "@tanstack/react-query": "^5.51.0",
+    "ethers": "^6.13.0",
     "next": "^15.5.18",
+    "node-fetch": "^3.3.2",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "wagmi": "^2.12.0",
     "viem": "^2.17.0",
-    "@tanstack/react-query": "^5.51.0",
-    "ws": "^8.18.0",
-    "ethers": "^6.13.0",
-    "node-fetch": "^3.3.2",
-    "@openzeppelin/contracts": "^5.0.0"
+    "wagmi": "^2.12.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
-    "hardhat": "^3.4.5",
-    "@nomicfoundation/hardhat-toolbox": "^7.0.0",
     "@nomicfoundation/hardhat-ethers": "^4.0.11",
-    "dotenv": "^16.4.0"
+    "@nomicfoundation/hardhat-mocha": "^3.0.20",
+    "chai": "^6.2.2",
+    "dotenv": "^16.4.0",
+    "hardhat": "^3.4.5",
+    "mocha": "^11.7.6",
+    "solc": "^0.8.26"
   }
 }

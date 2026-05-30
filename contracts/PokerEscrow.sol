@@ -337,11 +337,12 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     }
 
     /// @notice Close a table once all funds have been withdrawn (potTotal == 0).
-    ///         Callable by anyone to clean up settled tables.
+    ///         Only the table creator or contract owner may call this.
     function closeTable(uint256 tableId) external nonReentrant {
         Table storage t = tables[tableId];
         require(t.status != TableStatus.Closed, "Already closed");
         require(t.potTotal == 0, "Funds remain");
+        require(msg.sender == t.creator || msg.sender == owner(), "Not authorized");
         t.status = TableStatus.Closed;
         emit TableClosed(tableId);
     }
@@ -381,7 +382,9 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     }
 
     function getTableInfo(uint256 id) external view returns (
-        uint256, uint256, uint256, uint8, uint8, TableStatus, uint256, uint256, uint8
+        uint256 tableId, uint256 buyIn, uint256 bigBlind,
+        uint8 maxPlayers, uint8 gameType, TableStatus status,
+        uint256 potTotal, uint256 handNonce, uint8 seated
     ) {
         Table storage t = tables[id];
         return (t.id, t.buyInAmount, t.bigBlind, t.maxPlayers, uint8(t.gameType),

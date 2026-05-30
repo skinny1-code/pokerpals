@@ -13,7 +13,8 @@ const REFERRAL_ADDR = process.env.NEXT_PUBLIC_REFERRAL;
 const ESCROW_ABI = [
   { name:"getRevenueSummary", type:"function", stateMutability:"view",
     inputs:[], outputs:[
-      {name:"rake",type:"uint256"},{name:"seats",type:"uint256"},
+      {name:"rake",type:"uint256"},{name:"burned",type:"uint256"},
+      {name:"toStaking",type:"uint256"},{name:"seats",type:"uint256"},
       {name:"refs",type:"uint256"},{name:"total",type:"uint256"}
     ]},
   { name:"tierRakeNum",   type:"function", stateMutability:"view", inputs:[{type:"uint256"}], outputs:[{type:"uint256"}] },
@@ -103,8 +104,8 @@ export default function RevenueDashboard({ address: ownerAddr }) {
   });
 
   const rake      = escrowSummary?.[0] || 0n;
-  const seats     = escrowSummary?.[1] || 0n;
-  const refs      = escrowSummary?.[2] || 0n;
+  const seats     = escrowSummary?.[3] || 0n;
+  const refs      = escrowSummary?.[4] || 0n;
   const cashTotal = rake + seats + (tournRevenue || 0n);
 
   const TIERS = ['Standard','Bronze','Silver','Gold','Whale'];

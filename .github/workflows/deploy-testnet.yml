@@ -1,0 +1,66 @@
+name: Deploy → Arbitrum Sepolia
+
+on:
+  # Manual one-click deploy from the Actions tab
+  workflow_dispatch:
+    inputs:
+      run_faucet:
+        description: "Send 10 000 CHIPS to deployer after deploy?"
+        required: false
+        default: "false"
+        type: choice
+        options: ["true", "false"]
+
+  # Auto-deploy when contracts or deploy script change on main
+  push:
+    branches: [main, master]
+    paths:
+      - "contracts/**"
+      - "scripts/deploy.js"
+      - "hardhat.config.js"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: testnet          # requires manual approval in repo settings
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Compile contracts
+        run: npm run compile
+
+      - name: Run contract tests (pre-flight)
+        run: npm run test:contracts
+        env:
+          HARDHAT_NETWORK: hardhat
+
+      - name: Deploy to Arbitrum Sepolia
+        run: npm run deploy:testnet
+        env:
+          DEPLOYER_KEY:    ${{ secrets.DEPLOYER_KEY }}
+          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC }}
+          ARBISCAN_API_KEY: ${{ secrets.ARBISCAN_API_KEY }}
+
+      - name: Sync .env from deployment
+        run: npm run setup:env
+
+      - name: Fund deployer from faucet
+        if: github.event.inputs.run_faucet == 'true'
+        run: npm run faucet
+        env:
+          DEPLOYER_KEY:    ${{ secrets.DEPLOYER_KEY }}
+          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC }}
+
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-arbitrumSepolia
+          path: deployments/arbitrumSepolia.json
+          retention-days: 90

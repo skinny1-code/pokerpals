@@ -454,6 +454,86 @@ describe('Deck integrity');
   test('Shuffled deck: no duplicates', new Set(sh).size===52);
 }
 
+describe('Raise / re-raise — streetActed reset');
+{
+  const t = new PokerTable({bigBlind:20, maxPlayers:2, gameType:0});
+  t.seat('Alice',1000); t.seat('Bob',1000);
+  t.start();
+  // Preflop HU: Alice (SB/dealer) calls to 20
+  t.applyAction('Alice','call');
+  // Bob (BB) raises → streetActed is reset then raiser is re-added, so size===1
+  t.applyAction('Bob','raise',40);
+  test('After BB raise: streetActed contains only raiser (size=1)', t.streetActed.size === 1);
+  test('After BB raise: only Bob in streetActed', t.streetActed.has('Bob') && !t.streetActed.has('Alice'));
+  // Alice re-raises → same reset pattern: size===1 with only Alice
+  t.applyAction('Alice','raise',60);
+  test('After Alice re-raise: streetActed reset to just re-raiser (size=1)', t.streetActed.size === 1);
+  test('After Alice re-raise: only Alice in streetActed', t.streetActed.has('Alice') && !t.streetActed.has('Bob'));
+  // Bob calls the re-raise → both acted → street advances to flop
+  const result = t.applyAction('Bob','call');
+  test('After Bob calls re-raise: phase moves to flop', t.phase === 'flop');
+}
+
+describe('Dealer rotation across 2 hands');
+{
+  // Simulate hand 1, record dealerIdx, then manually rotate and start hand 2
+  const t = new PokerTable({bigBlind:20, maxPlayers:2, gameType:0});
+  t.seat('Alice',1000); t.seat('Bob',1000);
+  t.dealerIdx = 0;
+  t.start();
+  const dealerHand1 = t.dealerIdx; // should be 0
+  // Fold → hand over
+  t.applyAction('Alice','fold');
+  // Rotate dealer for next hand
+  t.dealerIdx = (t.dealerIdx + 1) % t.players.length;
+  t.start();
+  const dealerHand2 = t.dealerIdx;
+  test('Dealer rotates between hands: hand2 dealer != hand1 dealer', dealerHand1 !== dealerHand2);
+  test('Hand 2 dealer is seat 1 (Bob)', dealerHand2 === 1);
+  // In HU after rotation: seat1 is dealer/SB, seat0 is BB
+  test('Hand 2 HU: new dealer is SB (bet=10)', t.players[dealerHand2].bet === 10);
+  test('Hand 2 HU: other seat is BB (bet=20)', t.players[dealerHand1].bet === 20);
+}
+
+describe('3-player: fold to one winner');
+{
+  const t = new PokerTable({bigBlind:20, maxPlayers:3, gameType:0});
+  t.seat('A',1000); t.seat('B',1000); t.seat('C',1000);
+  t.dealerIdx = 0; t.start();
+  // dealer=0(A), SB=1(B), BB=2(C), UTG=0(A) acts first
+  // A folds
+  t.applyAction('A','fold');
+  test('After A folds: A is marked folded', t.players.find(p=>p.addr==='A').folded);
+  // B (now actionIdx) raises
+  t.applyAction('B','call');
+  // C checks → street closes → flop
+  const afterBBcheck = t.applyAction('C','check');
+  test('After preflop: phase=flop', t.phase === 'flop');
+  // Flop: B acts first (left of dealer among active), both check → turn
+  t.applyAction('B','check');
+  t.applyAction('C','check');
+  test('After flop checks: phase=turn', t.phase === 'turn');
+  // Turn: B folds → only C remains → showdown immediately
+  const result = t.applyAction('B','fold');
+  test('After B folds on turn: result has 1 winner (C)', result?.winners?.length === 1 && result.winners[0] === 'C');
+  test('After B folds on turn: phase=showdown', t.phase === 'showdown');
+}
+
+describe('Short-stack all-in: auto-runout');
+{
+  // Equal short stacks: both will be all-in after Alice shoves and Bob calls,
+  // which triggers the auto-deal-to-showdown path.
+  const t = new PokerTable({bigBlind:20, maxPlayers:2, gameType:0});
+  t.seat('Alice',50); t.seat('Bob',50);
+  t.dealerIdx = 0; t.start();
+  // Alice is SB (10), goes all-in with remaining 40; Bob (BB, 20 posted) calls 30 more → also all-in
+  t.applyAction('Alice','allin');
+  const result = t.applyAction('Bob','call');
+  test('Short-stack all-in: reaches showdown after call', t.phase === 'showdown');
+  test('Short-stack all-in: has at least 1 winner', result?.winners?.length >= 1);
+  test('Short-stack all-in: community fully dealt (5 cards)', t.community.length === 5);
+}
+
 // ─── Final report ─────────────────────────────────────────────────────────────
 console.log(`\n${'═'.repeat(50)}`);
 console.log(`Results: ${pass} passed, ${fail} failed`);
