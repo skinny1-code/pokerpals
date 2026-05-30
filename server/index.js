@@ -438,7 +438,7 @@ const server = createServer((req, res) => {
   }
 });
 
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ server, maxPayload: 65536 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function send(ws, data) {
@@ -599,6 +599,9 @@ async function handleHandOver(t, result) {
 // ─── WebSocket message handler ────────────────────────────────────────────────
 wss.on('connection', (ws, req) => {
   console.log(`[WS] New connection from ${req.socket.remoteAddress}`);
+  const challenge = crypto.randomUUID();
+  clients.set(ws, { addr: null, tableId: null, challenge });
+  send(ws, { type: 'AUTH_CHALLENGE', nonce: challenge });
   ws.on('close', () => console.log(`[WS] Connection closed`));
   ws.on('message', async (raw) => {
     let msg;
@@ -610,7 +613,9 @@ wss.on('connection', (ws, req) => {
     switch (type) {
 
       case 'AUTH': {
-        const { address, signature, nonce } = payload;
+        const { address, signature } = payload;
+        const nonce = client.challenge;
+        if (!nonce) return send(ws, { type: 'AUTH_FAIL', error: 'No challenge' });
         const recovered = ethers.verifyMessage(`PVP-AUTH:${nonce}`, signature);
         if (recovered.toLowerCase() !== address.toLowerCase()) {
           return send(ws, { type: 'AUTH_FAIL', error: 'Bad signature' });
@@ -727,10 +732,15 @@ wss.on('connection', (ws, req) => {
 
       case 'ACTION': {
         if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+        const now = Date.now();
+        if (client.lastAction && now - client.lastAction < 100)
+          return send(ws, { type: 'ERROR', error: 'Too fast' });
+        clients.set(ws, { ...client, lastAction: now });
         const { tableId, action, amount } = payload;
+        const safeAmount = typeof amount === 'number' && isFinite(amount) && amount >= 0 ? amount : 0;
         const t = tables.get(String(tableId));
         if (!t) return;
-        const result = t.applyAction(client.addr, action, amount);
+        const result = t.applyAction(client.addr, action, safeAmount);
         broadcastTable(t);
         if (result?.winners) await handleHandOver(t, result);
         break;

@@ -150,7 +150,7 @@ contract PokerHandle is ERC721, Ownable {
 
         string memory json = Base64.encode(bytes(string(abi.encodePacked(
             '{"name":"@', handle, '",',
-            '"description":"PokerVsPals on-chain poker handle. Burned 500 CHIPS to mint.",',
+            '"description":"PokerVsPals on-chain poker handle. Burned 5,000 CHIPS to mint (tier-0 cost; rises with supply).",',
             '"image":"data:image/svg+xml;base64,', Base64.encode(bytes(svg)), '",',
             '"attributes":[{"trait_type":"Handle","value":"', handle, '"},',
             '{"trait_type":"Token ID","value":"', tokenId.toString(), '"}]}'
