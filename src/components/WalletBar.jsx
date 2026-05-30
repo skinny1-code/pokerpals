@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useWallet, useHandle } from '../hooks/usePokerWallet';
-import { useAccount } from 'wagmi';
+import { useAccount, useSwitchChain } from 'wagmi';
 import Link from 'next/link';
 
 const CHAIN_NAMES = { 421614: 'Arbitrum Sepolia', 42161: 'Arbitrum One' };
@@ -13,6 +13,7 @@ export default function WalletBar() {
           connectMetaMask, connectWalletConnect, connectCoinbase, disconnect } = useWallet();
   const { myHandle } = useHandle();
   const { chainId } = useAccount();
+  const { switchChain } = useSwitchChain();
   const [mounted, setMounted]         = useState(false);
   const [hasInjected, setHasInjected] = useState(false);
   const [siteUrl, setSiteUrl]         = useState('');
@@ -95,15 +96,15 @@ export default function WalletBar() {
       {/* Wallet section */}
       <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
 
-        {/* Wrong network warning */}
+        {/* Wrong network warning + one-click switch */}
         {wrongNet && (
-          <div style={{
+          <button onClick={() => switchChain?.({ chainId: EXPECTED })} style={{
             fontSize:10, color:'#e67e22', border:'1px solid #e67e2244',
             background:'#1a0e0422', borderRadius:6, padding:'3px 8px',
-            fontWeight:600,
+            fontWeight:600, cursor:'pointer',
           }}>
-            ⚠ Wrong Network
-          </div>
+            ⚠ Switch to {CHAIN_NAMES[EXPECTED] || `Chain ${EXPECTED}`}
+          </button>
         )}
 
         {mounted && isConnected && (
