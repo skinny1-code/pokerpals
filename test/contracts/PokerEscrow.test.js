@@ -1,14 +1,41 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { network } from "hardhat";
+import { parseUnits } from "ethers";
+
+// Helper: assert a promise rejects (optionally with a message substring)
+async function expectReverted(promise, msgSubstring = null) {
+  let reverted = false;
+  let errMsg = "";
+  try {
+    await promise;
+  } catch (e) {
+    reverted = true;
+    errMsg = e.message ?? "";
+  }
+  expect(reverted, "Expected transaction to revert but it did not").to.equal(true);
+  if (msgSubstring) {
+    expect(errMsg, `Expected revert message to include "${msgSubstring}"`).to.include(msgSubstring);
+  }
+}
+
+async function expectNotReverted(promise) {
+  try {
+    await promise;
+  } catch (e) {
+    throw new Error(`Expected no revert but got: ${e.message}`);
+  }
+}
 
 describe("PokerEscrow", () => {
+  let ethers;
   let token, staking, referral, escrow;
   let owner, player1, player2, operator;
-  const BUY_IN = ethers.parseUnits("1000", 18);
-  const BB     = ethers.parseUnits("10",   18);
-  const FEE    = ethers.parseUnits("2",    18);
+  const BUY_IN = parseUnits("1000", 18);
+  const BB     = parseUnits("10",   18);
+  const FEE    = parseUnits("2",    18);
 
   beforeEach(async () => {
+    ({ ethers } = await network.create());
     [owner, player1, player2, operator] = await ethers.getSigners();
 
     const Token = await ethers.getContractFactory("ChipsToken");
@@ -34,16 +61,15 @@ describe("PokerEscrow", () => {
     await staking.setYieldSource(await escrow.getAddress(), true);
 
     // Fund test players from owner balance (faucet would exceed MAX_SUPPLY)
-    await token.transfer(player1.address, ethers.parseUnits("10000", 18));
-    await token.transfer(player2.address, ethers.parseUnits("10000", 18));
+    await token.transfer(player1.address, parseUnits("10000", 18));
+    await token.transfer(player2.address, parseUnits("10000", 18));
     await escrow.markHuman(player1.address, true);
     await escrow.markHuman(player2.address, true);
   });
 
   it("deploys with correct token supply", async () => {
     const supply = await token.totalSupply();
-    // 1B minted at construction; transfers in beforeEach don't change totalSupply
-    expect(supply).to.equal(ethers.parseUnits("1000000000", 18));
+    expect(supply).to.equal(parseUnits("1000000000", 18));
   });
 
   it("creates a table with correct params", async () => {
@@ -53,11 +79,11 @@ describe("PokerEscrow", () => {
     const info = await escrow.getTableInfo(1);
     expect(info.buyIn).to.equal(BUY_IN);
     expect(info.bigBlind).to.equal(BB);
-    expect(info.maxPlayers).to.equal(2);
+    expect(info.maxPlayers).to.equal(2n);
   });
 
   it("rejects table if buy-in < 10x big blind", async () => {
-    await expect(escrow.createTable(BB, BB, 2, 0, 0)).to.be.revertedWith("Buy-in too small");
+    await expectReverted(escrow.createTable(BB, BB, 2, 0, 0), "Buy-in too small");
   });
 
   it("lets a verified player buy in", async () => {
@@ -66,7 +92,7 @@ describe("PokerEscrow", () => {
     await token.connect(player1).approve(escrowAddr, BUY_IN + FEE);
     await escrow.connect(player1).buyIn(1);
     const info = await escrow.getTableInfo(1);
-    expect(info.seated).to.equal(1);
+    expect(info.seated).to.equal(1n);
   });
 
   it("table becomes Active when all seats filled (2-max)", async () => {
@@ -77,13 +103,13 @@ describe("PokerEscrow", () => {
     await token.connect(player2).approve(escrowAddr, BUY_IN + FEE);
     await escrow.connect(player2).buyIn(1);
     const info = await escrow.getTableInfo(1);
-    expect(info.status).to.equal(1); // TableStatus.Active
+    expect(info.status).to.equal(1n); // TableStatus.Active
   });
 
   it("rejects buy-in from unverified player", async () => {
     const [,,,,unverified] = await ethers.getSigners();
     await escrow.createTable(BUY_IN, BB, 2, 0, 0);
-    await expect(escrow.connect(unverified).buyIn(1)).to.be.reverted;
+    await expectReverted(escrow.connect(unverified).buyIn(1));
   });
 
   it("rejects double buy-in from same player", async () => {
@@ -91,13 +117,12 @@ describe("PokerEscrow", () => {
     await escrow.createTable(BUY_IN, BB, 9, 0, 0);
     await token.connect(player1).approve(escrowAddr, (BUY_IN + FEE) * 2n);
     await escrow.connect(player1).buyIn(1);
-    await expect(escrow.connect(player1).buyIn(1)).to.be.reverted;
+    await expectReverted(escrow.connect(player1).buyIn(1));
   });
 
   it("dev vest releases linearly over 24 months", async () => {
     const claimable = await token.devClaimable();
-    // At deploy time essentially 0 (block.timestamp == devReleaseStart)
-    expect(claimable).to.be.gte(0n);
+    expect(claimable >= 0n).to.equal(true);
   });
 
   it("humanVerified mapping is set correctly", async () => {
@@ -112,7 +137,6 @@ describe("PokerEscrow", () => {
     const escrowAddr  = await escrow.getAddress();
     const stakingAddr = await staking.getAddress();
 
-    // Create 2-seat table → both buy in → table goes Active
     await escrow.createTable(BUY_IN, BB, 2, 0, 0);
     await token.connect(player1).approve(escrowAddr, BUY_IN + FEE);
     await escrow.connect(player1).buyIn(1);
@@ -128,9 +152,6 @@ describe("PokerEscrow", () => {
     const stakBefore  = await token.balanceOf(stakingAddr);
     const rakeBefore  = await token.balanceOf(owner.address);
 
-    // Sign & settle: player1 wins 100% (shares=[1000])
-    // Note: use individual element types, not address[]/uint256[] — ethers v6 pads
-    // array elements to 32 bytes, but Solidity abi.encodePacked packs addresses as 20 bytes.
     const tableId  = 1n;
     const handNonce = 0n;
     const winners  = [player1.address];
@@ -149,11 +170,11 @@ describe("PokerEscrow", () => {
 
     const expectedBurn    = (totalRake * 3500n) / 10000n;
     const expectedStaking = (totalRake * 3500n) / 10000n;
-    const expectedTreasury = totalRake - expectedBurn - expectedStaking; // remaining ~20%
+    const expectedTreasury = totalRake - expectedBurn - expectedStaking;
 
     expect(burnBefore - burnAfter).to.equal(expectedBurn);
     expect(stakAfter  - stakBefore).to.equal(expectedStaking);
-    expect(rakeAfter  - rakeBefore).to.be.gte(expectedTreasury - 1n); // allow off-by-one from integer division
+    expect(rakeAfter - rakeBefore >= expectedTreasury - 1n).to.equal(true);
   });
 
   it("settle: pays winner correct net amount after rake", async () => {
@@ -164,10 +185,10 @@ describe("PokerEscrow", () => {
     await token.connect(player2).approve(escrowAddr, BUY_IN + FEE);
     await escrow.connect(player2).buyIn(1);
 
-    const potTotal    = BUY_IN * 2n;
-    const totalRake   = (potTotal * 150n) / 10000n; // tier 0 = 1.5%
-    const netPot      = potTotal - totalRake;
-    const balBefore   = await token.balanceOf(player1.address);
+    const potTotal  = BUY_IN * 2n;
+    const totalRake = (potTotal * 150n) / 10000n;
+    const netPot    = potTotal - totalRake;
+    const balBefore = await token.balanceOf(player1.address);
 
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
@@ -199,17 +220,15 @@ describe("PokerEscrow", () => {
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
 
-    // Nonce incremented — replay must fail
-    await expect(
+    await expectReverted(
       escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig)
-    ).to.be.reverted;
+    );
   });
 
   // ─── refund() ───────────────────────────────────────────────────────────────
 
   it("refund: returns deposit to player on Open table", async () => {
     const escrowAddr = await escrow.getAddress();
-    // 9-seat table so it stays Open after one buy-in
     await escrow.createTable(BUY_IN, BB, 9, 0, 0);
     await token.connect(player1).approve(escrowAddr, BUY_IN + FEE);
     await escrow.connect(player1).buyIn(1);
@@ -223,14 +242,13 @@ describe("PokerEscrow", () => {
 
   it("refund: reverts on Active table", async () => {
     const escrowAddr = await escrow.getAddress();
-    // 2-seat: both buy in → Active
     await escrow.createTable(BUY_IN, BB, 2, 0, 0);
     await token.connect(player1).approve(escrowAddr, BUY_IN + FEE);
     await escrow.connect(player1).buyIn(1);
     await token.connect(player2).approve(escrowAddr, BUY_IN + FEE);
     await escrow.connect(player2).buyIn(1);
 
-    await expect(escrow.connect(player1).refund(1)).to.be.reverted;
+    await expectReverted(escrow.connect(player1).refund(1));
   });
 
   // ─── cashOut() ──────────────────────────────────────────────────────────────
@@ -275,10 +293,9 @@ describe("PokerEscrow", () => {
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).cashOut(tableId, player1.address, BUY_IN, cashNonce, sig);
 
-    // Replay with stale nonce 0 must fail
-    await expect(
+    await expectReverted(
       escrow.connect(player1).cashOut(tableId, player1.address, BUY_IN, cashNonce, sig)
-    ).to.be.reverted;
+    );
   });
 
   // ─── rakeback ───────────────────────────────────────────────────────────────
@@ -286,8 +303,7 @@ describe("PokerEscrow", () => {
   it("rakeback: accrues after settle and is claimable", async () => {
     const escrowAddr = await escrow.getAddress();
 
-    // Seed rakebackPool so there's budget to accrue
-    const poolSeed = ethers.parseUnits("1000", 18);
+    const poolSeed = parseUnits("1000", 18);
     await token.approve(escrowAddr, poolSeed);
     await escrow.fundRakebackPool(poolSeed);
 
@@ -306,11 +322,9 @@ describe("PokerEscrow", () => {
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
 
-    // player1 should have accrued some rakeback
     const accrued = await escrow.rakebackAccrued(player1.address);
-    expect(accrued).to.be.gt(0n);
+    expect(accrued > 0n).to.equal(true);
 
-    // Claiming pays out and zeroes the accrual
     const balBefore = await token.balanceOf(player1.address);
     await escrow.connect(player1).claimRakeback();
     const balAfter = await token.balanceOf(player1.address);
@@ -321,17 +335,13 @@ describe("PokerEscrow", () => {
   // ─── closeTable access control (C1) ─────────────────────────────────────────
 
   it("closeTable: reverts if caller is not creator or owner", async () => {
-    const escrowAddr = await escrow.getAddress();
-    // Create Open table and drain deposits manually via refund so potTotal=0
     await escrow.createTable(BUY_IN, BB, 9, 0, 0);
-    // table has no deposits so potTotal=0 — but stranger shouldn't close it
     const [,,,,stranger] = await ethers.getSigners();
-    await expect(escrow.connect(stranger).closeTable(1)).to.be.revertedWith("Not authorized");
+    await expectReverted(escrow.connect(stranger).closeTable(1), "Not authorized");
   });
 
   it("closeTable: succeeds when creator calls with empty pot", async () => {
-    // owner creates table; no one buys in; potTotal already 0
     await escrow.createTable(BUY_IN, BB, 9, 0, 0);
-    await expect(escrow.connect(owner).closeTable(1)).to.not.be.reverted;
+    await expectNotReverted(escrow.connect(owner).closeTable(1));
   });
 });
