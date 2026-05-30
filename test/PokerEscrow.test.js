@@ -30,6 +30,9 @@ describe("PokerEscrow", () => {
       await referral.getAddress()
     );
 
+    // Authorize escrow as a yield source so settle() can call receiveYield()
+    await staking.setYieldSource(await escrow.getAddress(), true);
+
     // Fund test players and verify them as human
     await token.faucet(player1.address, ethers.parseUnits("10000", 18));
     await token.faucet(player2.address, ethers.parseUnits("10000", 18));
