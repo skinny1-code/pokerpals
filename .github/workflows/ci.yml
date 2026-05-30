@@ -32,7 +32,7 @@ jobs:
           server=false
           frontend=false
 
-          echo "$CHANGED" | grep -qE '^(contracts/|test/PokerEscrow|hardhat\.config|scripts/deploy)' && contracts=true
+          echo "$CHANGED" | grep -qE '^(contracts/|test/(contracts/)?PokerEscrow|hardhat\.config|scripts/deploy)' && contracts=true
           echo "$CHANGED" | grep -qE '^(server/|test/holdem)'                                          && server=true
           echo "$CHANGED" | grep -qE '^(src/|public/|next\.config|package\.json)'                     && frontend=true
 
@@ -132,7 +132,14 @@ jobs:
       - name: Verify all active jobs succeeded
         run: |
           results='${{ toJSON(needs) }}'
-          failed=$(echo "$results" | grep -o '"result":"failure"' | wc -l)
+          echo "Job results: $results"
+          failed=$(echo "$results" | python3 -c "
+import json,sys
+data=json.load(sys.stdin)
+failures=[k for k,v in data.items() if isinstance(v,dict) and v.get('result')=='failure']
+print(len(failures))
+if failures: print('FAILED:', ','.join(failures), file=sys.stderr)
+")
           if [ "$failed" -gt 0 ]; then
             echo "One or more jobs failed."
             exit 1
