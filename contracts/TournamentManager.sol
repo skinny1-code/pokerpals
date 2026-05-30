@@ -146,10 +146,6 @@ contract TournamentManager is Ownable, ReentrancyGuard {
         uint256 rake = (pool * tournamentRake) / rakeDenominator;
         t.rakeCollected = rake;
 
-        if (t.guaranteed && pool - rake < t.guaranteedPrize) {
-            t.prizePool = t.guaranteedPrize + rake;
-        }
-
         // ── Rake distribution ──────────────────────────────────────────────
         uint256 burnAmt    = (rake * rakeBurnBps)    / 10000;
         uint256 stakingAmt = (rake * rakeStakingBps) / 10000;
@@ -172,7 +168,15 @@ contract TournamentManager is Ownable, ReentrancyGuard {
         totalRakeBurned     += burnAmt;
         totalRakeToStaking  += stakingAmt;
 
-        t.prizePool -= rake;
+        uint256 netPool = pool - rake; // entry fees after rake
+        if (t.guaranteed && netPool < t.guaranteedPrize) {
+            // Guarantee applies: return net entry fees to treasury, pay winners from guaranteedPrize
+            if (netPool > 0) chipsToken.safeTransfer(rakeRecipient, netPool);
+            t.prizePool = t.guaranteedPrize;
+        } else {
+            t.prizePool = netPool;
+        }
+
         t.status = TournStatus.Running;
         emit TournamentStarted(tournId, t.prizePool, rake, burnAmt, stakingAmt);
     }
@@ -211,6 +215,10 @@ contract TournamentManager is Ownable, ReentrancyGuard {
         t.status = TournStatus.Cancelled;
         for (uint i; i < t.entrants.length; i++) {
             chipsToken.safeTransfer(t.entrants[i], t.entryFee);
+        }
+        // Return the guaranteed prize deposit to the owner
+        if (t.guaranteed && t.guaranteedPrize > 0) {
+            chipsToken.safeTransfer(owner(), t.guaranteedPrize);
         }
         emit TournamentCancelled(tournId);
     }

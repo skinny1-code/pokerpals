@@ -622,13 +622,14 @@ wss.on('connection', (ws, req) => {
         // Deliver any pending cashout from a prior disconnection
         for (const [, t] of tables) {
           const pending = t.pendingCashouts.get(address);
-          if (pending) { send(ws, pending); break; }
+          if (pending) { send(ws, pending); t.pendingCashouts.delete(address); break; }
         }
         break;
       }
 
       case 'VERIFY_HUMAN': {
-        const { address } = payload;
+        const address = client.addr;
+        if (!address) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
         send(ws, { type: 'VERIFY_PENDING' });
         const result = await verifyHuman(address);
         send(ws, { type: 'VERIFY_RESULT', ...result });
@@ -697,7 +698,7 @@ wss.on('connection', (ws, req) => {
 
         // Deliver pending cashout if this player has one from a prior disconnection
         const pending = t.pendingCashouts.get(addr);
-        if (pending) { send(ws, pending); return; }
+        if (pending) { send(ws, pending); t.pendingCashouts.delete(addr); return; }
 
         // If player is already seated (reconnect), just update their ws reference
         const existing = t.players.find(p => p.addr === addr);
@@ -725,6 +726,7 @@ wss.on('connection', (ws, req) => {
       }
 
       case 'ACTION': {
+        if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
         const { tableId, action, amount } = payload;
         const t = tables.get(String(tableId));
         if (!t) return;

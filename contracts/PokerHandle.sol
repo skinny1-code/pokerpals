@@ -192,9 +192,11 @@ contract PokerHandle is ERC721, Ownable {
     // ─── ERC-721 TRANSFER HOOK ────────────────────────────────────────────────
 
     /// @dev Keep ownerTokenId mapping in sync on transfer.
+    ///      Blocks transfer to any wallet that already holds a handle NFT.
     function _update(address to, uint256 tokenId, address auth)
         internal override returns (address from)
     {
+        require(to == address(0) || ownerTokenId[to] == 0, "Receiver already has a handle");
         from = super._update(to, tokenId, auth);
         if (from != address(0)) ownerTokenId[from] = 0;
         if (to   != address(0)) ownerTokenId[to]   = tokenId;

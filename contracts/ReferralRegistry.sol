@@ -33,9 +33,10 @@ contract ReferralRegistry is Ownable {
     // Authorized callers (PokerEscrow, TournamentManager)
     mapping(address => bool) public authorized;
 
-    // Multi-level: referrer of referrer gets a cut too (optional)
-    bool    public multiLevel       = true;
-    uint256 public level2ShareBps   = 500; // 5% of the 20% = 1% of rake to level-2
+    // Multi-level referral is tracked but L2 token payments require PokerEscrow support
+    // (currently not implemented — the emit below is intentionally removed to avoid misleading events)
+    bool    public multiLevel       = false;
+    uint256 public level2ShareBps   = 500; // reserved for future L2 payout support
 
     event Referred(address indexed player, address indexed referrer, bytes8 code);
     event RakeCredited(address indexed referrer, address indexed player, uint256 amount);
@@ -76,14 +77,7 @@ contract ReferralRegistry is Ownable {
         stats[referrer].totalEarned += amount;
         _updateLeaderboard(referrer);
 
-        // Level 2 bonus
-        if (multiLevel && level2ShareBps > 0) {
-            address l2 = referrers[referrer];
-            if (l2 != address(0)) {
-                uint256 l2cut = (amount * level2ShareBps) / 10000;
-                emit Level2Credited(l2, l2cut);
-            }
-        }
+        // Level 2 bonus — reserved; no token transfer occurs here
 
         emit RakeCredited(referrer, player, amount);
     }

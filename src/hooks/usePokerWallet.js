@@ -747,9 +747,10 @@ export function useHandle() {
   const mint = useCallback(async (handle) => {
     if (!address || !HANDLE || !CHIPS) return;
     setErrorMsg(null);
+    if (!mintCostRaw) { setErrorMsg('Loading mint cost — please wait a moment and try again.'); setStatus('error'); return; }
     try {
       setStatus('approving');
-      const costBN = mintCostRaw ?? parseUnits("500", 18);
+      const costBN = mintCostRaw;
       const fees = await publicClient.estimateFeesPerGas();
       const feeOverrides = {
         maxFeePerGas:         fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined,
@@ -821,12 +822,15 @@ export function useLeaderboard() {
     if (!HANDLE || !STAKING || !publicClient) return;
     let cancelled = false;
     setLoading(true);
+    const deployBlock = process.env.NEXT_PUBLIC_DEPLOY_BLOCK
+      ? BigInt(process.env.NEXT_PUBLIC_DEPLOY_BLOCK)
+      : 0n;
     (async () => {
       try {
         const logs = await publicClient.getLogs({
           address: HANDLE,
           event: parseAbiItem('event HandleMinted(address indexed player, uint256 indexed tokenId, string handle, uint256 burned)'),
-          fromBlock: 0n,
+          fromBlock: deployBlock,
         });
         if (cancelled) return;
         const addrMap = {};

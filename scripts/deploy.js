@@ -119,7 +119,7 @@ async function main() {
   console.log("\n── Room lease fee split ──────────────────────────────");
   console.log("  35% burned | 35% staking yield | 30% treasury");
   console.log("\n── Handle NFT ────────────────────────────────────────");
-  console.log("  Mint cost: 500 CHIPS burned (fully deflationary)");
+  console.log("  Mint cost: 5,000 CHIPS burned tier-0 (rises with supply — see PokerHandle.tierCosts)");
   console.log("  Fully on-chain SVG — no IPFS needed");
 
   // Save deployment manifest

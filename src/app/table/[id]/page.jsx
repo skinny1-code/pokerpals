@@ -73,8 +73,8 @@ function StatusDot({ status }) {
 
 // ── chat + hand history ────────────────────────────────────────────────────────
 function ChatPanel({ messages }) {
-  const endRef = { current: null };
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth' }); });
+  const endRef = useRef(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth' }); }, [messages]);
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%',
       background:'#060e06', border:'1px solid #1a3a1a', borderRadius:8, overflow:'hidden' }}>
