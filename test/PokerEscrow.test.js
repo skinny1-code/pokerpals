@@ -33,15 +33,16 @@ describe("PokerEscrow", () => {
     // Authorize escrow as a yield source so settle() can call receiveYield()
     await staking.setYieldSource(await escrow.getAddress(), true);
 
-    // Fund test players and verify them as human
-    await token.faucet(player1.address, ethers.parseUnits("10000", 18));
-    await token.faucet(player2.address, ethers.parseUnits("10000", 18));
+    // Fund test players from owner balance (faucet would exceed MAX_SUPPLY)
+    await token.transfer(player1.address, ethers.parseUnits("10000", 18));
+    await token.transfer(player2.address, ethers.parseUnits("10000", 18));
     await escrow.markHuman(player1.address, true);
     await escrow.markHuman(player2.address, true);
   });
 
   it("deploys with correct token supply", async () => {
     const supply = await token.totalSupply();
+    // 1B minted at construction; transfers in beforeEach don't change totalSupply
     expect(supply).to.equal(ethers.parseUnits("1000000000", 18));
   });
 
