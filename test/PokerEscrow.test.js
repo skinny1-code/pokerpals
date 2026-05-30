@@ -129,13 +129,15 @@ describe("PokerEscrow", () => {
     const rakeBefore  = await token.balanceOf(owner.address);
 
     // Sign & settle: player1 wins 100% (shares=[1000])
+    // Note: use individual element types, not address[]/uint256[] — ethers v6 pads
+    // array elements to 32 bytes, but Solidity abi.encodePacked packs addresses as 20 bytes.
     const tableId  = 1n;
     const handNonce = 0n;
     const winners  = [player1.address];
     const shares   = [1000n];
     const digest   = ethers.solidityPackedKeccak256(
-      ["uint256","uint256","address[]","uint256[]"],
-      [tableId, handNonce, winners, shares]
+      ["uint256","uint256","address","uint256"],
+      [tableId, handNonce, winners[0], shares[0]]
     );
     const sig = await operator.signMessage(ethers.getBytes(digest));
 
@@ -170,8 +172,8 @@ describe("PokerEscrow", () => {
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
     const digest = ethers.solidityPackedKeccak256(
-      ["uint256","uint256","address[]","uint256[]"],
-      [tableId, handNonce, winners, shares]
+      ["uint256","uint256","address","uint256"],
+      [tableId, handNonce, winners[0], shares[0]]
     );
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
@@ -191,8 +193,8 @@ describe("PokerEscrow", () => {
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
     const digest = ethers.solidityPackedKeccak256(
-      ["uint256","uint256","address[]","uint256[]"],
-      [tableId, handNonce, winners, shares]
+      ["uint256","uint256","address","uint256"],
+      [tableId, handNonce, winners[0], shares[0]]
     );
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
@@ -298,8 +300,8 @@ describe("PokerEscrow", () => {
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
     const digest = ethers.solidityPackedKeccak256(
-      ["uint256","uint256","address[]","uint256[]"],
-      [tableId, handNonce, winners, shares]
+      ["uint256","uint256","address","uint256"],
+      [tableId, handNonce, winners[0], shares[0]]
     );
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
