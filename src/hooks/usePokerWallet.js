@@ -504,29 +504,28 @@ export function useTableSocket(tableId, tableConfig) {
     const ws = new WebSocket(serverUrl);
     wsRef.current = ws;
 
-    ws.onopen = async () => {
+    ws.onopen = () => {
       setWsStatus('connected');
-      try {
-        // Check sessionStorage first — survives page navigation, so only one sign per tab session
-        let auth = getAuthCache(address);
-        if (!auth) {
-          const nonce     = Date.now().toString();
-          const signature = await signMessageAsync({ message: `PVP-AUTH:${nonce}` });
-          auth = { address, nonce, signature };
-          setAuthCache(auth);
-        }
-        authCacheRef.current = auth; // keep ref in sync for fast reconnect reuse
-        ws.send(JSON.stringify({ type: 'AUTH', payload: auth }));
-      } catch {
-        setWsError('Wallet signature required to connect');
-        ws.close();
-      }
+      // Server sends AUTH_CHALLENGE immediately; signing happens in onmessage
     };
 
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
+          case 'AUTH_CHALLENGE': {
+            (async () => {
+              try {
+                const signature = await signMessageAsync({ message: `PVP-AUTH:${msg.nonce}` });
+                authCacheRef.current = { address, nonce: msg.nonce, signature };
+                ws.send(JSON.stringify({ type: 'AUTH', payload: { address, signature } }));
+              } catch {
+                setWsError('Wallet signature required to connect');
+                ws.close();
+              }
+            })();
+            break;
+          }
           case 'AUTH_OK':
             setWsStatus('authed');
             if (tableId) {
@@ -590,7 +589,6 @@ export function useTableSocket(tableId, tableConfig) {
     ws.onclose = () => {
       setWsStatus('disconnected');
       wsRef.current = null;
-      // Auto-reconnect after 3s (no new sign needed — cached auth is reused)
       setTimeout(() => setReconnectKey(k => k + 1), 3000);
     };
     ws.onerror = () => setWsError('Connection error');

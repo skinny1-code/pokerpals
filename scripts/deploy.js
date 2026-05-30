@@ -67,7 +67,7 @@ async function main() {
   const registryAddr = await registry.getAddress();
   console.log("✅ TableRegistry:", registryAddr);
 
-  // 7. PokerHandle — username NFT (burn 500 CHIPS to mint)
+  // 7. PokerHandle — username NFT (burn 5,000 CHIPS to mint at tier-0)
   const Handle = await ethers.getContractFactory("PokerHandle");
   const handle = await Handle.deploy(tokenAddr);
   await handle.waitForDeployment();
