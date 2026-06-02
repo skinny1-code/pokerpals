@@ -8,7 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm install                  # install all dependencies
 
 npm run compile              # compile Solidity contracts via Hardhat
-npm run test                 # run Hardhat contract tests
+npm run test                 # run JS hand-evaluator unit tests (test/holdem.test.mjs) — no chain needed
+npm run test:contracts       # run Hardhat Solidity contract tests (test/contracts/)
 npm run deploy:testnet       # deploy to Arbitrum Sepolia → saves deployments/arbitrumSepolia.json + writes .env
 npm run deploy:mainnet       # deploy to Arbitrum One
 
@@ -18,7 +19,9 @@ npm run setup:env            # re-sync .env from deployments/arbitrumSepolia.jso
 npm run server               # start WebSocket game server (server/index.js) — reads .env via --env-file
 npm run oracle               # start anti-bot oracle as a separate process (server/antiBotOracle.js)
 npm run dev                  # Next.js dev server
+npm run dev:clean            # clears .next cache then starts dev server
 npm run build                # production Next.js build
+npm run launch               # shortcut: npm run server & npm run dev in parallel
 
 npm run faucet               # send 10,000 CHIPS to deployer (testnet only)
 FAUCET_TO=0xADDR npm run faucet                      # send 10,000 CHIPS to 0xADDR
@@ -49,6 +52,7 @@ The system has three independent runtime layers:
 - `PokerEscrow` — core cash-game contract: buy-in locking, per-hand signed settlement, VIP rake tiers, referral splits, seat fees. Optionally links tables to a `TableRegistry` room for access control.
 - `TournamentManager` — scheduled tournaments; mirrors the signed-settlement pattern of `PokerEscrow`
 - `TableRegistry` — on-chain private room leasing. Anyone pays a weekly CHIPS fee to lease a room. Rooms can be NFT-gated (ERC-721 ownership required to sit). Lease fee split: 35% burn / 35% staking / 30% treasury. `canSit(roomId, player)` is checked by PokerEscrow on buy-in.
+- `PokerHandle` — on-chain username registry; players claim a unique handle (used by the `/handle` frontend route; contract address stored in `NEXT_PUBLIC_POKER_HANDLE`)
 
 Post-deploy wiring (done in `scripts/deploy.js`):
 - `token.transfer(stakingAddr, 200M_CHIPS)` then `staking.initYieldPool()`
@@ -64,7 +68,7 @@ Post-deploy wiring (done in `scripts/deploy.js`):
 - Broadcasts per-player `GAME_STATE` (hole cards hidden for opponents) after every action
 - On `HAND_OVER`, emits the operator signature so any player can submit it to `PokerEscrow.settle()` on-chain
 
-The server uses `crypto.randomInt` for shuffling (cryptographically random). Hand evaluation in `server/index.js` uses string card notation (`"AH"`, `"TS"`). The separate module `src/games/omaha.js` uses object notation (`{s, r}`) — these are two independent implementations.
+The server uses `crypto.randomInt` for shuffling (cryptographically random). Hand evaluation in `server/index.js` uses string card notation (`"AH"`, `"TS"`). The separate module `src/games/omaha.js` uses object notation (`{s, r}`) — these are two independent implementations and the notations must not be mixed.
 
 **3. Anti-bot oracle** (`server/antiBotOracle.js`) — runs as a standalone process. Runs three parallel checks before calling `escrow.markHuman(address, true)` on-chain:
 1. On-chain activity: ≥50 asset transfers, wallet age ≥30 days (Alchemy API)
@@ -76,6 +80,17 @@ Also exports `BehaviorMonitor`, which can be integrated into the game server to 
 **4. Frontend** (`src/`) — Next.js 14. Key files:
 - `src/hooks/usePokerWallet.js` — exports `wagmiConfig` (wrap app in `<WagmiProvider>`), plus hooks `useWallet`, `useEscrow`, `useGameSocket`. `useEscrow.buyIn()` does a two-step flow: approve CHIPS → call `buyIn()` on the escrow contract.
 - `src/components/RevenueDashboard.jsx` — owner-facing dashboard; reads live on-chain data from all contracts via `useReadContract` with polling.
+
+Frontend pages (`src/app/`):
+- `/` — landing page, wallet connect entry point
+- `/buy` — buy CHIPS token UI
+- `/handle` — claim a PokerHandle username on-chain
+- `/stake` — ChipsStaking UI (stake for VIP tier + APR yield)
+- `/table/[id]` — live game table; consumes `useGameSocket` for real-time play
+- `/tournament/[id]` — tournament lobby and play
+- `/leaderboard` — player leaderboard
+
+**5. Claude Code config** (`.claude/`) — project-specific Claude Code settings. Custom slash commands are in `.claude/commands/`, event hooks in `.claude/hooks/`, and permissions/settings in `.claude/settings.json`.
 
 ## Token Economy (CHIPS)
 
