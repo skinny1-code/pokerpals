@@ -493,7 +493,8 @@ export function useTableSocket(tableId, tableConfig) {
   const [seatPickerData,  setSeatPickerData]  = useState(null); // { maxPlayers, takenSeats }
   const [reconnectKey,    setReconnectKey]    = useState(0);
   const wsRef           = useRef(null);
-  const authCacheRef    = useRef(null); // { address, nonce, signature } — reused on reconnect
+  const authCacheRef    = useRef(null);
+  const authFailedRef   = useRef(false); // set true on sign dismiss — breaks infinite reconnect loop
   const tableConfigRef  = useRef(tableConfig); // keep latest config accessible inside ws callbacks
   tableConfigRef.current = tableConfig;
 
@@ -505,8 +506,8 @@ export function useTableSocket(tableId, tableConfig) {
     wsRef.current = ws;
 
     ws.onopen = () => {
+      authFailedRef.current = false; // reset on each new connection attempt
       setWsStatus('connected');
-      // Server sends AUTH_CHALLENGE immediately; signing happens in onmessage
     };
 
     ws.onmessage = (e) => {
@@ -514,16 +515,21 @@ export function useTableSocket(tableId, tableConfig) {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
           case 'AUTH_CHALLENGE': {
-            (async () => {
-              try {
-                const signature = await signMessageAsync({ message: `PVP-AUTH:${msg.nonce}` });
-                authCacheRef.current = { address, nonce: msg.nonce, signature };
-                ws.send(JSON.stringify({ type: 'AUTH', payload: { address, signature } }));
-              } catch {
-                setWsError('Wallet signature required to connect');
+            signMessageAsync({ message: `PVP-AUTH:${msg.nonce}` })
+              .then(signature => {
+                if (ws.readyState === WebSocket.OPEN) {
+                  authCacheRef.current = { address, nonce: msg.nonce, signature };
+                  ws.send(JSON.stringify({ type: 'AUTH', payload: { address, signature } }));
+                } else {
+                  authFailedRef.current = true;
+                  setWsError('Connection lost during sign — refresh to retry');
+                }
+              })
+              .catch(() => {
+                authFailedRef.current = true;
+                setWsError('Wallet signature required — refresh to retry');
                 ws.close();
-              }
-            })();
+              });
             break;
           }
           case 'AUTH_OK':
@@ -589,7 +595,9 @@ export function useTableSocket(tableId, tableConfig) {
     ws.onclose = () => {
       setWsStatus('disconnected');
       wsRef.current = null;
-      setTimeout(() => setReconnectKey(k => k + 1), 3000);
+      if (!authFailedRef.current) {
+        setTimeout(() => setReconnectKey(k => k + 1), 3000);
+      }
     };
     ws.onerror = () => setWsError('Connection error');
 
