@@ -1,7 +1,8 @@
 // scripts/deploy.js — deploys all PokerVsPals contracts in order
-// npx hardhat run scripts/deploy.js --network arbitrumSepolia
+// npx hardhat run scripts/deploy.js
+// Set DEPLOY_NETWORK=arbitrum for mainnet; defaults to arbitrumSepolia
 import "dotenv/config";
-import { ethers } from "hardhat";
+import { network } from "hardhat";
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
@@ -10,6 +11,9 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
+  const networkName = process.env.DEPLOY_NETWORK || "arbitrumSepolia";
+  const conn = await network.connect({ network: networkName });
+  const ethers = conn.ethers;
   const [deployer] = await ethers.getSigners();
   console.log("Deployer:", deployer.address);
 
