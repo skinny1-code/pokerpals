@@ -14,7 +14,10 @@ npm install
 ENV_FILE="$CLAUDE_PROJECT_DIR/.env"
 
 # ── Decrypt .env from committed .env.enc ─────────────────────────────────────
-# Passphrase is the Alchemy API key (embedded in RPC URLs, not a new secret).
+# ⚠ SECURITY: The fallback passphrase below is committed in plaintext.
+# Anyone with repo read access can decrypt .env.enc with it.
+# BEFORE MAINNET: rotate the Alchemy key, re-encrypt .env.enc with a new
+# passphrase stored only in GitHub Secrets, and remove the hardcoded fallback.
 PASS="${ALCHEMY_API_KEY:-d9thqdp49ecerdec}"
 if [ -f "$CLAUDE_PROJECT_DIR/.env.enc" ]; then
   openssl enc -d -aes-256-cbc -pbkdf2 -pass pass:"$PASS" \

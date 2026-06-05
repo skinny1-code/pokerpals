@@ -607,27 +607,32 @@ wss.on('connection', (ws, req) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     const { type, payload } = msg;
-    const client = clients.get(ws) || {};
+    const client = clients.get(ws);
+    if (!client) return;
     console.log(`[WS] ← ${type}`, payload?.tableId ? `tableId=${payload.tableId}` : payload?.address ? `addr=${payload.address.slice(0,10)}` : '');
 
     switch (type) {
 
       case 'AUTH': {
-        const { address, signature } = payload;
-        const nonce = client.challenge;
-        if (!nonce) return send(ws, { type: 'AUTH_FAIL', error: 'No challenge' });
-        const recovered = ethers.verifyMessage(`PVP-AUTH:${nonce}`, signature);
-        if (recovered.toLowerCase() !== address.toLowerCase()) {
-          return send(ws, { type: 'AUTH_FAIL', error: 'Bad signature' });
-        }
-        clients.set(ws, { addr: address, tableId: null });
-        send(ws, { type: 'AUTH_OK', address });
-        console.log(`[WS] → AUTH_OK for ${address.slice(0,10)}`);
+        try {
+          const { address, signature } = payload;
+          const nonce = client.challenge;
+          if (!nonce) return send(ws, { type: 'AUTH_FAIL', error: 'No challenge' });
+          const recovered = ethers.verifyMessage(`PVP-AUTH:${nonce}`, signature);
+          if (recovered.toLowerCase() !== address.toLowerCase()) {
+            return send(ws, { type: 'AUTH_FAIL', error: 'Bad signature' });
+          }
+          clients.set(ws, { addr: address, tableId: null });
+          send(ws, { type: 'AUTH_OK', address });
+          console.log(`[WS] → AUTH_OK for ${address.slice(0,10)}`);
 
-        // Deliver any pending cashout from a prior disconnection
-        for (const [, t] of tables) {
-          const pending = t.pendingCashouts.get(address);
-          if (pending) { send(ws, pending); t.pendingCashouts.delete(address); break; }
+          // Deliver any pending cashout from a prior disconnection
+          for (const [, t] of tables) {
+            const pending = t.pendingCashouts.get(address);
+            if (pending) { send(ws, pending); t.pendingCashouts.delete(address); break; }
+          }
+        } catch {
+          send(ws, { type: 'AUTH_FAIL', error: 'Invalid signature format' });
         }
         break;
       }
@@ -735,7 +740,7 @@ wss.on('connection', (ws, req) => {
         const now = Date.now();
         if (client.lastAction && now - client.lastAction < 100)
           return send(ws, { type: 'ERROR', error: 'Too fast' });
-        clients.set(ws, { ...client, lastAction: now });
+        client.lastAction = now;
         const { tableId, action, amount } = payload;
         const safeAmount = typeof amount === 'number' && isFinite(amount) && amount >= 0 ? amount : 0;
         const t = tables.get(String(tableId));
