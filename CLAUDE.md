@@ -52,7 +52,7 @@ The system has three independent runtime layers:
 - `PokerEscrow` — core cash-game contract: buy-in locking, per-hand signed settlement, VIP rake tiers, referral splits, seat fees. Optionally links tables to a `TableRegistry` room for access control.
 - `TournamentManager` — scheduled tournaments; mirrors the signed-settlement pattern of `PokerEscrow`
 - `TableRegistry` — on-chain private room leasing. Anyone pays a weekly CHIPS fee to lease a room. Rooms can be NFT-gated (ERC-721 ownership required to sit). Lease fee split: 35% burn / 35% staking / 30% treasury. `canSit(roomId, player)` is checked by PokerEscrow on buy-in.
-- `PokerHandle` — on-chain username registry; players claim a unique handle (used by the `/handle` frontend route; contract address stored in `NEXT_PUBLIC_POKER_HANDLE`)
+- `PokerHandle` — ERC-721 NFT for on-chain usernames. Players burn CHIPS to mint a unique 3–20 char handle (alphanumeric + underscore, case-insensitive uniqueness). Fully on-chain SVG tokenURI. One handle per wallet, but handles are transferable. Contract address stored in `NEXT_PUBLIC_POKER_HANDLE`.
 
 Post-deploy wiring (done in `scripts/deploy.js`):
 - `token.transfer(stakingAddr, 200M_CHIPS)` then `staking.initYieldPool()`
@@ -77,9 +77,10 @@ The server uses `crypto.randomInt` for shuffling (cryptographically random). Han
 
 Also exports `BehaviorMonitor`, which can be integrated into the game server to flag bots by detecting suspiciously fast/consistent action timing (<250ms avg, <100 variance).
 
-**4. Frontend** (`src/`) — Next.js 14. Key files:
+**4. Frontend** (`src/`) — Next.js 15 (App Router). Pages: `/` (lobby), `/table`, `/buy`, `/stake`, `/tournament`, `/handle`, `/leaderboard`. Key files:
 - `src/hooks/usePokerWallet.js` — exports `wagmiConfig` (wrap app in `<WagmiProvider>`), plus hooks `useWallet`, `useEscrow`, `useGameSocket`. `useEscrow.buyIn()` does a two-step flow: approve CHIPS → call `buyIn()` on the escrow contract.
 - `src/components/RevenueDashboard.jsx` — owner-facing dashboard; reads live on-chain data from all contracts via `useReadContract` with polling.
+- `next.config.js` — auto-loads deployed contract addresses from `deployments/arbitrumSepolia.json` (or `deployments/arbitrum.json`) at build time, so `NEXT_PUBLIC_*` contract address env vars are optional if the deployment JSON exists. `.env` values take precedence when set.
 
 Frontend pages (`src/app/`):
 - `/` — landing page, wallet connect entry point
