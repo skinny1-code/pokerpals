@@ -38,6 +38,8 @@ jobs:
 
       - name: Run contract tests (pre-flight)
         run: npm run test:contracts
+        env:
+          HARDHAT_NETWORK: hardhat
 
       - name: Deploy to Arbitrum Sepolia
         run: npm run deploy:testnet
@@ -53,13 +55,16 @@ jobs:
           COMMUNITY_WALLET:   ${{ secrets.COMMUNITY_WALLET }}
           LIQUIDITY_WALLET:   ${{ secrets.LIQUIDITY_WALLET }}
 
-      - name: Commit updated deployment manifest
+      - name: Re-encrypt .env and commit deployment manifest
         run: |
+          node scripts/setupEnv.js
+          PASS="${{ secrets.ENV_PASSPHRASE }}"
+          openssl enc -aes-256-cbc -pbkdf2 -pass pass:"$PASS" -in .env -out .env.enc
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add deployments/arbitrumSepolia.json
-          git diff --cached --quiet || git commit -m "chore: update arbitrumSepolia deployment manifest [skip ci]"
-          git push
+          git add deployments/arbitrumSepolia.json .env.enc
+          git diff --cached --quiet || git commit -m "chore: update deployment manifest + .env.enc [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}
 
       - name: Fund deployer from faucet
         if: github.event.inputs.run_faucet == 'true'
