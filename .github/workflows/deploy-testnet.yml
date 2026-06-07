@@ -44,12 +44,27 @@ jobs:
       - name: Deploy to Arbitrum Sepolia
         run: npm run deploy:testnet
         env:
-          DEPLOYER_KEY:    ${{ secrets.DEPLOYER_KEY }}
-          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC }}
-          ARBISCAN_API_KEY: ${{ secrets.ARBISCAN_API_KEY }}
+          DEPLOYER_KEY:       ${{ secrets.DEPLOYER_KEY }}
+          ARB_SEPOLIA_RPC:    ${{ secrets.ARB_SEPOLIA_RPC }}
+          ARBISCAN_API_KEY:   ${{ secrets.ARBISCAN_API_KEY }}
+          OPERATOR_SIGNER:    ${{ secrets.OPERATOR_SIGNER }}
+          RAKE_WALLET:        ${{ secrets.RAKE_WALLET }}
+          ANTIBOT_ORACLE:     ${{ secrets.ANTIBOT_ORACLE }}
+          DEV_WALLET:         ${{ secrets.DEV_WALLET }}
+          OPS_WALLET:         ${{ secrets.OPS_WALLET }}
+          COMMUNITY_WALLET:   ${{ secrets.COMMUNITY_WALLET }}
+          LIQUIDITY_WALLET:   ${{ secrets.LIQUIDITY_WALLET }}
 
-      - name: Sync .env from deployment
-        run: npm run setup:env
+      - name: Re-encrypt .env and commit deployment manifest
+        run: |
+          node scripts/setupEnv.js
+          PASS="${{ secrets.ENV_PASSPHRASE }}"
+          openssl enc -aes-256-cbc -pbkdf2 -pass pass:"$PASS" -in .env -out .env.enc
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add deployments/arbitrumSepolia.json .env.enc
+          git diff --cached --quiet || git commit -m "chore: update deployment manifest + .env.enc [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}
 
       - name: Fund deployer from faucet
         if: github.event.inputs.run_faucet == 'true'

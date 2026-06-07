@@ -1,7 +1,8 @@
 // scripts/deploy.js — deploys all PokerVsPals contracts in order
-// npx hardhat run scripts/deploy.js --network arbitrumSepolia
+// npx hardhat run scripts/deploy.js
+// Set DEPLOY_NETWORK=arbitrum for mainnet; defaults to arbitrumSepolia
 import "dotenv/config";
-import { ethers } from "hardhat";
+import { network } from "hardhat";
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
@@ -9,7 +10,15 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const VALID_NETWORKS = ["arbitrumSepolia", "arbitrum"];
+
 async function main() {
+  const networkName = process.env.DEPLOY_NETWORK || "arbitrumSepolia";
+  if (!VALID_NETWORKS.includes(networkName)) {
+    throw new Error(`Unknown DEPLOY_NETWORK="${networkName}". Valid: ${VALID_NETWORKS.join(", ")}`);
+  }
+  const conn = await network.connect({ network: networkName });
+  const ethers = conn.ethers;
   const [deployer] = await ethers.getSigners();
   console.log("Deployer:", deployer.address);
 
@@ -125,11 +134,12 @@ async function main() {
   // Save deployment manifest
   const deplDir = path.resolve(__dirname, "../deployments");
   if (!fs.existsSync(deplDir)) fs.mkdirSync(deplDir, { recursive: true });
+  const CHAIN_IDS = { arbitrumSepolia: "421614", arbitrum: "42161" };
   fs.writeFileSync(
-    path.join(deplDir, "arbitrumSepolia.json"),
+    path.join(deplDir, `${networkName}.json`),
     JSON.stringify({
-      network: "arbitrumSepolia",
-      chainId: "421614",
+      network: networkName,
+      chainId: CHAIN_IDS[networkName],
       deployedAt: new Date().toISOString(),
       deployer: deployer.address,
       contracts: {
@@ -143,7 +153,7 @@ async function main() {
       },
     }, null, 2)
   );
-  console.log("✅ deployments/arbitrumSepolia.json saved");
+  console.log(`✅ deployments/${networkName}.json saved`);
 
   // Auto-write contract addresses into .env
   const envArgs = [

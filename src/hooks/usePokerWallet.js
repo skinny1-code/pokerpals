@@ -21,8 +21,8 @@ const _connectors = [
 export const wagmiConfig = createConfig({
   chains:     [arbitrum, arbitrumSepolia],
   transports: {
-    [arbitrum.id]:        http(),
-    [arbitrumSepolia.id]: http(),
+    [arbitrum.id]:        http(process.env.NEXT_PUBLIC_ARB_RPC || undefined),
+    [arbitrumSepolia.id]: http(process.env.NEXT_PUBLIC_ARB_SEPOLIA_RPC || undefined),
   },
   connectors: _connectors,
   ssr: true,  // prevents wagmi from reading localStorage during SSR hydration
