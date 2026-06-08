@@ -10,7 +10,7 @@ const HAS_WC = !!process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 
 export default function WalletBar() {
   const { address, isConnected, chipsBalance, isHuman,
-          connectMetaMask, connectWalletConnect, connectCoinbase, disconnect } = useWallet();
+          connectMetaMask, connectWalletConnect, connectCoinbase, connectFarcaster, disconnect } = useWallet();
   const { myHandle } = useHandle();
   const { chainId } = useAccount();
   const { switchChain } = useSwitchChain();
@@ -18,12 +18,21 @@ export default function WalletBar() {
   const [hasInjected, setHasInjected] = useState(false);
   const [siteUrl, setSiteUrl]         = useState('');
   const [showPicker, setShowPicker]   = useState(false);
+  const [isInMiniApp, setIsInMiniApp] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     setHasInjected(!!window.ethereum);
     setSiteUrl(window.location.host);
-  }, []);
+
+    // Auto-connect when running inside a Farcaster / Base mini app
+    import('@farcaster/miniapp-sdk').then(({ sdk }) => {
+      if (sdk.isInMiniApp()) {
+        setIsInMiniApp(true);
+        if (!isConnected) connectFarcaster();
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function pick(fn) { fn(); setShowPicker(false); }
 
@@ -191,19 +200,31 @@ export default function WalletBar() {
                   <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:2,
                     padding:'4px 10px', fontWeight:700 }}>CHOOSE WALLET</div>
 
+                  {/* Farcaster / Base Mini App — shown when inside the mini app */}
+                  {isInMiniApp && (
+                    <WalletOption
+                      icon="🟣"
+                      label="Farcaster Wallet"
+                      sub="Connected via Mini App"
+                      onClick={() => pick(connectFarcaster)}
+                    />
+                  )}
+
                   {/* MetaMask / injected */}
-                  <WalletOption
-                    icon="🦊"
-                    label="MetaMask"
-                    sub={hasInjected ? 'Detected' : 'Install →'}
-                    onClick={hasInjected
-                      ? () => pick(connectMetaMask)
-                      : () => { window.open(`https://metamask.app.link/dapp/${siteUrl}`,'_blank'); setShowPicker(false); }
-                    }
-                  />
+                  {!isInMiniApp && (
+                    <WalletOption
+                      icon="🦊"
+                      label="MetaMask"
+                      sub={hasInjected ? 'Detected' : 'Install →'}
+                      onClick={hasInjected
+                        ? () => pick(connectMetaMask)
+                        : () => { window.open(`https://metamask.app.link/dapp/${siteUrl}`,'_blank'); setShowPicker(false); }
+                      }
+                    />
+                  )}
 
                   {/* WalletConnect — only shown when project ID is configured */}
-                  {HAS_WC && (
+                  {HAS_WC && !isInMiniApp && (
                     <WalletOption
                       icon="🔗"
                       label="WalletConnect"
@@ -213,12 +234,14 @@ export default function WalletBar() {
                   )}
 
                   {/* Coinbase Wallet */}
-                  <WalletOption
-                    icon="🔵"
-                    label="Coinbase Wallet"
-                    sub="Mobile or extension"
-                    onClick={() => pick(connectCoinbase)}
-                  />
+                  {!isInMiniApp && (
+                    <WalletOption
+                      icon="🔵"
+                      label="Coinbase Wallet"
+                      sub="Mobile or extension"
+                      onClick={() => pick(connectCoinbase)}
+                    />
+                  )}
                 </div>
               </>
             )}
