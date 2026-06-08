@@ -169,6 +169,7 @@ class PokerTable {
     this.community    = [];
     this.pot          = 0;
     this.maxBet       = 0;
+    this.lastRaiseAmount = 0;
     this.phase        = 'waiting';
     this.dealerIdx    = 0;
     this.actionIdx    = 0;
@@ -281,11 +282,13 @@ class PokerTable {
       if (p.chips === 0) p.allIn = true;
       p.actionLabel = `CALL ${pay}`;
     } else if (action === 'raise') {
-      if (amount < this.config.bigBlind) return { error: `Minimum raise is ${this.config.bigBlind}` };
+      const minRaise = Math.max(this.config.bigBlind, this.lastRaiseAmount || this.config.bigBlind);
+      if (amount < minRaise) return { error: `Minimum raise is ${minRaise}` };
       const total = this.maxBet + amount;
       const pay   = Math.min(total - p.bet, p.chips);
       p.chips -= pay; p.bet += pay; this.pot += pay;
       this.maxBet = p.bet;
+      this.lastRaiseAmount = amount;
       if (p.chips === 0) p.allIn = true;
       p.actionLabel = `RAISE +${amount}`;
       // After a raise, prior actors must respond again — clear the acted set
@@ -315,6 +318,7 @@ class PokerTable {
 
     this.players.forEach(p => { p.bet = 0; p.actionLabel = ''; });
     this.maxBet = 0;
+    this.lastRaiseAmount = 0;
     this.streetActed = new Set();
 
     if (this.phase === 'preflop') {

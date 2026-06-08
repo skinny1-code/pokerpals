@@ -41,7 +41,7 @@ SOLC_CACHE_DIR="$HOME/.cache/hardhat-nodejs/compilers-v3"
 SOLJSON_SRC="$CLAUDE_PROJECT_DIR/node_modules/solc/soljson.js"
 SOLJSON_FNAME="soljson-v0.8.26+commit.8a97fa7a.js"
 
-if [ -f "$SOLJSON_SRC" ]; then
+if [ -f "$SOLJSON_SRC" ] && [ ! -f "$SOLC_CACHE_DIR/wasm/$SOLJSON_FNAME" ]; then
   SHA256=$(node -e "const {createHash}=require('crypto'),{readFileSync}=require('fs');console.log('0x'+createHash('sha256').update(readFileSync('$SOLJSON_SRC')).digest('hex'))")
   LIST_JSON="{\"builds\":[{\"path\":\"$SOLJSON_FNAME\",\"version\":\"0.8.26\",\"longVersion\":\"0.8.26+commit.8a97fa7a\",\"keccak256\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"sha256\":\"$SHA256\",\"urls\":[]}],\"releases\":{\"0.8.26\":\"$SOLJSON_FNAME\"},\"latestRelease\":\"0.8.26\"}"
 
