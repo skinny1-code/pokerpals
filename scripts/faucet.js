@@ -1,4 +1,6 @@
-// scripts/faucet.js — mint testnet CHIPS to any address via ChipsToken.faucet() (onlyOwner)
+// scripts/faucet.js — send testnet CHIPS to any address
+// All 1B CHIPS are minted at deploy, so we transfer from OPS_WALLET_KEY (100M budget)
+// rather than calling ChipsToken.faucet() which would exceed MAX_SUPPLY.
 // Usage: npm run faucet                                        → 10,000 CHIPS to deployer
 //        FAUCET_TO=0xADDR npm run faucet                      → 10,000 CHIPS to 0xADDR
 //        FAUCET_TO=0xADDR FAUCET_AMOUNT=50000 npm run faucet  → 50,000 CHIPS to 0xADDR
@@ -26,25 +28,31 @@ async function getProvider() {
 
 async function main() {
   if (!process.env.NEXT_PUBLIC_CHIPS_TOKEN) throw new Error("NEXT_PUBLIC_CHIPS_TOKEN not set — run npm run setup:env first");
-  if (!process.env.DEPLOYER_KEY)            throw new Error("DEPLOYER_KEY not set in .env");
+
+  const senderKey = process.env.OPS_WALLET_KEY || process.env.DEPLOYER_KEY;
+  if (!senderKey) throw new Error("OPS_WALLET_KEY (or DEPLOYER_KEY) not set in .env");
 
   const provider = await getProvider();
-  const deployer = new ethers.Wallet(process.env.DEPLOYER_KEY, provider);
-  const addr     = process.env.FAUCET_TO     || deployer.address;
+  const sender   = new ethers.Wallet(senderKey, provider);
+  const addr     = process.env.FAUCET_TO     || sender.address;
   const amount   = process.env.FAUCET_AMOUNT || "10000";
 
   const token = new ethers.Contract(
     process.env.NEXT_PUBLIC_CHIPS_TOKEN,
-    ["function faucet(address to, uint256 amount) external"],
-    deployer
+    ["function transfer(address to, uint256 amount) returns (bool)",
+     "function balanceOf(address) view returns (uint256)"],
+    sender
   );
 
   const needed = ethers.parseUnits(amount, 18);
-  console.log(`Minting ${amount} CHIPS to ${addr}...`);
-  const tx      = await token.faucet(addr, needed);
+  const bal    = await token.balanceOf(sender.address);
+  if (bal < needed) throw new Error(`Sender only has ${ethers.formatUnits(bal, 18)} CHIPS — not enough to send ${amount}`);
+
+  console.log(`Sending ${amount} CHIPS to ${addr}...`);
+  const tx      = await token.transfer(addr, needed);
   console.log(`tx submitted: ${tx.hash}`);
   const receipt = await tx.wait();
-  console.log(`✅ Minted ${amount} CHIPS to ${addr}`);
+  console.log(`✅ Sent ${amount} CHIPS to ${addr}`);
   console.log(`   block: ${receipt.blockNumber}  tx: ${tx.hash}`);
 }
 
