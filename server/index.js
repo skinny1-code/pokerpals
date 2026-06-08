@@ -281,6 +281,7 @@ class PokerTable {
       if (p.chips === 0) p.allIn = true;
       p.actionLabel = `CALL ${pay}`;
     } else if (action === 'raise') {
+      if (amount < this.config.bigBlind) return { error: `Minimum raise is ${this.config.bigBlind}` };
       const total = this.maxBet + amount;
       const pay   = Math.min(total - p.bet, p.chips);
       p.chips -= pay; p.bet += pay; this.pot += pay;
@@ -746,6 +747,7 @@ wss.on('connection', (ws, req) => {
         const t = tables.get(String(tableId));
         if (!t) return;
         const result = t.applyAction(client.addr, action, safeAmount);
+        if (result?.error) return send(ws, { type: 'ERROR', error: result.error });
         broadcastTable(t);
         if (result?.winners) await handleHandOver(t, result);
         break;
