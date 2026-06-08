@@ -397,7 +397,7 @@ function TablePageInner() {
     : 0;
   const canCheck   = isHeroTurn && callAmount === 0;
   const bigBlind   = gameState?.config?.bigBlind || 100;
-  const minRaise   = bigBlind * 2;
+  const minRaise   = Math.max(bigBlind, gameState?.lastRaiseAmount || bigBlind);
 
   const playerAddrs = useMemo(() => gameState?.players?.map(p => p.addr).filter(Boolean) || [], [gameState]);
   const handleMap   = useHandleMap(playerAddrs);
