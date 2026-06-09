@@ -9,10 +9,12 @@ export function Providers({ children }) {
 
   useEffect(() => {
     // Signal to the Farcaster / Base client that the app has finished loading.
-    // No-ops gracefully when running outside a mini app context.
-    import('@farcaster/miniapp-sdk')
-      .then(({ sdk }) => sdk.actions.ready())
-      .catch(() => {});
+    // Only fires inside a mini app — isInMiniApp() is async, must be awaited.
+    import('@farcaster/miniapp-sdk').then(async ({ sdk }) => {
+      if (await sdk.isInMiniApp()) {
+        await sdk.actions.ready();
+      }
+    }).catch(() => {});
   }, []);
 
   return (

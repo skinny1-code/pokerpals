@@ -26,8 +26,9 @@ export default function WalletBar() {
     setSiteUrl(window.location.host);
 
     // Auto-connect when running inside a Farcaster / Base mini app
-    import('@farcaster/miniapp-sdk').then(({ sdk }) => {
-      if (sdk.isInMiniApp()) {
+    import('@farcaster/miniapp-sdk').then(async ({ sdk }) => {
+      const inFrame = await sdk.isInMiniApp();
+      if (inFrame) {
         setIsInMiniApp(true);
         if (!isConnected) connectFarcaster();
       }
