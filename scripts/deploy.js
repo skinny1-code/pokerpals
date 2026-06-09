@@ -91,23 +91,31 @@ async function main() {
   await staking.initYieldPool();
   console.log("✅ Staking yield pool seeded with 200M CHIPS");
 
-  // 8. Authorize escrow, tournament, and registry as yield sources
-  await staking.setYieldSource(escrowAddr, true);
-  await staking.setYieldSource(tournAddr, true);
-  await staking.setYieldSource(registryAddr, true);
+  // 8+9. Authorize yield sources and referral registry — all independent, batch in parallel
+  {
+    const n = await deployer.getNonce('pending');
+    const [a, b, c, d, e] = await Promise.all([
+      staking.setYieldSource(escrowAddr,    true, { nonce: n }),
+      staking.setYieldSource(tournAddr,     true, { nonce: n + 1 }),
+      staking.setYieldSource(registryAddr,  true, { nonce: n + 2 }),
+      referral.setAuthorized(escrowAddr,    true, { nonce: n + 3 }),
+      referral.setAuthorized(tournAddr,     true, { nonce: n + 4 }),
+    ]);
+    await Promise.all([a.wait(), b.wait(), c.wait(), d.wait(), e.wait()]);
+  }
   console.log("✅ Yield sources authorized (escrow + tournament + registry)");
-
-  // 9. Authorize escrow + tournament to call ReferralRegistry.creditRake
-  await referral.setAuthorized(escrowAddr, true);
-  await referral.setAuthorized(tournAddr, true);
   console.log("✅ Referral registry authorized");
 
-  // 10. Wire escrow → table registry
-  await escrow.setTableRegistry(registryAddr);
+  // 10+11. Wire escrow → table registry and token → escrow factory — independent, batch in parallel
+  {
+    const n = await deployer.getNonce('pending');
+    const [f, g] = await Promise.all([
+      escrow.setTableRegistry(registryAddr, { nonce: n }),
+      token.setEscrowFactory(escrowAddr,    { nonce: n + 1 }),
+    ]);
+    await Promise.all([f.wait(), g.wait()]);
+  }
   console.log("✅ PokerEscrow wired to TableRegistry");
-
-  // 11. Wire token → escrow factory
-  await token.setEscrowFactory(escrowAddr);
   console.log("✅ Token wired to escrow");
 
   console.log("\n── Role wallets used in this deploy ──────────────────");

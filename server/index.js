@@ -204,11 +204,12 @@ class PokerTable {
 
   start() {
     if (this.players.length < 2) return;
-    this.deck       = shuffle(makeDeck());
-    this.community  = [];
-    this.pot        = 0;
-    this.phase      = 'preflop';
-    this.streetActed = new Set(); // tracks who has acted this betting round
+    this.deck            = shuffle(makeDeck());
+    this.community       = [];
+    this.pot             = 0;
+    this.lastRaiseAmount = 0;
+    this.phase           = 'preflop';
+    this.streetActed     = new Set(); // tracks who has acted this betting round
     const n         = this.players.length;
     const holeCount = this.config.gameType === 1 ? 4 : 2;
 
@@ -267,7 +268,7 @@ class PokerTable {
     const idx = this.players.findIndex(x => x.addr === addr);
     if (idx < 0 || idx !== this.actionIdx) return { error: 'Not your turn' };
     const p = this.players[idx];
-    if (p.folded || this.phase === 'showdown') return null;
+    if (p.folded || this.phase === 'showdown') return { error: 'Action not allowed' };
 
     const due = Math.max(0, this.maxBet - p.bet);
 
@@ -383,16 +384,17 @@ class PokerTable {
       ? this.players[this.actionIdx]
       : null;
     return {
-      tableId:    String(this.id),
-      phase:      this.phase,
-      pot:        this.pot,
-      maxBet:     this.maxBet,
-      community:  this.community,
-      activeAddr: activePlayer?.addr || null,
-      dealerAddr: this.players[this.dealerIdx]?.addr || null,
-      config:     this.config,
-      creator:    this.creator ?? null,
-      handNonce:  this.handNonce,
+      tableId:         String(this.id),
+      phase:           this.phase,
+      pot:             this.pot,
+      maxBet:          this.maxBet,
+      lastRaiseAmount: this.lastRaiseAmount,
+      community:       this.community,
+      activeAddr:      activePlayer?.addr || null,
+      dealerAddr:      this.players[this.dealerIdx]?.addr || null,
+      config:          this.config,
+      creator:         this.creator ?? null,
+      handNonce:       this.handNonce,
       anyLocked:  this.players.some(p => (p.cashoutLockedUntil ?? 0) > this.handNonce),
       players: this.players.map(p => ({
         addr:               p.addr,
