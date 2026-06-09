@@ -20,9 +20,16 @@ ENV_FILE="$CLAUDE_PROJECT_DIR/.env"
 # passphrase stored only in GitHub Secrets, and remove the hardcoded fallback.
 PASS="${ALCHEMY_API_KEY:-d9thqdp49ecerdec}"
 if [ -f "$CLAUDE_PROJECT_DIR/.env.enc" ]; then
-  openssl enc -d -aes-256-cbc -pbkdf2 -pass pass:"$PASS" \
+  TMP_ENV=$(mktemp)
+  if openssl enc -d -aes-256-cbc -pbkdf2 -pass pass:"$PASS" \
     -in "$CLAUDE_PROJECT_DIR/.env.enc" \
-    -out "$ENV_FILE" 2>/dev/null && echo "✅ .env decrypted from .env.enc"
+    -out "$TMP_ENV" 2>/dev/null; then
+    mv "$TMP_ENV" "$ENV_FILE"
+    echo "✅ .env decrypted from .env.enc"
+  else
+    rm -f "$TMP_ENV"
+    echo "⚠️  .env.enc decryption failed (wrong passphrase?)"
+  fi
 fi
 
 # ── Overlay fresh contract addresses from deployment manifest ─────────────────

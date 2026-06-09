@@ -91,28 +91,24 @@ async function main() {
   await staking.initYieldPool();
   console.log("✅ Staking yield pool seeded with 200M CHIPS");
 
-  // 8+9. Authorize yield sources and referral registry — all independent, batch in parallel
+  // 8+9. Authorize yield sources and referral registry — sequential submit (nonce order), parallel confirm
   {
     const n = await deployer.getNonce('pending');
-    const [a, b, c, d, e] = await Promise.all([
-      staking.setYieldSource(escrowAddr,    true, { nonce: n }),
-      staking.setYieldSource(tournAddr,     true, { nonce: n + 1 }),
-      staking.setYieldSource(registryAddr,  true, { nonce: n + 2 }),
-      referral.setAuthorized(escrowAddr,    true, { nonce: n + 3 }),
-      referral.setAuthorized(tournAddr,     true, { nonce: n + 4 }),
-    ]);
+    const a = await staking.setYieldSource(escrowAddr,    true, { nonce: n });
+    const b = await staking.setYieldSource(tournAddr,     true, { nonce: n + 1 });
+    const c = await staking.setYieldSource(registryAddr,  true, { nonce: n + 2 });
+    const d = await referral.setAuthorized(escrowAddr,    true, { nonce: n + 3 });
+    const e = await referral.setAuthorized(tournAddr,     true, { nonce: n + 4 });
     await Promise.all([a.wait(), b.wait(), c.wait(), d.wait(), e.wait()]);
   }
   console.log("✅ Yield sources authorized (escrow + tournament + registry)");
   console.log("✅ Referral registry authorized");
 
-  // 10+11. Wire escrow → table registry and token → escrow factory — independent, batch in parallel
+  // 10+11. Wire escrow → table registry and token → escrow factory — sequential submit, parallel confirm
   {
     const n = await deployer.getNonce('pending');
-    const [f, g] = await Promise.all([
-      escrow.setTableRegistry(registryAddr, { nonce: n }),
-      token.setEscrowFactory(escrowAddr,    { nonce: n + 1 }),
-    ]);
+    const f = await escrow.setTableRegistry(registryAddr, { nonce: n });
+    const g = await token.setEscrowFactory(escrowAddr,    { nonce: n + 1 });
     await Promise.all([f.wait(), g.wait()]);
   }
   console.log("✅ PokerEscrow wired to TableRegistry");
