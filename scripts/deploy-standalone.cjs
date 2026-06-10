@@ -48,7 +48,10 @@ function artifact(name) {
 }
 
 async function main() {
-  const provider = new JsonRpcProvider(RPC);
+  const network  = ethersLib.Network
+    ? ethersLib.Network.from({ chainId: 421614, name: "arbitrum-sepolia" })
+    : { chainId: 421614, name: "arbitrum-sepolia" };
+  const provider = new JsonRpcProvider(RPC, network, { staticNetwork: true });
   const deployer = new Wallet(DEP_KEY, provider);
 
   console.log("Deployer:", deployer.address);
