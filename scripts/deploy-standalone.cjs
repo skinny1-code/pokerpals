@@ -64,10 +64,15 @@ async function main() {
   const rk  = RAKE_ADDR || dep;
   const or  = ORACLE    || dep;
 
+  // Fetch gas price once and reuse — avoids repeated fee estimation hangs
+  const feeData   = await provider.getFeeData();
+  const gasPrice  = feeData.gasPrice || parseUnits("0.1", "gwei");
+  const GAS_OPTS  = { gasPrice };
+
   async function deploy(name, args) {
     const { abi, bytecode } = artifact(name);
     const factory  = new ContractFactory(abi, bytecode, deployer);
-    const contract = await factory.deploy(...args);
+    const contract = await factory.deploy(...args, GAS_OPTS);
     await contract.waitForDeployment();
     const addr = await contract.getAddress();
     console.log("✅", name + ":", addr);
@@ -86,26 +91,26 @@ async function main() {
   // Seed staking pool
   console.log("Seeding staking pool...");
   const STAKING_POOL = parseUnits("200000000", 18);
-  let tx = await token.transfer(staking.address, STAKING_POOL);
+  let tx = await token.transfer(staking.address, STAKING_POOL, GAS_OPTS);
   await tx.wait();
-  tx = await staking.initYieldPool();
+  tx = await staking.initYieldPool(GAS_OPTS);
   await tx.wait();
   console.log("✅ Staking pool seeded (200M CHIPS)");
 
   // Authorize yield sources — sequential submit, parallel confirm
   const n = await provider.getTransactionCount(deployer.address, "pending");
-  const a = await staking.setYieldSource(escrow.address,    true, { nonce: n });
-  const b = await staking.setYieldSource(tourn.address,     true, { nonce: n + 1 });
-  const c = await staking.setYieldSource(registry.address,  true, { nonce: n + 2 });
-  const d = await referral.setAuthorized(escrow.address,    true, { nonce: n + 3 });
-  const e = await referral.setAuthorized(tourn.address,     true, { nonce: n + 4 });
+  const a = await staking.setYieldSource(escrow.address,    true, { nonce: n,     ...GAS_OPTS });
+  const b = await staking.setYieldSource(tourn.address,     true, { nonce: n + 1, ...GAS_OPTS });
+  const c = await staking.setYieldSource(registry.address,  true, { nonce: n + 2, ...GAS_OPTS });
+  const d = await referral.setAuthorized(escrow.address,    true, { nonce: n + 3, ...GAS_OPTS });
+  const e = await referral.setAuthorized(tourn.address,     true, { nonce: n + 4, ...GAS_OPTS });
   await Promise.all([a.wait(), b.wait(), c.wait(), d.wait(), e.wait()]);
   console.log("✅ Yield sources + referral authorized");
 
   // Wire contracts
   const n2 = await provider.getTransactionCount(deployer.address, "pending");
-  const f  = await escrow.setTableRegistry(registry.address, { nonce: n2 });
-  const g  = await token.setEscrowFactory(escrow.address,    { nonce: n2 + 1 });
+  const f  = await escrow.setTableRegistry(registry.address, { nonce: n2,     ...GAS_OPTS });
+  const g  = await token.setEscrowFactory(escrow.address,    { nonce: n2 + 1, ...GAS_OPTS });
   await Promise.all([f.wait(), g.wait()]);
   console.log("✅ Escrow wired");
 
