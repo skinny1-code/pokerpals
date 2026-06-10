@@ -1,9 +1,18 @@
 #!/usr/bin/env node
-// Standalone deploy — CommonJS, pure ethers v5, no Hardhat
+// Standalone deploy — CommonJS, ethers v6, no Hardhat runtime
 // Usage: node scripts/deploy-standalone.cjs
 "use strict";
 
-const { ethers } = require("ethers");
+const ethersLib = require("ethers");
+// ethers v6: everything is top-level on the namespace object
+const { ethers } = ethersLib.ethers ? ethersLib : { ethers: ethersLib };
+const JsonRpcProvider  = ethers.JsonRpcProvider  || (ethersLib.JsonRpcProvider);
+const ContractFactory  = ethers.ContractFactory  || ethersLib.ContractFactory;
+const Wallet           = ethers.Wallet           || ethersLib.Wallet;
+const parseUnits       = ethers.parseUnits       || ethersLib.parseUnits;
+const formatEther      = ethers.formatEther      || ethersLib.formatEther;
+const formatUnits      = ethers.formatUnits      || ethersLib.formatUnits;
+
 const fs   = require("fs");
 const path = require("path");
 
@@ -39,15 +48,13 @@ function artifact(name) {
 }
 
 async function main() {
-  const provider = new ethers.providers.StaticJsonRpcProvider(
-    RPC, { chainId: 421614, name: "arbitrum-sepolia" }
-  );
-  const deployer = new ethers.Wallet(DEP_KEY, provider);
+  const provider = new JsonRpcProvider(RPC);
+  const deployer = new Wallet(DEP_KEY, provider);
 
   console.log("Deployer:", deployer.address);
   const bal = await provider.getBalance(deployer.address);
-  console.log("ETH balance:", ethers.utils.formatEther(bal));
-  if (bal.isZero()) { console.error("Deployer has no ETH"); process.exit(1); }
+  console.log("ETH balance:", formatEther(bal));
+  if (bal === 0n) { console.error("Deployer has no ETH"); process.exit(1); }
 
   const dep = deployer.address;
   const op  = OPERATOR  || dep;
@@ -56,10 +63,12 @@ async function main() {
 
   async function deploy(name, args) {
     const { abi, bytecode } = artifact(name);
-    const factory  = new ethers.ContractFactory(abi, bytecode, deployer);
+    const factory  = new ContractFactory(abi, bytecode, deployer);
     const contract = await factory.deploy(...args);
-    await contract.deployed();
-    console.log("✅", name + ":", contract.address);
+    await contract.waitForDeployment();
+    const addr = await contract.getAddress();
+    console.log("✅", name + ":", addr);
+    contract.address = addr; // convenience
     return contract;
   }
 
@@ -73,7 +82,7 @@ async function main() {
 
   // Seed staking pool
   console.log("Seeding staking pool...");
-  const STAKING_POOL = ethers.utils.parseUnits("200000000", 18);
+  const STAKING_POOL = parseUnits("200000000", 18);
   let tx = await token.transfer(staking.address, STAKING_POOL);
   await tx.wait();
   tx = await staking.initYieldPool();
@@ -81,7 +90,7 @@ async function main() {
   console.log("✅ Staking pool seeded (200M CHIPS)");
 
   // Authorize yield sources — sequential submit, parallel confirm
-  const n = await deployer.getTransactionCount("pending");
+  const n = await provider.getTransactionCount(deployer.address, "pending");
   const a = await staking.setYieldSource(escrow.address,    true, { nonce: n });
   const b = await staking.setYieldSource(tourn.address,     true, { nonce: n + 1 });
   const c = await staking.setYieldSource(registry.address,  true, { nonce: n + 2 });
@@ -91,7 +100,7 @@ async function main() {
   console.log("✅ Yield sources + referral authorized");
 
   // Wire contracts
-  const n2 = await deployer.getTransactionCount("pending");
+  const n2 = await provider.getTransactionCount(deployer.address, "pending");
   const f  = await escrow.setTableRegistry(registry.address, { nonce: n2 });
   const g  = await token.setEscrowFactory(escrow.address,    { nonce: n2 + 1 });
   await Promise.all([f.wait(), g.wait()]);
@@ -123,7 +132,8 @@ async function main() {
   };
   let out = envRaw;
   for (const [k, v] of Object.entries(pairs)) {
-    out = new RegExp(`^${k}=.*$`, "m").test(out) ? out.replace(new RegExp(`^${k}=.*$`, "m"), `${k}=${v}`) : out + `\n${k}=${v}`;
+    const re = new RegExp(`^${k}=.*$`, "m");
+    out = re.test(out) ? out.replace(re, `${k}=${v}`) : out + `\n${k}=${v}`;
   }
   fs.writeFileSync(path.join(root, ".env"), out);
 
@@ -132,4 +142,4 @@ async function main() {
   console.log("\n✅ deployments/arbitrumSepolia.json + .env updated");
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+main().catch(e => { console.error(e.message || e); process.exit(1); });
