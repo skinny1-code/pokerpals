@@ -155,10 +155,12 @@ export default function PlayerSeat({
         }}>
           {cards.map((c, i) => {
             const cardStr = typeof c === 'string' ? c : c?.card;
-            const fd = typeof c === 'object' ? c?.faceDown : !player.isHero;
+            // If server sent a real card string (not ??), show it face-up (showdown reveal)
+            const fd = typeof c === 'object' ? !!c?.faceDown : false;
             return (
-              <Card key={i} card={cardStr} faceDown={fd || isFolded}
-                width={36} height={50} />
+              <div key={`${i}-${cardStr || 'fd'}`} className="card-deal" style={{ animationDelay: `${i * 0.12}s` }}>
+                <Card card={cardStr} faceDown={fd || isFolded} width={36} height={50} />
+              </div>
             );
           })}
           {cards.length === 0 && !isFolded && [0,1].map(i => <EmptyCardSlot key={i} width={36} height={50}/>)}

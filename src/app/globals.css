@@ -51,8 +51,9 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
   100% { box-shadow: 0 0 0 0 rgba(212,175,55,0); }
 }
 @keyframes deal-card {
-  from { transform: translate(-50%, -200px) rotate(-15deg) scale(.4); opacity: 0; }
-  to   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+  from { transform: translateY(20px) scale(0.65); opacity: 0; }
+  50%  { transform: translateY(-4px) scale(1.04); opacity: 1; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
 }
 @keyframes chip-toss {
   0%   { transform: translateY(0) scale(1); }
@@ -91,6 +92,9 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
 .animate-up     { animation: fade-up .35s ease forwards; }
 .pulse          { animation: pulse-ring 1.5s infinite; }
 .winner-glow    { animation: winner-glow 1s ease-in-out infinite; }
+.card-deal {
+  animation: deal-card 0.38s cubic-bezier(0.2, 0, 0.2, 1) both;
+}
 
 /* ── Glass card ─────────────────────────────────────────── */
 .glass {
@@ -116,7 +120,7 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
   .table-side-panel {
     border-left: none !important;
     border-top: 1px solid var(--border);
-    max-height: 240px;
+    max-height: 220px;
     overflow-y: auto;
   }
   .lobby-col-header { display: none !important; }
@@ -132,4 +136,11 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
 }
 @media (min-width: 641px) {
   .show-mobile { display: none !important; }
+}
+
+/* ── Safe-area bottom padding for notched phones ──────────── */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .betting-controls-bar {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+  }
 }

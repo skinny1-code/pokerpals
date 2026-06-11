@@ -2,20 +2,19 @@
 import Card, { EmptyCardSlot } from './Card';
 import PlayerSeat from './PlayerSeat';
 
-function CommunityCards({ cards = [], street = 'preflop' }) {
-  // streets: preflop (0), flop (3), turn (4), river (5)
-  const slots = 5;
+function CommunityCards({ cards = [] }) {
   return (
     <div style={{
       display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center',
     }}>
-      {Array.from({ length: slots }).map((_, i) => {
+      {Array.from({ length: 5 }).map((_, i) => {
         const card = cards[i];
-        if (card) return <Card key={i} card={card} width={56} height={78} />;
-        // animate-in placeholder for unrevealed slots
-        return (
-          <EmptyCardSlot key={i} width={56} height={78} />
+        if (card) return (
+          <div key={`${i}-${card}`} className="card-deal" style={{ animationDelay: `${i * 0.08}s` }}>
+            <Card card={card} width={56} height={78} />
+          </div>
         );
+        return <EmptyCardSlot key={i} width={56} height={78} />;
       })}
     </div>
   );

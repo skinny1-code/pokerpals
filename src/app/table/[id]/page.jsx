@@ -104,6 +104,17 @@ function ChatPanel({ messages }) {
 
 // ── hand-over overlay ─────────────────────────────────────────────────────────
 function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
+  const [secs, setSecs] = useState(7);
+  const identity = handOver?.handNonce ?? 0;
+
+  useEffect(() => {
+    if (!handOver) return;
+    setSecs(7);
+    const iv = setInterval(() => setSecs(s => s - 1), 1000);
+    const t  = setTimeout(() => { clearInterval(iv); onDismiss(); }, 7000);
+    return () => { clearInterval(iv); clearTimeout(t); };
+  }, [identity]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!handOver) return null;
   const winners = handOver.winners || [];
   const results = handOver.results || [];
@@ -142,7 +153,7 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
           );
         })}
         <div style={{ fontSize:9, color:'#3a6a3a', marginTop:16, letterSpacing:1 }}>
-          Click to continue
+          Next hand in {Math.max(0, secs)}s · tap to skip
         </div>
       </div>
     </div>
@@ -609,6 +620,7 @@ function TablePageInner() {
 
           <BettingControls
             isActive={!!isHeroTurn}
+            inGame={!!gameState && gameState.phase !== 'waiting' && !!heroPlayer && !heroPlayer.folded}
             canCheck={canCheck}
             callAmount={callAmount}
             minRaise={minRaise}

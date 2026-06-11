@@ -242,6 +242,7 @@ export function useWallet() {
 export function useStaking() {
   const { address }            = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const publicClient           = usePublicClient();
   const [txHash, setTxHash]    = useState(null);
   const [status, setStatus]    = useState('idle');
 
@@ -272,33 +273,39 @@ export function useStaking() {
     if (!address || !STAKING) return;
     try {
       setStatus('approving');
-      const amountBN = parseUnits(String(amount), 18);
-      await writeContractAsync({
+      const chipsInt = Math.round(Number(amount));
+      if (!chipsInt || chipsInt <= 0) { setStatus('error'); return; }
+      const amountBN = parseUnits(String(chipsInt), 18);
+      const feeOverrides = await safeFeeOverrides(publicClient);
+      const approveTx = await writeContractAsync({
         address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
-        args: [STAKING, amountBN],
+        args: [STAKING, amountBN], ...feeOverrides,
       });
+      await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
       setStatus('staking');
       const tx = await writeContractAsync({
         address: STAKING, abi: STAKING_ABI, functionName: "stake",
-        args: [amountBN],
+        args: [amountBN], ...feeOverrides,
       });
       setTxHash(tx);
       setStatus('idle');
       return tx;
-    } catch { setStatus('error'); }
-  }, [address, writeContractAsync]);
+    } catch (e) { console.error('stake error:', e); setStatus('error'); }
+  }, [address, writeContractAsync, publicClient]);
 
   const unstake = useCallback(async (amount) => {
     if (!address || !STAKING) return;
     try {
       setStatus('unstaking');
+      const chipsInt = Math.round(Number(amount));
+      const feeOverrides = await safeFeeOverrides(publicClient);
       const tx = await writeContractAsync({
         address: STAKING, abi: STAKING_ABI, functionName: "unstake",
-        args: [parseUnits(String(amount), 18)],
+        args: [parseUnits(String(chipsInt), 18)], ...feeOverrides,
       });
       setTxHash(tx); setStatus('idle'); return tx;
-    } catch { setStatus('error'); }
-  }, [address, writeContractAsync]);
+    } catch (e) { console.error('unstake error:', e); setStatus('error'); }
+  }, [address, writeContractAsync, publicClient]);
 
   const claimYield = useCallback(async () => {
     if (!address || !STAKING) return;
