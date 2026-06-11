@@ -133,13 +133,7 @@ jobs:
         run: |
           results='${{ toJSON(needs) }}'
           echo "Job results: $results"
-          failed=$(echo "$results" | python3 -c "
-import json,sys
-data=json.load(sys.stdin)
-failures=[k for k,v in data.items() if isinstance(v,dict) and v.get('result')=='failure']
-print(len(failures))
-if failures: print('FAILED:', ','.join(failures), file=sys.stderr)
-")
+          failed=$(echo "$results" | python3 -c "import json,sys; d=json.load(sys.stdin); f=[k for k,v in d.items() if isinstance(v,dict) and v.get('result')=='failure']; print(len(f)); f and print('FAILED:',','.join(f),file=sys.stderr)")
           if [ "$failed" -gt 0 ]; then
             echo "One or more jobs failed."
             exit 1
