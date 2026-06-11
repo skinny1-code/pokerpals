@@ -3,6 +3,73 @@ import Card, { EmptyCardSlot } from './Card';
 
 const AVATAR_COLORS = ['#c0392b','#2980b9','#27ae60','#8e44ad','#e67e22','#16a085','#d35400','#2c3e50'];
 
+// Chip denominations in BB multiples (highest first)
+const CHIP_DENOMS = [
+  { bbMult: 1000, color: '#d4af37', hi: '#f1c40f' },
+  { bbMult: 500,  color: '#8e44ad', hi: '#9b59b6' },
+  { bbMult: 100,  color: '#1a1a1a', hi: '#555'    },
+  { bbMult: 25,   color: '#1a6b32', hi: '#27ae60' },
+  { bbMult: 5,    color: '#8b1a1a', hi: '#c0392b' },
+  { bbMult: 1,    color: '#1a3a8b', hi: '#2980b9' },
+  { bbMult: 0,    color: '#3a3a3a', hi: '#7f8c8d' },
+];
+
+function buildChips(amount, bigBlind, maxChips = 7) {
+  const bb = bigBlind || 100;
+  let rem = amount / bb;
+  const chips = [];
+  for (const { bbMult, color, hi } of CHIP_DENOMS) {
+    if (chips.length >= maxChips) break;
+    if (bbMult === 0) {
+      if (chips.length === 0) chips.push({ color, hi });
+      break;
+    }
+    if (rem >= bbMult) {
+      const n = Math.min(Math.floor(rem / bbMult), maxChips - chips.length, 4);
+      for (let i = 0; i < n; i++) chips.push({ color, hi });
+      rem -= n * bbMult;
+    }
+  }
+  return chips.length ? chips : [CHIP_DENOMS[CHIP_DENOMS.length - 1]];
+}
+
+function ChipPile({ amount, bigBlind = 100, maxChips = 7, chipW = 26, chipH = 7 }) {
+  if (!amount || amount <= 0) return null;
+  const chips = buildChips(amount, bigBlind, maxChips);
+  const gap = chipH - 2;
+  const totalH = chipH + (chips.length - 1) * gap;
+  const fmt = v => v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M`
+    : v >= 1_000 ? `${(v/1_000).toFixed(1)}K` : v.toLocaleString();
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+      <div style={{ position: 'relative', width: chipW, height: totalH + 4 }}>
+        {chips.map((chip, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            bottom: i * gap,
+            left: 0,
+            width: chipW,
+            height: chipH,
+            borderRadius: chipH / 2,
+            background: `radial-gradient(ellipse at 50% 25%, ${chip.hi}bb, ${chip.color})`,
+            border: `1px solid ${chip.hi}55`,
+            boxShadow: i === chips.length - 1
+              ? `0 3px 6px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.1)`
+              : `0 1px 3px rgba(0,0,0,.5)`,
+          }} />
+        ))}
+      </div>
+      <div style={{
+        fontSize: 9, color: '#d4af37', fontWeight: 700,
+        fontFamily: "'JetBrains Mono', monospace",
+        background: 'rgba(0,0,0,.75)', borderRadius: 4, padding: '1px 5px',
+        border: '1px solid #d4af3733', whiteSpace: 'nowrap',
+      }}>◈ {fmt(amount)}</div>
+    </div>
+  );
+}
+
 function TimerRing({ pct = 1, size = 56 }) {
   const r = 24, cx = size / 2, cy = size / 2;
   const circ = 2 * Math.PI * r;
@@ -22,7 +89,7 @@ function TimerRing({ pct = 1, size = 56 }) {
   );
 }
 
-function ChipStack({ amount }) {
+function ChipCount({ amount }) {
   const fmt = v => v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M`
     : v >= 1_000 ? `${(v/1_000).toFixed(1)}K` : String(v);
   return (
@@ -82,12 +149,14 @@ export function getSeatPosition(seatIndex, total = 9) {
 
 export default function PlayerSeat({
   seatIndex = 0,
-  player = null,       // { address, handle, chips, isHero, isFolded, isAllIn }
+  player = null,       // { address, handle, avatarUrl, chips, isHero, isFolded, isAllIn }
   cards = [],          // ['AH','KS'] or [{card, faceDown}]
   isActive = false,    // it's this player's turn
   timerPct = 1,        // 0→1 countdown
   lastAction = null,   // 'fold','check','call','raise','bet','all-in'
   betAmount = 0,
+  bigBlind = 100,
+  pot = 0,
   isDealer = false,
   isEmpty = false,
   onClick = null,
@@ -133,6 +202,11 @@ export default function PlayerSeat({
 
   const isFolded  = player.isFolded;
   const isAllIn   = player.isAllIn;
+  const avatarUrl = player.avatarUrl;
+
+  // How big is this bet relative to pot (for chip pile sizing)
+  const betPct   = pot > 0 ? Math.min(betAmount / pot, 1) : 0;
+  const chipCount = betAmount > 0 ? Math.max(2, Math.min(7, Math.ceil(betPct * 6) + 1)) : 0;
 
   return (
     <div style={{
@@ -155,7 +229,6 @@ export default function PlayerSeat({
         }}>
           {cards.map((c, i) => {
             const cardStr = typeof c === 'string' ? c : c?.card;
-            // If server sent a real card string (not ??), show it face-up (showdown reveal)
             const fd = typeof c === 'object' ? !!c?.faceDown : false;
             return (
               <div key={`${i}-${cardStr || 'fd'}`} className="card-deal" style={{ animationDelay: `${i * 0.12}s` }}>
@@ -173,16 +246,28 @@ export default function PlayerSeat({
 
         <div style={{
           width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: '50%',
-          background: `radial-gradient(circle at 35% 35%, ${AVATAR_COLORS[colorIdx]}cc, ${AVATAR_COLORS[colorIdx]}44)`,
+          overflow: 'hidden',
           border: `2px solid ${isActive ? '#d4af37' : isAllIn ? '#e67e22' : '#1a3a1a'}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 14, fontWeight: 700, color: '#fff',
           boxShadow: isActive ? '0 0 12px #d4af3766' : 'none',
           transition: 'border-color .3s, box-shadow .3s',
           position: 'relative', zIndex: 1,
-          fontFamily: "'JetBrains Mono', monospace",
         }}>
-          {initials}
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={player.handle || ''}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          ) : (
+            <div style={{
+              width: '100%', height: '100%',
+              background: `radial-gradient(circle at 35% 35%, ${AVATAR_COLORS[colorIdx]}cc, ${AVATAR_COLORS[colorIdx]}44)`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 14, fontWeight: 700, color: '#fff',
+              fontFamily: "'JetBrains Mono', monospace",
+            }}>{initials}</div>
+          )}
         </div>
 
         {/* dealer button */}
@@ -212,30 +297,29 @@ export default function PlayerSeat({
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, position: 'relative' }}>
         {lastAction && <ActionBadge action={lastAction} />}
         <div style={{
-          fontSize: 10, color: player.isHero ? '#d4af37' : '#a8c8a8',
+          fontSize: player.handle ? 11 : 9,
+          color: player.isHero ? '#d4af37' : avatarUrl ? '#e8f0e8' : '#a8c8a8',
           fontWeight: 700, maxWidth: 80, overflow: 'hidden',
           textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           textAlign: 'center',
+          textShadow: player.handle ? '0 0 8px rgba(0,0,0,0.8)' : 'none',
         }}>
-          {player.handle || (player.address ? `${player.address.slice(0,6)}…` : 'Player')}
+          {player.handle
+            ? `@${player.handle}`
+            : (player.address ? `${player.address.slice(0,6)}…` : 'Player')}
         </div>
-        <ChipStack amount={player.chips || 0} />
+        <ChipCount amount={player.chips || 0} />
       </div>
 
-      {/* bet amount in front of player */}
+      {/* chip pile bet in front of player */}
       {betAmount > 0 && (
         <div style={{
           position: 'absolute',
-          top: pos.label === 'bottom' ? '-60px' : pos.label === 'top' ? '60px' : '0',
-          left: pos.label === 'left' ? '70px' : pos.label === 'right' ? '-70px' : '50%',
+          top: pos.label === 'bottom' ? '-72px' : pos.label === 'top' ? '72px' : '0',
+          left: pos.label === 'left' ? '76px' : pos.label === 'right' ? '-76px' : '50%',
           transform: pos.label === 'left' || pos.label === 'right' ? 'translateY(-50%)' : 'translateX(-50%)',
-          background: 'rgba(0,0,0,.8)', border: '1px solid #d4af3766',
-          borderRadius: 12, padding: '2px 8px',
-          fontSize: 10, color: '#d4af37', fontWeight: 700,
-          fontFamily: "'JetBrains Mono', monospace",
-          whiteSpace: 'nowrap',
         }}>
-          ◈ {betAmount.toLocaleString()}
+          <ChipPile amount={betAmount} bigBlind={bigBlind} maxChips={chipCount} />
         </div>
       )}
     </div>

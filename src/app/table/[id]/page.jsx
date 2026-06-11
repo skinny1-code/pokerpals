@@ -5,7 +5,7 @@ import Link from 'next/link';
 import WalletBar from '../../../components/WalletBar';
 import PokerTable from '../../../components/PokerTable';
 import BettingControls from '../../../components/BettingControls';
-import { useTableSocket, useEscrow, useHandleMap } from '../../../hooks/usePokerWallet';
+import { useTableSocket, useEscrow, useHandleMap, useHandleAvatars } from '../../../hooks/usePokerWallet';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 
@@ -24,7 +24,7 @@ function parseActionLabel(label) {
 }
 
 // ── map server pubState → PokerTable seats array (uses seatIndex for position) ──
-function mapToSeats(state, heroAddr, handleMap = {}) {
+function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}) {
   if (!state) return Array(9).fill(null);
 
   const seats = Array(9).fill(null);
@@ -35,12 +35,13 @@ function mapToSeats(state, heroAddr, handleMap = {}) {
     if (idx == null || idx < 0 || idx > 8) return;
     seats[idx] = {
       player: {
-        address:  p.addr,
-        handle:   handleMap[p.addr?.toLowerCase()] || null,
-        chips:    p.chips,
-        isHero:   p.addr?.toLowerCase() === heroAddr?.toLowerCase(),
-        isFolded: p.folded,
-        isAllIn:  p.allIn,
+        address:   p.addr,
+        handle:    handleMap[p.addr?.toLowerCase()] || null,
+        avatarUrl: avatarMap[p.addr?.toLowerCase()] || null,
+        chips:     p.chips,
+        isHero:    p.addr?.toLowerCase() === heroAddr?.toLowerCase(),
+        isFolded:  p.folded,
+        isAllIn:   p.allIn,
       },
       cards:      (p.hand || []).map(c => c === '??' ? { faceDown: true } : c),
       isActive:   p.addr?.toLowerCase() === state.activeAddr?.toLowerCase(),
@@ -393,6 +394,7 @@ function TablePageInner() {
 
   const playerAddrs = useMemo(() => gameState?.players?.map(p => p.addr).filter(Boolean) || [], [gameState]);
   const handleMap   = useHandleMap(playerAddrs);
+  const avatarMap   = useHandleAvatars(playerAddrs);
 
   // Append server events to the log
   useEffect(() => {
@@ -440,7 +442,7 @@ function TablePageInner() {
   const bigBlind   = gameState?.config?.bigBlind || 100;
   const minRaise   = Math.max(bigBlind, gameState?.lastRaiseAmount || bigBlind);
 
-  const seats = useMemo(() => mapToSeats(gameState, address, handleMap), [gameState, address, handleMap]);
+  const seats = useMemo(() => mapToSeats(gameState, address, handleMap, avatarMap), [gameState, address, handleMap, avatarMap]);
 
   const handleLeave = useCallback(() => {
     const isWaiting = gameState?.phase === 'waiting' || !gameState;

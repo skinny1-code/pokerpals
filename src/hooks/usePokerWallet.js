@@ -145,6 +145,8 @@ export const HANDLE_ABI = [
     inputs:[], outputs:[{type:"uint256"}] },
   { name:"totalBurned", type:"function", stateMutability:"view",
     inputs:[], outputs:[{type:"uint256"}] },
+  { name:"tokenURI", type:"function", stateMutability:"view",
+    inputs:[{name:"tokenId",type:"uint256"}], outputs:[{type:"string"}] },
   { name:"HandleMinted", type:"event",
     inputs:[
       {name:"player",type:"address",indexed:true},
@@ -833,6 +835,48 @@ export function useHandleMap(addresses) {
     });
     return map;
   }, [data, cleaned]);
+}
+
+// ─── HOOK: HANDLE AVATARS (on-chain NFT image per address) ───────────────────
+export function useHandleAvatars(addresses) {
+  const cleaned = useMemo(() => (addresses || []).filter(Boolean), [addresses?.join(',')]);
+
+  const { data: tokenIdData } = useReadContracts({
+    contracts: cleaned.map(addr => ({
+      address: HANDLE, abi: HANDLE_ABI,
+      functionName: 'ownerTokenId', args: [addr],
+    })),
+    query: { enabled: !!HANDLE && cleaned.length > 0 },
+  });
+
+  const validEntries = useMemo(() => {
+    if (!tokenIdData) return [];
+    return cleaned.map((addr, i) => {
+      const tokenId = tokenIdData[i]?.result;
+      return tokenId && tokenId > 0n ? { addr, tokenId } : null;
+    }).filter(Boolean);
+  }, [tokenIdData, cleaned]);
+
+  const { data: uriData } = useReadContracts({
+    contracts: validEntries.map(({ tokenId }) => ({
+      address: HANDLE, abi: HANDLE_ABI,
+      functionName: 'tokenURI', args: [tokenId],
+    })),
+    query: { enabled: validEntries.length > 0 },
+  });
+
+  return useMemo(() => {
+    const map = {};
+    validEntries.forEach(({ addr }, i) => {
+      const uri = uriData?.[i]?.result;
+      if (!uri) return;
+      try {
+        const json = JSON.parse(atob(uri.replace('data:application/json;base64,', '')));
+        if (json.image) map[addr.toLowerCase()] = json.image;
+      } catch {}
+    });
+    return map;
+  }, [uriData, validEntries]);
 }
 
 // ─── HOOK: LEADERBOARD (handle holders sorted by staked CHIPS) ───────────────
