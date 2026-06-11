@@ -7,6 +7,7 @@ import PokerTable from '../../../components/PokerTable';
 import BettingControls from '../../../components/BettingControls';
 import Card from '../../../components/Card';
 import { useTableSocket, useEscrow, useHandleMap, useHandleAvatars } from '../../../hooks/usePokerWallet';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 
@@ -415,6 +416,9 @@ function TablePageInner() {
     sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot,
   } = useTableSocket(id, tableConfig);
 
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   const [showRebuy,       setShowRebuy]       = useState(false);
   const [rebuyAmt,        setRebuyAmt]        = useState('');
   const [pendingSeat,     setPendingSeat]     = useState(null);
@@ -678,14 +682,35 @@ function TablePageInner() {
           />
         </div>
 
-        {/* Side panel */}
+        {/* Side panel — desktop: right column; mobile: slide-up bottom drawer */}
         <div className="table-side-panel" style={{
           display:'flex', flexDirection:'column', gap:8,
           padding:'16px 12px 16px 0',
           borderLeft:'1px solid #1a3a1a',
           background:'rgba(0,0,0,.2)',
           overflowY:'auto',
+          ...(isMobile ? {
+            position:'fixed', left:0, right:0, bottom:0,
+            maxHeight:'72vh',
+            padding:'8px 12px calc(16px + env(safe-area-inset-bottom))',
+            borderLeft:'none', borderTop:'1px solid var(--gold-dim)',
+            borderRadius:'16px 16px 0 0',
+            background:'linear-gradient(180deg,#0a160a,#060e06)',
+            boxShadow:'0 -8px 30px rgba(0,0,0,.6)',
+            transform: drawerOpen ? 'translateY(0)' : 'translateY(100%)',
+            transition:'transform .28s ease',
+            zIndex:150,
+          } : {}),
         }}>
+          {/* Mobile grab handle — tap to close the drawer */}
+          {isMobile && (
+            <div onClick={() => setDrawerOpen(false)}
+              style={{ flexShrink:0, padding:'2px 0 8px', cursor:'pointer' }}>
+              <div style={{ width:40, height:4, borderRadius:2,
+                background:'#3a6a3a', margin:'0 auto' }} />
+            </div>
+          )}
+
           {/* Player stacks */}
           <div style={{ background:'#060e06', border:'1px solid #1a3a1a',
             borderRadius:8, overflow:'hidden', flexShrink:0 }}>
@@ -863,6 +888,26 @@ function TablePageInner() {
           )}
         </div>
       </div>
+
+      {/* Mobile drawer toggle — floating pill, hidden while the drawer is open */}
+      {isMobile && !drawerOpen && (
+        <button onClick={() => setDrawerOpen(true)} style={{
+          position:'fixed', top:50, right:10, zIndex:140,
+          background:'rgba(10,22,10,.92)', border:'1px solid var(--gold-dim)',
+          borderRadius:20, padding:'6px 14px', cursor:'pointer',
+          color:'var(--gold)', fontSize:11, fontWeight:700, fontFamily:'inherit',
+          letterSpacing:1, boxShadow:'0 2px 10px rgba(0,0,0,.5)',
+        }}>
+          ☰ Stacks &amp; Log
+        </button>
+      )}
+
+      {/* Mobile drawer backdrop — tap outside to close */}
+      {isMobile && drawerOpen && (
+        <div onClick={() => setDrawerOpen(false)} style={{
+          position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:145,
+        }} />
+      )}
 
       <HandOverOverlay
         handOver={showHandOver ? handOver : null}
