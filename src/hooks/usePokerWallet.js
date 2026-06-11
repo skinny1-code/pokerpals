@@ -637,12 +637,17 @@ export function useTableSocket(tableId, tableConfig) {
       wsRef.current.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, seatIndex, buyInAmount: buyInAmount || undefined, config: tableConfig || undefined } }));
   }, [tableId, tableConfig]);
 
+  const spawnBot = useCallback((buyInAmount) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN)
+      wsRef.current.send(JSON.stringify({ type: 'SPAWN_BOT', payload: { tableId, buyIn: buyInAmount } }));
+  }, [tableId]);
+
   return {
     gameState, handOver, tableList, wsStatus, wsError,
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData,
-    sendAction, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat,
+    sendAction, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat, spawnBot,
   };
 }
 

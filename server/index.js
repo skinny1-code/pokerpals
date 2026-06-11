@@ -858,6 +858,27 @@ wss.on('connection', (ws, req) => {
         break;
       }
 
+      case 'SPAWN_BOT': {
+        const tidKey = String(payload?.tableId || client.tableId || '9001');
+        const t = tables.get(tidKey);
+        if (!t) { send(ws, { type: 'ERROR', error: 'Table not found' }); break; }
+        if (!BOT_ADDR) { send(ws, { type: 'ERROR', error: 'OPS_WALLET_KEY not configured' }); break; }
+        if (t.players.find(p => p.isBot)) { send(ws, { type: 'BOT_STATUS', status: 'already_seated' }); break; }
+        const min = t.config.minBuyIn ?? t.config.buyIn;
+        const max = t.config.maxBuyIn ?? t.config.buyIn;
+        const amt = Math.max(min, Math.min(max, Number(payload?.buyIn) || min));
+        const seated = t.seat({ addr: BOT_ADDR, ws: null, isBot: true, onChainDeposit: amt }, null);
+        if (!seated) { send(ws, { type: 'ERROR', error: 'Could not seat bot' }); break; }
+        console.log(`[Bot] In-process bot spawned at table ${tidKey} with ${amt} chips`);
+        send(ws, { type: 'BOT_STATUS', status: 'seated', chips: amt });
+        broadcastTable(t);
+        if (t.players.length >= 2 && t.phase === 'waiting') {
+          t.isActive = true;
+          setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
+        }
+        break;
+      }
+
       case 'LIST_TABLES': {
         const list = [...tables.values()].map(t => ({
           id: String(t.id), config: t.config, seated: t.players.length, phase: t.phase,

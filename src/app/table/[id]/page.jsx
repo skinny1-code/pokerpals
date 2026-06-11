@@ -360,7 +360,7 @@ function TablePageInner() {
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData,
-    sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat,
+    sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot,
   } = useTableSocket(id, tableConfig);
 
   const [showRebuy,       setShowRebuy]       = useState(false);
@@ -557,12 +557,7 @@ function TablePageInner() {
                   COPY & SHARE TABLE LINK
                 </button>
                 <button
-                  onClick={async () => {
-                    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
-                    const httpBase = wsUrl.replace(/^ws(s?):\/\//, 'http$1://');
-                    const res = await fetch(`${httpBase}/spawn-bot?tableId=${id}`).catch(() => null);
-                    if (!res?.ok) alert('Could not spawn bot — is the server running?');
-                  }}
+                  onClick={() => spawnBot()}
                   style={{
                     background:'linear-gradient(135deg,#1a2a3a,#0c1e2e)',
                     border:'1px solid #4a7aaa66', borderRadius:8,
