@@ -12,7 +12,7 @@ export default function WalletBar() {
   const { address, isConnected, chipsBalance, isHuman,
           connectMetaMask, connectWalletConnect, connectCoinbase, connectFarcaster, disconnect } = useWallet();
   const { myHandle } = useHandle();
-  const { chainId } = useAccount();
+  const { chainId, status: wagmiStatus } = useAccount();
   const { switchChain } = useSwitchChain();
   const [mounted, setMounted]         = useState(false);
   const [hasInjected, setHasInjected] = useState(false);
@@ -170,7 +170,15 @@ export default function WalletBar() {
           </>
         )}
 
-        {mounted && !isConnected && (
+        {mounted && !isConnected && wagmiStatus === 'reconnecting' && (
+          <div style={{
+            background:'#0c1e0c', border:'1px solid #1a3a1a',
+            borderRadius:8, padding:'8px 20px',
+            color:'#3a6a3a', fontSize:12, fontWeight:600,
+          }}>…</div>
+        )}
+
+        {mounted && !isConnected && wagmiStatus !== 'reconnecting' && (
           <div style={{ position:'relative' }}>
             <button onClick={() => setShowPicker(p => !p)} style={{
               background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
