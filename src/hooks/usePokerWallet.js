@@ -354,7 +354,7 @@ export function useEscrow(tableId) {
     if (!address || !tableId) return;
     try {
       setStatus('approving');
-      const amountBN    = parseUnits(String(buyInAmount), 18);
+      const amountBN    = parseUnits(Math.round(Number(buyInAmount)).toString(), 18);
       const seatFeeAmt  = seatFeeRef.current; // 0 for open tables, >0 for leased tables
       const feeOverrides = await safeFeeOverrides(publicClient);
       // Step 1: Approve escrow to spend only what's needed
@@ -400,7 +400,7 @@ export function useEscrow(tableId) {
     if (!address || !tableId) return;
     try {
       setStatus('approving');
-      const amountBN = parseUnits(String(amount), 18);
+      const amountBN = parseUnits(Math.round(Number(amount)).toString(), 18);
       const feeOverrides = await safeFeeOverrides(publicClient);
       const approveTx = await writeContractAsync({
         address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
@@ -688,8 +688,8 @@ export function useCreateTable() {
     }
     setStatus('pending');
     try {
-      const buyInBN    = parseUnits(String(buyIn), 18);
-      const bigBlindBN = parseUnits(String(bigBlind), 18);
+      const buyInBN    = parseUnits(Math.round(Number(buyIn)).toString(), 18);
+      const bigBlindBN = parseUnits(Math.round(Number(bigBlind)).toString(), 18);
       const feeOverrides = await safeFeeOverrides(publicClient);
       const hash = await writeContractAsync({
         address: ESCROW, abi: ESCROW_ABI, functionName: 'createTable',
@@ -845,15 +845,20 @@ export function useLeaderboard() {
     if (!HANDLE || !STAKING || !publicClient) return;
     let cancelled = false;
     setLoading(true);
-    const deployBlock = process.env.NEXT_PUBLIC_DEPLOY_BLOCK
-      ? BigInt(process.env.NEXT_PUBLIC_DEPLOY_BLOCK)
-      : 0n;
     (async () => {
       try {
+        let fromBlock;
+        if (process.env.NEXT_PUBLIC_DEPLOY_BLOCK) {
+          fromBlock = BigInt(process.env.NEXT_PUBLIC_DEPLOY_BLOCK);
+        } else {
+          // No deploy block known — cap to last 500K blocks to stay within Alchemy limits
+          const latest = await publicClient.getBlockNumber();
+          fromBlock = latest > 500_000n ? latest - 500_000n : 0n;
+        }
         const logs = await publicClient.getLogs({
           address: HANDLE,
           event: parseAbiItem('event HandleMinted(address indexed player, uint256 indexed tokenId, string handle, uint256 burned)'),
-          fromBlock: deployBlock,
+          fromBlock,
         });
         if (cancelled) return;
         const addrMap = {};

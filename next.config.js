@@ -11,7 +11,8 @@ function loadDeployedAddresses() {
   for (const net of ['arbitrumSepolia', 'arbitrum']) {
     const p = join(__dirname, 'deployments', `${net}.json`);
     if (!existsSync(p)) continue;
-    const c = JSON.parse(readFileSync(p, 'utf8')).contracts;
+    const d = JSON.parse(readFileSync(p, 'utf8'));
+    const c = d.contracts;
     return {
       NEXT_PUBLIC_CHIPS_TOKEN:    c.PvPToken       || c.ChipsToken       || '',
       NEXT_PUBLIC_ESCROW:         c.PokerEscrow    || '',
@@ -20,6 +21,7 @@ function loadDeployedAddresses() {
       NEXT_PUBLIC_TOURNAMENT:     c.TournamentManager || '',
       NEXT_PUBLIC_TABLE_REGISTRY: c.TableRegistry  || '',
       NEXT_PUBLIC_POKER_HANDLE:   c.PokerHandle    || '',
+      ...(d.deployBlock ? { NEXT_PUBLIC_DEPLOY_BLOCK: String(d.deployBlock) } : {}),
     };
   }
   return {};
