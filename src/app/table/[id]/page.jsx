@@ -353,6 +353,9 @@ function TablePageInner() {
   ]);
   const [showHandOver, setShowHandOver] = useState(false);
 
+  const playerAddrs = useMemo(() => gameState?.players?.map(p => p.addr).filter(Boolean) || [], [gameState]);
+  const handleMap   = useHandleMap(playerAddrs);
+
   // Append server events to the log
   useEffect(() => {
     if (!gameState) return;
@@ -398,9 +401,6 @@ function TablePageInner() {
   const canCheck   = isHeroTurn && callAmount === 0;
   const bigBlind   = gameState?.config?.bigBlind || 100;
   const minRaise   = Math.max(bigBlind, gameState?.lastRaiseAmount || bigBlind);
-
-  const playerAddrs = useMemo(() => gameState?.players?.map(p => p.addr).filter(Boolean) || [], [gameState]);
-  const handleMap   = useHandleMap(playerAddrs);
 
   const seats = useMemo(() => mapToSeats(gameState, address, handleMap), [gameState, address, handleMap]);
 
