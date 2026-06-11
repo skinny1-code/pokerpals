@@ -582,7 +582,8 @@ export function useTableSocket(tableId, tableConfig) {
             setRefundAvailable(true);
             break;
           case 'SEAT_PICKER':
-            setSeatPickerData({ maxPlayers: msg.maxPlayers, takenSeats: msg.takenSeats || [] });
+            setSeatPickerData({ maxPlayers: msg.maxPlayers, takenSeats: msg.takenSeats || [],
+              minBuyIn: msg.minBuyIn, maxBuyIn: msg.maxBuyIn });
             break;
           case 'REBUY_OK':
             break;
@@ -631,9 +632,9 @@ export function useTableSocket(tableId, tableConfig) {
       wsRef.current.send(JSON.stringify({ type: 'LIST_TABLES' }));
   }, []);
 
-  const joinWithSeat = useCallback((seatIndex) => {
+  const joinWithSeat = useCallback((seatIndex, buyInAmount) => {
     if (wsRef.current?.readyState === WebSocket.OPEN)
-      wsRef.current.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, seatIndex, config: tableConfig || undefined } }));
+      wsRef.current.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, seatIndex, buyInAmount: buyInAmount || undefined, config: tableConfig || undefined } }));
   }, [tableId, tableConfig]);
 
   return {

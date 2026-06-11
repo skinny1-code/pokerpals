@@ -419,8 +419,8 @@ const clients = new Map(); // ws => { addr, tableId }
 
 // Pre-seeded permanent tables — always available, reset (not deleted) when empty
 const SEED_TABLES = [
-  { id: 9001n, name: 'Micro — NLH 2-Max',      buyIn: 1000, bigBlind: 20, maxPlayers: 2, gameType: 0 },
-  { id: 9002n, name: 'High Stakes — NLH 2-Max', buyIn: 5000, bigBlind: 50, maxPlayers: 2, gameType: 0 },
+  { id: 9001n, name: 'Micro — NLH 2-Max',      buyIn: 1000, minBuyIn: 1000, maxBuyIn: 10000, bigBlind: 20, maxPlayers: 2, gameType: 0 },
+  { id: 9002n, name: 'High Stakes — NLH 2-Max', buyIn: 5000, minBuyIn: 5000, maxBuyIn: 50000, bigBlind: 50, maxPlayers: 2, gameType: 0 },
 ];
 for (const { id, name, ...config } of SEED_TABLES) {
   const t = new PokerTable(id, config);
@@ -698,7 +698,12 @@ wss.on('connection', (ws, req) => {
         // Verify player has bought in on-chain before seating them (skipped in testnet mode)
         let onChainDeposit;
         if (skipChainVerify) {
-          onChainDeposit = t.config.buyIn; // trust client, treat as fully bought-in
+          const min = t.config.minBuyIn ?? t.config.buyIn;
+          const max = t.config.maxBuyIn ?? t.config.buyIn;
+          const req = payload.buyInAmount;
+          onChainDeposit = (typeof req === 'number' && isFinite(req) && req > 0)
+            ? Math.max(min, Math.min(max, req))
+            : min;
         } else {
           try {
             onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
@@ -710,7 +715,10 @@ wss.on('connection', (ws, req) => {
         if (onChainDeposit === 0) {
           // Player hasn't bought in yet — send current seat occupancy so UI can show seat picker
           const takenSeats = t.players.map(p => ({ addr: p.addr, seatIndex: p.seatIndex }));
-          return send(ws, { type: 'SEAT_PICKER', tableId: tidKey, maxPlayers: t.config.maxPlayers, takenSeats });
+          return send(ws, { type: 'SEAT_PICKER', tableId: tidKey, maxPlayers: t.config.maxPlayers, takenSeats,
+            minBuyIn: t.config.minBuyIn ?? t.config.buyIn,
+            maxBuyIn: t.config.maxBuyIn ?? t.config.buyIn,
+          });
         }
 
         // Deliver pending cashout if this player has one from a prior disconnection

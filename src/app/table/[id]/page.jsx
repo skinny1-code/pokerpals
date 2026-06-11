@@ -162,7 +162,7 @@ const SEAT_POS = [
   { x: 0.26, y: 0.80 }, // 8 bottom-left
 ];
 
-function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, buyInAmount, escrowStatus }) {
+function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, buyInAmount, onBuyInChange, minBuyIn, maxBuyIn, escrowStatus }) {
   const seats = SEAT_POS.slice(0, maxPlayers);
   const takenMap = Object.fromEntries((takenSeats || []).map(s => [s.seatIndex, s.addr]));
   const fmt = n => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M`
@@ -183,10 +183,16 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
           transform:'translate(-50%,-50%)', textAlign:'center',
         }}>
           <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:2 }}>SELECT A SEAT</div>
-          <div style={{ fontSize:13, color:'#d4af37', fontWeight:700,
-            fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>
-            {fmt(buyInAmount)} CHIPS
-          </div>
+          {minBuyIn != null && maxBuyIn != null && minBuyIn !== maxBuyIn ? (
+            <div style={{ fontSize:10, color:'#5a8a5a', marginTop:4 }}>
+              {fmt(minBuyIn)}–{fmt(maxBuyIn)} CHIPS
+            </div>
+          ) : (
+            <div style={{ fontSize:13, color:'#d4af37', fontWeight:700,
+              fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>
+              {fmt(buyInAmount)} CHIPS
+            </div>
+          )}
         </div>
 
         {/* Seat circles */}
@@ -236,18 +242,32 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
       {pendingSeat !== null && (
         <div style={{
           marginTop:16, background:'#060e06', border:'1px solid #d4af3744',
-          borderRadius:10, padding:'16px 20px',
-          display:'flex', alignItems:'center', justifyContent:'space-between', gap:12,
+          borderRadius:10, padding:'16px 20px', display:'flex', flexDirection:'column', gap:12,
         }}>
-          <div>
-            <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:1, marginBottom:3 }}>
-              SEAT {pendingSeat + 1} SELECTED
+          <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:1 }}>SEAT {pendingSeat + 1} — BUY IN</div>
+          {minBuyIn != null && maxBuyIn != null && minBuyIn !== maxBuyIn && (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              <input
+                type="range"
+                min={minBuyIn} max={maxBuyIn} step={minBuyIn}
+                value={buyInAmount}
+                onChange={e => onBuyInChange(Number(e.target.value))}
+                style={{ accentColor:'#d4af37', width:'100%' }}
+              />
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#3a6a3a' }}>
+                <span>{fmt(minBuyIn)}</span>
+                <span style={{ color:'#d4af37', fontWeight:700, fontFamily:"'JetBrains Mono',monospace", fontSize:13 }}>
+                  {fmt(buyInAmount)} CHIPS
+                </span>
+                <span>{fmt(maxBuyIn)}</span>
+              </div>
             </div>
-            <div style={{ fontSize:13, color:'#d4af37', fontWeight:700,
-              fontFamily:"'JetBrains Mono',monospace" }}>
+          )}
+          {(minBuyIn == null || minBuyIn === maxBuyIn) && (
+            <div style={{ fontSize:13, color:'#d4af37', fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>
               {fmt(buyInAmount)} CHIPS
             </div>
-          </div>
+          )}
           <button
             onClick={() => onBuyIn(pendingSeat)}
             disabled={escrowStatus !== 'idle'}
@@ -256,7 +276,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
               border:`1px solid ${escrowStatus !== 'idle' ? '#1a3a1a' : '#d4af37'}`,
               borderRadius:8, padding:'10px 20px', cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer',
               color: escrowStatus !== 'idle' ? '#3a6a3a' : '#d4af37',
-              fontSize:12, fontWeight:700, fontFamily:'inherit',
+              fontSize:12, fontWeight:700, fontFamily:'inherit', alignSelf:'flex-end',
             }}
           >
             {escrowStatus === 'approving' ? 'Approving…'
@@ -346,7 +366,14 @@ function TablePageInner() {
   const [showRebuy,       setShowRebuy]       = useState(false);
   const [rebuyAmt,        setRebuyAmt]        = useState('');
   const [pendingSeat,     setPendingSeat]     = useState(null);
+  const [selectedBuyIn,   setSelectedBuyIn]   = useState(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+
+  // Initialise selectedBuyIn when seat picker appears
+  useEffect(() => {
+    if (seatPickerData && selectedBuyIn === null)
+      setSelectedBuyIn(seatPickerData.minBuyIn ?? tableConfig?.buyIn ?? 1000);
+  }, [seatPickerData, selectedBuyIn, tableConfig]);
 
   const [log, setLog] = useState([
     { type:'system', text:`Joined table ${id}` },
@@ -438,13 +465,13 @@ function TablePageInner() {
   }, [refund, router]);
 
   const handleBuyIn = useCallback(async (seatIndex) => {
-    // Use URL-param config first — permanent tables don't exist on-chain so tableInfo returns 0
-    const amount = tableConfig?.buyIn
+    const amount = selectedBuyIn
+      || tableConfig?.buyIn
       || (tableInfo?.buyInAmount ? Number(tableInfo.buyInAmount) / 1e18 : 0);
     if (!amount) return;
     await buyIn(amount);
-    joinWithSeat(seatIndex);
-  }, [buyIn, joinWithSeat, tableConfig, tableInfo]);
+    joinWithSeat(seatIndex, amount);
+  }, [buyIn, joinWithSeat, selectedBuyIn, tableConfig, tableInfo]);
 
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg-deep)', display:'flex', flexDirection:'column' }}>
@@ -540,7 +567,10 @@ function TablePageInner() {
               pendingSeat={pendingSeat}
               onSelect={setPendingSeat}
               onBuyIn={handleBuyIn}
-              buyInAmount={tableConfig?.buyIn || (tableInfo?.buyInAmount ? Number(tableInfo.buyInAmount) / 1e18 : 0)}
+              buyInAmount={selectedBuyIn ?? seatPickerData.minBuyIn ?? tableConfig?.buyIn ?? 1000}
+              onBuyInChange={setSelectedBuyIn}
+              minBuyIn={seatPickerData.minBuyIn}
+              maxBuyIn={seatPickerData.maxBuyIn}
               escrowStatus={escrowStatus}
             />
           )}
