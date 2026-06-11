@@ -5,7 +5,7 @@ import { WebSocket } from "ws";
 import { ethers } from "ethers";
 
 const TABLE_ID  = process.argv[2] || "9001";
-const WS_URL    = process.env.NEXT_PUBLIC_WS_URL?.replace(/^http/, "ws") || "ws://localhost:4000";
+const WS_URL    = process.env.NEXT_PUBLIC_WS_URL?.replace(/^https?/, m => m === "https" ? "wss" : "ws") || "ws://localhost:4000";
 
 // Use ops wallet as the bot (has CHIPS from deploy)
 const BOT_KEY   = process.env.OPS_WALLET_KEY || "0xc6e7796027e91aa8a8cc33bb241cb9a2f2de5de6f72a69092b4b848acf836381";
