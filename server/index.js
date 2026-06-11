@@ -741,7 +741,7 @@ wss.on('connection', (ws, req) => {
         console.log(`[WS] Seated ${addr.slice(0,10)} at table ${tidKey} (${t.players.length}/${t.config.maxPlayers})`);
         broadcastTable(t);
 
-        if (t.players.length >= t.config.maxPlayers) {
+        if (t.players.length >= 2) {
           t.isActive = true;
           if (t.phase === 'waiting') {
             setTimeout(() => { t.start(); broadcastTable(t); }, 3000);

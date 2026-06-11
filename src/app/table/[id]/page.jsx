@@ -536,7 +536,9 @@ function TablePageInner() {
                 You're at the table!
               </div>
               <div style={{ fontSize:11, color:'#6a9a6a', marginBottom:12 }}>
-                Waiting for {(gameState.config?.maxPlayers || 2) - gameState.players.length} more player{((gameState.config?.maxPlayers || 2) - gameState.players.length) !== 1 ? 's' : ''} to join ({gameState.players.length}/{gameState.config?.maxPlayers || 2} seated)
+                {gameState.players.length < 2
+                  ? `Waiting for ${2 - gameState.players.length} more player to start (${gameState.players.length}/${gameState.config?.maxPlayers || 2} seated)`
+                  : `${gameState.players.length}/${gameState.config?.maxPlayers || 2} seated — starting soon…`}
               </div>
               <button
                 onClick={() => {
@@ -554,7 +556,7 @@ function TablePageInner() {
                 COPY & SHARE TABLE LINK
               </button>
               <div style={{ fontSize:9, color:'#3a6a3a', marginTop:10, letterSpacing:1 }}>
-                The game starts automatically when all seats are filled
+                The game starts automatically when 2+ players are seated
               </div>
             </div>
           )}

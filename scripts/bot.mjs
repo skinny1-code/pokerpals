@@ -41,10 +41,14 @@ function connect() {
         }}));
         break;
 
-      case "SEAT_PICKER":
-        console.log(`🪑 Seat picker received — bot re-joining table ${TABLE_ID}`);
-        ws.send(JSON.stringify({ type: "JOIN_TABLE", payload: { tableId: TABLE_ID } }));
+      case "SEAT_PICKER": {
+        const taken = new Set((msg.takenSeats || []).map(s => s.seatIndex));
+        const seat  = [...Array(msg.maxPlayers || 2).keys()].find(i => !taken.has(i)) ?? 0;
+        const amt   = BOT_BUY_IN || msg.minBuyIn || 1000;
+        console.log(`🪑 Seat picker — taking seat ${seat} with ${amt} chips`);
+        ws.send(JSON.stringify({ type: "JOIN_TABLE", payload: { tableId: TABLE_ID, seatIndex: seat, buyInAmount: amt } }));
         break;
+      }
 
       case "GAME_STATE": {
         state = msg.state;
