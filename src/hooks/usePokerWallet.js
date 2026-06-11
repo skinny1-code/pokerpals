@@ -278,17 +278,20 @@ export function useStaking() {
       const chipsInt = Math.round(Number(amount));
       if (!chipsInt || chipsInt <= 0) { setStatus('error'); return; }
       const amountBN = parseUnits(String(chipsInt), 18);
-      const feeOverrides = await safeFeeOverrides(publicClient);
+      const approveFees = await safeFeeOverrides(publicClient);
       const approveTx = await writeContractAsync({
         address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
-        args: [STAKING, amountBN], ...feeOverrides,
+        args: [STAKING, amountBN], ...approveFees,
       });
       await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
       setStatus('staking');
+      // Recompute fees after approve confirms so gas estimate has correct allowance
+      const stakeFees = await safeFeeOverrides(publicClient);
       const tx = await writeContractAsync({
         address: STAKING, abi: STAKING_ABI, functionName: "stake",
-        args: [amountBN], ...feeOverrides,
+        args: [amountBN], ...stakeFees,
       });
+      await waitForTransactionReceipt(wagmiConfig, { hash: tx, timeout: 60_000 });
       setTxHash(tx);
       setStatus('idle');
       return tx;
@@ -562,7 +565,6 @@ export function useTableSocket(tableId, tableConfig) {
           case 'GAME_STATE': {
             setGameState(msg.state);
             setSeatPickerData(null); // seated — dismiss picker
-            setHandOver(null);
             if (msg.state && address) {
               const hero = msg.state.players?.find(
                 p => p.addr?.toLowerCase() === address.toLowerCase()

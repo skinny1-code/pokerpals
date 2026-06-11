@@ -5,6 +5,7 @@ import Link from 'next/link';
 import WalletBar from '../../../components/WalletBar';
 import PokerTable from '../../../components/PokerTable';
 import BettingControls from '../../../components/BettingControls';
+import Card from '../../../components/Card';
 import { useTableSocket, useEscrow, useHandleMap, useHandleAvatars } from '../../../hooks/usePokerWallet';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
@@ -117,43 +118,82 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
   }, [identity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!handOver) return null;
-  const winners = handOver.winners || [];
-  const results = handOver.results || [];
+  const winners  = handOver.winners || [];
+  const results  = handOver.results || [];
+  // Non-winners who showed their cards (losers at showdown)
+  const losers   = results.filter(r => !winners.includes(r.addr) && r.cards?.length);
+
   return (
     <div style={{
-      position:'fixed', inset:0, background:'rgba(0,0,0,.7)',
+      position:'fixed', inset:0, background:'rgba(0,0,0,.8)',
       display:'flex', alignItems:'center', justifyContent:'center', zIndex:200,
     }} onClick={onDismiss}>
       <div style={{
         background:'linear-gradient(135deg,#0a1f0a,#060e06)',
         border:'1px solid #d4af37', borderRadius:16,
-        padding:'32px 48px', textAlign:'center',
+        padding:'28px 36px', textAlign:'center',
         boxShadow:'0 0 40px rgba(212,175,55,.3)',
         animation:'fade-in .4s ease forwards',
+        maxWidth: 480, width: '90vw',
       }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize:9, color:'#d4af3799', letterSpacing:4, marginBottom:8 }}>HAND COMPLETE</div>
+        <div style={{ fontSize:9, color:'#d4af3799', letterSpacing:4, marginBottom:12 }}>HAND COMPLETE</div>
+
+        {/* Winners */}
         {winners.map((w, i) => {
           const res = results.find(r => r.addr === w);
           const displayName = handleMap[w?.toLowerCase()] || `${w.slice(0,8)}…`;
           return (
-            <div key={i}>
-              <div style={{ fontSize:22, color:'#d4af37', fontWeight:700,
+            <div key={i} style={{ marginBottom: losers.length ? 16 : 0 }}>
+              <div style={{ fontSize:20, color:'#d4af37', fontWeight:700,
                 fontFamily:"'Playfair Display',serif" }}>
-                {displayName}
+                {displayName} wins
               </div>
               {res?.hand && (
-                <div style={{ fontSize:12, color:'#d4af3777', letterSpacing:1, marginTop:4 }}>
+                <div style={{ fontSize:11, color:'#d4af3799', letterSpacing:1, marginTop:2 }}>
                   {res.hand}
                 </div>
               )}
-              <div style={{ fontSize:16, color:'#27ae60', fontWeight:700, marginTop:4,
+              {res?.cards?.length > 0 && (
+                <div style={{ display:'flex', gap:4, justifyContent:'center', marginTop:8 }}>
+                  {res.cards.map((c, ci) => (
+                    <div key={ci} className="card-deal" style={{ animationDelay:`${ci*0.06}s` }}>
+                      <Card card={c} width={44} height={62} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ fontSize:15, color:'#27ae60', fontWeight:700, marginTop:8,
                 fontFamily:"'JetBrains Mono',monospace" }}>
                 ◈ {handOver.pot?.toLocaleString()}
               </div>
             </div>
           );
         })}
-        <div style={{ fontSize:9, color:'#3a6a3a', marginTop:16, letterSpacing:1 }}>
+
+        {/* Losers */}
+        {losers.length > 0 && (
+          <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #1a3a1a' }}>
+            {losers.map((r, i) => {
+              const displayName = handleMap[r.addr?.toLowerCase()] || `${r.addr?.slice(0,8)}…`;
+              return (
+                <div key={i} style={{ marginBottom: i < losers.length-1 ? 10 : 0 }}>
+                  <div style={{ fontSize:10, color:'#5a7a5a', marginBottom:4 }}>
+                    {displayName} · {r.hand}
+                  </div>
+                  <div style={{ display:'flex', gap:4, justifyContent:'center' }}>
+                    {r.cards.map((c, ci) => (
+                      <div key={ci} style={{ opacity:0.7 }}>
+                        <Card card={c} width={36} height={50} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={{ fontSize:9, color:'#3a6a3a', marginTop:14, letterSpacing:1 }}>
           Next hand in {Math.max(0, secs)}s · tap to skip
         </div>
       </div>

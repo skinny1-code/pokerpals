@@ -554,6 +554,7 @@ async function signAndRemovePlayer(t, addr, ws) {
     t.foldPlayer(addr);
     const result = t.advance();
     if (result?.winners) {
+      broadcastTable(t); // broadcast showdown state before hand-over
       try { await handleHandOver(t, result); }
       catch (e) { console.error('[Server] handleHandOver in signAndRemovePlayer:', e.message); }
     }
@@ -618,7 +619,7 @@ async function handleHandOver(t, result) {
   broadcastToTable(t, {
     type:      'HAND_OVER',
     winners:   result.winners,
-    results:   result.results.map(r => ({ addr: r.p.addr, hand: r.h.n })),
+    results:   result.results.map(r => ({ addr: r.p.addr, hand: r.h.n, cards: r.p.hand || [] })),
     pot:       result.pot,
     sig,
     tableId:   String(t.id),
@@ -638,10 +639,21 @@ async function handleHandOver(t, result) {
   }
 
   setTimeout(() => {
+    // Remove bust players (0 chips) before the next hand
+    const busted = t.players.filter(p => p.chips <= 0);
+    t.players = t.players.filter(p => p.chips > 0);
+    for (const p of busted) {
+      console.log(`[Server] Player ${p.addr?.slice(0,10)} busted — removed from table ${t.id}`);
+    }
     if (t.players.length < 2) { t.phase = 'waiting'; broadcastTable(t); return; }
     t.handNonce++;
     t.dealerIdx = (t.dealerIdx + 1) % t.players.length;
-    t.start();
+    try {
+      t.start();
+    } catch (e) {
+      console.error(`[Server] t.start() error in hand restart:`, e.message);
+      t.phase = 'waiting';
+    }
     broadcastTable(t);
   }, 6000);
 }
