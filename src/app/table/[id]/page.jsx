@@ -540,21 +540,40 @@ function TablePageInner() {
                   ? `Waiting for ${2 - gameState.players.length} more player to start (${gameState.players.length}/${gameState.config?.maxPlayers || 2} seated)`
                   : `${gameState.players.length}/${gameState.config?.maxPlayers || 2} seated — starting soon…`}
               </div>
-              <button
-                onClick={() => {
-                  navigator.clipboard?.writeText(window.location.href).catch(() => {});
-                  alert('Table link copied!\n\n' + window.location.href + '\n\nShare this with your opponent.');
-                }}
-                style={{
-                  background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-                  border:'1px solid #27ae6066', borderRadius:8,
-                  padding:'10px 20px', cursor:'pointer',
-                  color:'#27ae60', fontSize:11, fontFamily:'inherit', fontWeight:700,
-                  letterSpacing:1,
-                }}
-              >
-                COPY & SHARE TABLE LINK
-              </button>
+              <div style={{ display:'flex', gap:8, justifyContent:'center', flexWrap:'wrap' }}>
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(window.location.href).catch(() => {});
+                    alert('Table link copied!\n\n' + window.location.href + '\n\nShare this with your opponent.');
+                  }}
+                  style={{
+                    background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
+                    border:'1px solid #27ae6066', borderRadius:8,
+                    padding:'10px 20px', cursor:'pointer',
+                    color:'#27ae60', fontSize:11, fontFamily:'inherit', fontWeight:700,
+                    letterSpacing:1,
+                  }}
+                >
+                  COPY & SHARE TABLE LINK
+                </button>
+                <button
+                  onClick={async () => {
+                    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
+                    const httpBase = wsUrl.replace(/^ws(s?):\/\//, 'http$1://');
+                    const res = await fetch(`${httpBase}/spawn-bot?tableId=${id}`).catch(() => null);
+                    if (!res?.ok) alert('Could not spawn bot — is the server running?');
+                  }}
+                  style={{
+                    background:'linear-gradient(135deg,#1a2a3a,#0c1e2e)',
+                    border:'1px solid #4a7aaa66', borderRadius:8,
+                    padding:'10px 20px', cursor:'pointer',
+                    color:'#7ab4e0', fontSize:11, fontFamily:'inherit', fontWeight:700,
+                    letterSpacing:1,
+                  }}
+                >
+                  + SPAWN BOT
+                </button>
+              </div>
               <div style={{ fontSize:9, color:'#3a6a3a', marginTop:10, letterSpacing:1 }}>
                 The game starts automatically when 2+ players are seated
               </div>

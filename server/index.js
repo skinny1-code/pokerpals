@@ -36,8 +36,12 @@ const PASSPORT_API = process.env.GITCOIN_PASSPORT_API;
 const SCORER_ID    = process.env.GITCOIN_SCORER_ID;
 
 // ─── CHAIN SETUP ─────────────────────────────────────────────────────────────
-const provider = new ethers.JsonRpcProvider(RPC_URL);
-const operator = new ethers.Wallet(OPERATOR_KEY, provider);
+const provider   = new ethers.JsonRpcProvider(RPC_URL);
+const operator   = new ethers.Wallet(OPERATOR_KEY, provider);
+
+// ─── IN-PROCESS BOT ──────────────────────────────────────────────────────────
+const BOT_KEY  = process.env.OPS_WALLET_KEY;
+const BOT_ADDR = BOT_KEY ? new ethers.Wallet(BOT_KEY).address.toLowerCase() : null;
 
 const ESCROW_ABI = [
   "function settle(uint256,uint256,address[],uint256[],bytes) external",
@@ -439,6 +443,26 @@ const server = createServer((req, res) => {
     }));
     res.writeHead(200);
     res.end(JSON.stringify({ tables: list }));
+  } else if (req.url?.startsWith('/spawn-bot')) {
+    const url    = new URL(req.url, 'http://x');
+    const tidKey = url.searchParams.get('tableId') || '9001';
+    const buyIn  = Number(url.searchParams.get('buyIn') || 1000);
+    const t = tables.get(tidKey);
+    if (!t)       { res.writeHead(404); return res.end('{"error":"table not found"}'); }
+    if (!BOT_ADDR){ res.writeHead(503); return res.end('{"error":"OPS_WALLET_KEY not configured"}'); }
+    if (t.players.find(p => p.isBot)) { return res.end('{"status":"bot already seated"}'); }
+    const min = t.config.minBuyIn ?? t.config.buyIn;
+    const max = t.config.maxBuyIn ?? t.config.buyIn;
+    const amt = Math.max(min, Math.min(max, buyIn));
+    const seated = t.seat({ addr: BOT_ADDR, ws: null, isBot: true, onChainDeposit: amt }, null);
+    if (!seated) { res.writeHead(400); return res.end('{"error":"could not seat bot"}'); }
+    console.log(`[Bot] In-process bot spawned at table ${tidKey} with ${amt} chips`);
+    broadcastTable(t);
+    if (t.players.length >= 2 && t.phase === 'waiting') {
+      t.isActive = true;
+      setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
+    }
+    res.end(JSON.stringify({ status: 'ok', addr: BOT_ADDR, chips: amt }));
   } else {
     res.writeHead(200);
     res.end(JSON.stringify({ service: 'PokerVsPals WS', tables: tables.size }));
@@ -456,6 +480,25 @@ function broadcastTable(t) {
     if (p.ws?.readyState === WebSocket.OPEN)
       send(p.ws, { type: 'GAME_STATE', state: t.pubState(p.addr) });
   });
+  maybeBotAct(t);
+}
+
+function maybeBotAct(t) {
+  if (!BOT_ADDR || t.botActPending) return;
+  const bot = t.players.find(p => p.isBot);
+  if (!bot || bot.folded) return;
+  const active = t.phase !== 'waiting' && t.phase !== 'showdown' ? t.players[t.actionIdx] : null;
+  if (!active || active.addr?.toLowerCase() !== BOT_ADDR) return;
+  t.botActPending = true;
+  setTimeout(async () => {
+    t.botActPending = false;
+    const callAmt = Math.max(0, (t.maxBet || 0) - (bot.bet || 0));
+    const action  = callAmt === 0 ? 'check' : 'call';
+    console.log(`[Bot] ${action}${callAmt > 0 ? ` ${callAmt}` : ''} at table ${t.id}`);
+    const result = t.applyAction(BOT_ADDR, action, callAmt);
+    broadcastTable(t);
+    if (result?.winners) await handleHandOver(t, result);
+  }, 800);
 }
 function broadcastToTable(t, msg) {
   t.players.forEach(p => send(p.ws, msg));
