@@ -1,20 +1,30 @@
 import { expect } from "chai";
 import { network } from "hardhat";
-import { parseUnits } from "ethers";
+import { parseUnits, AbiCoder } from "ethers";
 
 // Helper: assert a promise rejects (optionally with a message substring)
 async function expectReverted(promise, msgSubstring = null) {
   let reverted = false;
-  let errMsg = "";
+  let e;
   try {
     await promise;
-  } catch (e) {
+  } catch (err) {
     reverted = true;
-    errMsg = e.message ?? "";
+    e = err;
   }
   expect(reverted, "Expected transaction to revert but it did not").to.equal(true);
-  if (msgSubstring) {
-    expect(errMsg, `Expected revert message to include "${msgSubstring}"`).to.include(msgSubstring);
+  if (msgSubstring && e) {
+    let searchable = [e.message, e.reason, e.shortMessage]
+      .filter(s => typeof s === "string")
+      .join(" ");
+    // Hardhat 3 EDR puts Error(string) reason in e.data as ABI-encoded bytes
+    if (e.data && typeof e.data === "string" && e.data.startsWith("0x08c379a0")) {
+      try {
+        const [reason] = new AbiCoder().decode(["string"], "0x" + e.data.slice(10));
+        searchable += " " + reason;
+      } catch (_) {}
+    }
+    expect(searchable, `Expected revert message to include "${msgSubstring}"`).to.include(msgSubstring);
   }
 }
 
@@ -132,6 +142,9 @@ describe("PokerEscrow", () => {
   });
 
   // ─── settle() ───────────────────────────────────────────────────────────────
+  // NOTE: Solidity's abi.encodePacked(address[]) packs each address as 32 bytes
+  // (ABI-encoded, not 20-byte natural size). Use "address[]" type in solidityPackedKeccak256
+  // to match the contract's on-chain hash computation.
 
   it("settle: distributes rake correctly (35% burn / 35% staking / 20% treasury)", async () => {
     const escrowAddr  = await escrow.getAddress();
@@ -144,8 +157,8 @@ describe("PokerEscrow", () => {
     await escrow.connect(player2).buyIn(1);
 
     const potTotal    = BUY_IN * 2n;
-    const tierRateNum = 150n;  // tier 0 = 1.5% = 150/10000
-    const rakeDen     = 10000n;
+    const tierRateNum = 15n;   // tier 0 = 1.5% = 15/1000
+    const rakeDen     = 1000n;
     const totalRake   = (potTotal * tierRateNum) / rakeDen;
 
     const burnBefore  = await token.totalSupply();
@@ -157,8 +170,8 @@ describe("PokerEscrow", () => {
     const winners  = [player1.address];
     const shares   = [1000n];
     const digest   = ethers.solidityPackedKeccak256(
-      ["uint256","uint256","address","uint256"],
-      [tableId, handNonce, winners[0], shares[0]]
+      ["uint256","uint256","address[]","uint256[]"],
+      [tableId, handNonce, winners, shares]
     );
     const sig = await operator.signMessage(ethers.getBytes(digest));
 
@@ -186,15 +199,15 @@ describe("PokerEscrow", () => {
     await escrow.connect(player2).buyIn(1);
 
     const potTotal  = BUY_IN * 2n;
-    const totalRake = (potTotal * 150n) / 10000n;
+    const totalRake = (potTotal * 15n) / 1000n;
     const netPot    = potTotal - totalRake;
     const balBefore = await token.balanceOf(player1.address);
 
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
     const digest = ethers.solidityPackedKeccak256(
-      ["uint256","uint256","address","uint256"],
-      [tableId, handNonce, winners[0], shares[0]]
+      ["uint256","uint256","address[]","uint256[]"],
+      [tableId, handNonce, winners, shares]
     );
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
@@ -214,8 +227,8 @@ describe("PokerEscrow", () => {
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
     const digest = ethers.solidityPackedKeccak256(
-      ["uint256","uint256","address","uint256"],
-      [tableId, handNonce, winners[0], shares[0]]
+      ["uint256","uint256","address[]","uint256[]"],
+      [tableId, handNonce, winners, shares]
     );
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
@@ -316,8 +329,8 @@ describe("PokerEscrow", () => {
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
     const digest = ethers.solidityPackedKeccak256(
-      ["uint256","uint256","address","uint256"],
-      [tableId, handNonce, winners[0], shares[0]]
+      ["uint256","uint256","address[]","uint256[]"],
+      [tableId, handNonce, winners, shares]
     );
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
