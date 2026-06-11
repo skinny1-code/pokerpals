@@ -37,10 +37,22 @@ function connect() {
         ws.send(JSON.stringify({ type: "JOIN_TABLE", payload: { tableId: TABLE_ID } }));
         break;
 
+      case "SEAT_PICKER":
+        console.log(`🪑 Seat picker received — bot re-joining table ${TABLE_ID}`);
+        ws.send(JSON.stringify({ type: "JOIN_TABLE", payload: { tableId: TABLE_ID } }));
+        break;
+
       case "GAME_STATE": {
         state = msg.state;
         const me = state.players?.find(p => p.addr?.toLowerCase() === BOT_ADDR.toLowerCase());
-        if (!me) break;
+        if (!me) {
+          console.log(`⏳ Waiting in lobby (${state.players?.length ?? 0} players at table)`);
+          break;
+        }
+        if (state.phase === 'waiting') {
+          console.log(`⏳ Seated — waiting for ${(state.maxPlayers ?? 2) - state.players.length} more player(s)`);
+          break;
+        }
 
         // Only act on our turn
         if (state.activeAddr?.toLowerCase() !== BOT_ADDR.toLowerCase()) break;
