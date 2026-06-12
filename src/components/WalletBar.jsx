@@ -3,10 +3,20 @@ import { useState, useEffect } from 'react';
 import { useWallet, useHandle } from '../hooks/usePokerWallet';
 import { useAccount, useSwitchChain } from 'wagmi';
 import Link from 'next/link';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const CHAIN_NAMES = { 421614: 'Arbitrum Sepolia', 42161: 'Arbitrum One' };
 const EXPECTED = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
 const HAS_WC = !!process.env.NEXT_PUBLIC_WC_PROJECT_ID;
+
+const NAV_LINKS = [
+  { href:'/',            label:'Lobby',        icon:'♠' },
+  { href:'/tournament',  label:'Tournaments',  icon:'🏆' },
+  { href:'/leaderboard', label:'Leaderboard',  icon:'◉' },
+  { href:'/stake',       label:'Stake',        icon:'◈' },
+  { href:'/buy',         label:'Buy CHIPS',    icon:'$' },
+  { href:'/handle',      label:'Handle',       icon:'@' },
+];
 
 export default function WalletBar() {
   const { address, isConnected, chipsBalance, isHuman,
@@ -14,10 +24,12 @@ export default function WalletBar() {
   const { myHandle } = useHandle();
   const { chainId, status: wagmiStatus } = useAccount();
   const { switchChain } = useSwitchChain();
+  const isMobile = useIsMobile();
   const [mounted, setMounted]         = useState(false);
   const [hasInjected, setHasInjected] = useState(false);
   const [siteUrl, setSiteUrl]         = useState('');
   const [showPicker, setShowPicker]   = useState(false);
+  const [menuOpen, setMenuOpen]       = useState(false);
   const [isInMiniApp, setIsInMiniApp] = useState(false);
 
   useEffect(() => {
@@ -78,30 +90,81 @@ export default function WalletBar() {
         </div>
       </Link>
 
-      {/* Nav */}
-      <nav style={{ display:'flex', gap:2, flex:1, justifyContent:'center' }}>
-        {[
-          { href:'/',            label:'Lobby' },
-          { href:'/tournament',  label:'Tournaments' },
-          { href:'/leaderboard', label:'Leaderboard' },
-          { href:'/stake',       label:'Stake' },
-          { href:'/buy',         label:'Buy CHIPS' },
-          { href:'/handle',      label:'Handle' },
-        ].map(({ href, label }) => (
+      {/* Desktop nav — hidden on mobile */}
+      <nav className="hide-mobile" style={{ display:'flex', gap:2, flex:1, justifyContent:'center' }}>
+        {NAV_LINKS.map(({ href, label }) => (
           <Link key={href} href={href} style={{
             color:'#6a9a6a', fontSize:12, fontWeight:600, letterSpacing:.2,
             padding:'5px 10px', borderRadius:6,
             border:'1px solid transparent', textDecoration:'none',
-            transition:'all .15s',
-            whiteSpace:'nowrap',
+            transition:'all .15s', whiteSpace:'nowrap',
           }}
           onMouseEnter={e => { e.currentTarget.style.color='#d4af37'; e.currentTarget.style.borderColor='#d4af3722'; }}
           onMouseLeave={e => { e.currentTarget.style.color='#6a9a6a'; e.currentTarget.style.borderColor='transparent'; }}>
-            <span className="hide-mobile">{label}</span>
-            <span className="show-mobile">{label.split(' ')[0]}</span>
+            {label}
           </Link>
         ))}
       </nav>
+
+      {/* Mobile hamburger — shown only on mobile */}
+      {isMobile && (
+        <>
+          {/* Backdrop */}
+          {menuOpen && (
+            <div onClick={() => setMenuOpen(false)}
+              style={{ position:'fixed', inset:0, zIndex:98, background:'rgba(0,0,0,.5)' }} />
+          )}
+
+          {/* Slide-down nav panel */}
+          {menuOpen && (
+            <div style={{
+              position:'fixed', top:58, left:0, right:0, zIndex:99,
+              background:'linear-gradient(180deg,#0a140a,#060e06)',
+              borderBottom:'1px solid #1a3a1a',
+              boxShadow:'0 8px 32px rgba(0,0,0,.6)',
+              display:'flex', flexDirection:'column',
+            }}>
+              {NAV_LINKS.map(({ href, label, icon }) => (
+                <Link key={href} href={href}
+                  onClick={() => setMenuOpen(false)}
+                  style={{
+                    display:'flex', alignItems:'center', gap:14,
+                    padding:'16px 24px',
+                    borderBottom:'1px solid #1a3a1a',
+                    textDecoration:'none', color:'#e8e0cc',
+                    fontSize:15, fontWeight:600,
+                  }}>
+                  <span style={{ fontSize:18, width:24, textAlign:'center' }}>{icon}</span>
+                  {label}
+                </Link>
+              ))}
+              {mounted && isConnected && (
+                <button onClick={() => { disconnect(); setMenuOpen(false); }} style={{
+                  display:'flex', alignItems:'center', gap:14,
+                  padding:'16px 24px',
+                  background:'transparent', border:'none', cursor:'pointer',
+                  color:'#c0392b', fontSize:15, fontWeight:600, fontFamily:'inherit',
+                  textAlign:'left',
+                }}>
+                  <span style={{ fontSize:18, width:24, textAlign:'center' }}>⏻</span>
+                  Disconnect
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Hamburger button */}
+          <button onClick={() => setMenuOpen(p => !p)} style={{
+            background: menuOpen ? '#1a3a1a' : 'transparent',
+            border:'1px solid #1a3a1a', borderRadius:8,
+            padding:'7px 10px', cursor:'pointer',
+            color:'#d4af37', fontSize:18, lineHeight:1,
+            flexShrink:0, transition:'all .15s',
+          }}>
+            {menuOpen ? '✕' : '☰'}
+          </button>
+        </>
+      )}
 
       {/* Wallet section */}
       <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
@@ -139,8 +202,8 @@ export default function WalletBar() {
               </div>
             )}
 
-            {/* CHIPS balance */}
-            <div style={{
+            {/* CHIPS balance — hidden on mobile to save space */}
+            <div className="hide-mobile" style={{
               background:'#0c1e0c', border:'1px solid #1a3a1a',
               borderRadius:8, padding:'5px 12px',
               display:'flex', alignItems:'center', gap:6,
@@ -154,19 +217,33 @@ export default function WalletBar() {
               </span>
             </div>
 
-            {/* Handle/Address + disconnect */}
-            <button onClick={disconnect} style={{
-              background:'#0c1e0c', border:'1px solid #1a3a1a',
-              borderRadius:8, padding:'5px 12px', cursor:'pointer',
-              color:'#8aaa8a', fontSize:11, fontFamily:'inherit', fontWeight:600,
-              display:'flex', alignItems:'center', gap:6,
-              transition:'all .15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor='#c0392b55'; e.currentTarget.style.color='#e74c3c'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor='#1a3a1a'; e.currentTarget.style.color='#8aaa8a'; }}>
-              <div style={{ width:6, height:6, borderRadius:'50%', background:'#27ae60', flexShrink:0 }} />
-              {displayName}
-            </button>
+            {/* Mobile: compact chip balance next to hamburger */}
+            {isMobile && chipsBalance != null && (
+              <div style={{
+                fontSize:12, color:'#d4af37', fontWeight:700,
+                fontFamily:"'JetBrains Mono',monospace",
+              }}>
+                ◈{chipsBalance >= 1000
+                  ? `${(chipsBalance/1000).toFixed(1)}K`
+                  : chipsBalance}
+              </div>
+            )}
+
+            {/* Handle/Address + disconnect — desktop only; mobile uses hamburger menu */}
+            {!isMobile && (
+              <button onClick={disconnect} style={{
+                background:'#0c1e0c', border:'1px solid #1a3a1a',
+                borderRadius:8, padding:'5px 12px', cursor:'pointer',
+                color:'#8aaa8a', fontSize:11, fontFamily:'inherit', fontWeight:600,
+                display:'flex', alignItems:'center', gap:6,
+                transition:'all .15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor='#c0392b55'; e.currentTarget.style.color='#e74c3c'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='#1a3a1a'; e.currentTarget.style.color='#8aaa8a'; }}>
+                <div style={{ width:6, height:6, borderRadius:'50%', background:'#27ae60', flexShrink:0 }} />
+                {displayName}
+              </button>
+            )}
           </>
         )}
 
