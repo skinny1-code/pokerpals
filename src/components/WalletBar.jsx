@@ -17,6 +17,7 @@ const NAV_LINKS = [
   { href:'/buy',         label:'Buy CHIPS',    icon:'$' },
   { href:'/handle',      label:'Handle',       icon:'@' },
 ];
+const MENU_ICON = { fontSize:18, width:24, textAlign:'center' };
 
 export default function WalletBar() {
   const { address, isConnected, chipsBalance, isHuman,
@@ -109,48 +110,45 @@ export default function WalletBar() {
       {/* Mobile hamburger — shown only on mobile */}
       {isMobile && (
         <>
-          {/* Backdrop */}
           {menuOpen && (
-            <div onClick={() => setMenuOpen(false)}
-              style={{ position:'fixed', inset:0, zIndex:98, background:'rgba(0,0,0,.5)' }} />
-          )}
-
-          {/* Slide-down nav panel */}
-          {menuOpen && (
-            <div style={{
-              position:'fixed', top:58, left:0, right:0, zIndex:99,
-              background:'linear-gradient(180deg,#0a140a,#060e06)',
-              borderBottom:'1px solid #1a3a1a',
-              boxShadow:'0 8px 32px rgba(0,0,0,.6)',
-              display:'flex', flexDirection:'column',
-            }}>
-              {NAV_LINKS.map(({ href, label, icon }) => (
-                <Link key={href} href={href}
-                  onClick={() => setMenuOpen(false)}
-                  style={{
+            <>
+              <div onClick={() => setMenuOpen(false)}
+                style={{ position:'fixed', inset:0, zIndex:98, background:'rgba(0,0,0,.5)' }} />
+              <div style={{
+                position:'fixed', top:58, left:0, right:0, zIndex:99,
+                background:'linear-gradient(180deg,#0a140a,#060e06)',
+                borderBottom:'1px solid #1a3a1a',
+                boxShadow:'0 8px 32px rgba(0,0,0,.6)',
+                display:'flex', flexDirection:'column',
+              }}>
+                {NAV_LINKS.map(({ href, label, icon }) => (
+                  <Link key={href} href={href}
+                    onClick={() => setMenuOpen(false)}
+                    style={{
+                      display:'flex', alignItems:'center', gap:14,
+                      padding:'16px 24px',
+                      borderBottom:'1px solid #1a3a1a',
+                      textDecoration:'none', color:'#e8e0cc',
+                      fontSize:15, fontWeight:600,
+                    }}>
+                    <span style={MENU_ICON}>{icon}</span>
+                    {label}
+                  </Link>
+                ))}
+                {mounted && isConnected && (
+                  <button onClick={() => { disconnect(); setMenuOpen(false); }} style={{
                     display:'flex', alignItems:'center', gap:14,
                     padding:'16px 24px',
-                    borderBottom:'1px solid #1a3a1a',
-                    textDecoration:'none', color:'#e8e0cc',
-                    fontSize:15, fontWeight:600,
+                    background:'transparent', border:'none', cursor:'pointer',
+                    color:'#c0392b', fontSize:15, fontWeight:600, fontFamily:'inherit',
+                    textAlign:'left',
                   }}>
-                  <span style={{ fontSize:18, width:24, textAlign:'center' }}>{icon}</span>
-                  {label}
-                </Link>
-              ))}
-              {mounted && isConnected && (
-                <button onClick={() => { disconnect(); setMenuOpen(false); }} style={{
-                  display:'flex', alignItems:'center', gap:14,
-                  padding:'16px 24px',
-                  background:'transparent', border:'none', cursor:'pointer',
-                  color:'#c0392b', fontSize:15, fontWeight:600, fontFamily:'inherit',
-                  textAlign:'left',
-                }}>
-                  <span style={{ fontSize:18, width:24, textAlign:'center' }}>⏻</span>
-                  Disconnect
-                </button>
-              )}
-            </div>
+                    <span style={MENU_ICON}>⏻</span>
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            </>
           )}
 
           {/* Hamburger button */}

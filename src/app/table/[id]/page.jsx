@@ -889,24 +889,20 @@ function TablePageInner() {
         </div>
       </div>
 
-      {/* Mobile drawer toggle — floating pill, hidden while the drawer is open */}
-      {isMobile && !drawerOpen && (
-        <button onClick={() => setDrawerOpen(true)} style={{
-          position:'fixed', top:50, right:10, zIndex:140,
-          background:'rgba(10,22,10,.92)', border:'1px solid var(--gold-dim)',
-          borderRadius:20, padding:'6px 14px', cursor:'pointer',
-          color:'var(--gold)', fontSize:11, fontWeight:700, fontFamily:'inherit',
-          letterSpacing:1, boxShadow:'0 2px 10px rgba(0,0,0,.5)',
-        }}>
-          ☰ Stacks &amp; Log
-        </button>
-      )}
-
-      {/* Mobile drawer backdrop — tap outside to close */}
-      {isMobile && drawerOpen && (
-        <div onClick={() => setDrawerOpen(false)} style={{
-          position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:145,
-        }} />
+      {/* Mobile: floating pill toggle (clear 58px header) or tap-to-close backdrop */}
+      {isMobile && (drawerOpen
+        ? <div onClick={() => setDrawerOpen(false)} style={{
+            position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:145,
+          }} />
+        : <button onClick={() => setDrawerOpen(true)} style={{
+            position:'fixed', top:58, right:10, zIndex:140,
+            background:'rgba(10,22,10,.92)', border:'1px solid var(--gold-dim)',
+            borderRadius:20, padding:'6px 14px', cursor:'pointer',
+            color:'var(--gold)', fontSize:11, fontWeight:700, fontFamily:'inherit',
+            letterSpacing:1, boxShadow:'0 2px 10px rgba(0,0,0,.5)',
+          }}>
+            ☰ Stacks &amp; Log
+          </button>
       )}
 
       <HandOverOverlay
