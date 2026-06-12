@@ -413,7 +413,7 @@ function TablePageInner() {
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData,
-    sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot,
+    sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot, botStatus,
   } = useTableSocket(id, tableConfig);
 
   const isMobile = useIsMobile();
@@ -615,15 +615,27 @@ function TablePageInner() {
                 </button>
                 <button
                   onClick={() => spawnBot()}
+                  disabled={botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated'}
                   style={{
-                    background:'linear-gradient(135deg,#1a2a3a,#0c1e2e)',
-                    border:'1px solid #4a7aaa66', borderRadius:8,
-                    padding:'10px 20px', cursor:'pointer',
-                    color:'#7ab4e0', fontSize:11, fontFamily:'inherit', fontWeight:700,
-                    letterSpacing:1,
+                    background: botStatus === 'seated' || botStatus === 'already_seated'
+                      ? 'linear-gradient(135deg,#0a2a1a,#060e06)'
+                      : 'linear-gradient(135deg,#1a2a3a,#0c1e2e)',
+                    border: `1px solid ${botStatus === 'seated' || botStatus === 'already_seated' ? '#27ae6066' : '#4a7aaa66'}`,
+                    borderRadius:8, padding:'10px 20px',
+                    cursor: botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated'
+                      ? 'not-allowed' : 'pointer',
+                    color: botStatus === 'seated' || botStatus === 'already_seated' ? '#27ae60'
+                         : botStatus === 'error' ? '#e74c3c' : '#7ab4e0',
+                    fontSize:11, fontFamily:'inherit', fontWeight:700, letterSpacing:1,
+                    opacity: botStatus === 'spawning' ? 0.7 : 1,
+                    transition:'all .2s',
                   }}
                 >
-                  + SPAWN BOT
+                  {botStatus === 'spawning'     ? '⏳ Spawning…'
+                   : botStatus === 'seated'     ? '✓ Bot Seated'
+                   : botStatus === 'already_seated' ? '✓ Bot Ready'
+                   : botStatus === 'error'      ? '✗ Failed'
+                   : '+ Spawn Bot'}
                 </button>
               </div>
               <div style={{ fontSize:9, color:'#3a6a3a', marginTop:10, letterSpacing:1 }}>

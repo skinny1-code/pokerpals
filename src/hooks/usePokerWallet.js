@@ -508,6 +508,7 @@ export function useTableSocket(tableId, tableConfig) {
   const [refundAvailable, setRefundAvailable] = useState(false);
   const [seatPickerData,  setSeatPickerData]  = useState(null); // { maxPlayers, takenSeats }
   const [reconnectKey,    setReconnectKey]    = useState(0);
+  const [botStatus,       setBotStatus]       = useState(null); // null | 'spawning' | 'seated' | 'already_seated' | 'error'
   const wsRef           = useRef(null);
   const authCacheRef    = useRef(null);
   const authFailedRef   = useRef(false); // set true on sign dismiss — breaks infinite reconnect loop
@@ -601,8 +602,14 @@ export function useTableSocket(tableId, tableConfig) {
           case 'TABLE_LIST':
             setTableList(msg.tables || []);
             break;
+          case 'BOT_STATUS':
+            setBotStatus(msg.status); // 'seated' | 'already_seated'
+            break;
           case 'ERROR':
             setWsError(msg.error);
+            if (msg.error?.toLowerCase().includes('bot') || msg.error?.toLowerCase().includes('seat')) {
+              setBotStatus('error');
+            }
             break;
         }
       } catch {}
@@ -649,8 +656,10 @@ export function useTableSocket(tableId, tableConfig) {
   }, [tableId, tableConfig]);
 
   const spawnBot = useCallback((buyInAmount) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN)
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      setBotStatus('spawning');
       wsRef.current.send(JSON.stringify({ type: 'SPAWN_BOT', payload: { tableId, buyIn: buyInAmount } }));
+    }
   }, [tableId]);
 
   return {
@@ -658,7 +667,7 @@ export function useTableSocket(tableId, tableConfig) {
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData,
-    sendAction, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat, spawnBot,
+    sendAction, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat, spawnBot, botStatus,
   };
 }
 
