@@ -202,15 +202,27 @@ export default function StakePage() {
     <div style={{ minHeight: '100vh', background: 'var(--bg-deep)' }}>
       <WalletBar />
 
-      <div style={{ maxWidth: 800, margin: '0 auto', padding: '32px 16px' }}>
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ fontSize: 11, color: '#3a6a3a', letterSpacing: 3, marginBottom: 8 }}>VIP TIERS</div>
-          <h1 style={{ fontSize: 28, color: '#d4af37', fontWeight: 700, marginBottom: 8,
-            fontFamily: "'Playfair Display',serif" }}>Stake CHIPS, Play Better Poker</h1>
-          <p style={{ fontSize: 12, color: '#5a8a5a', maxWidth: 560 }}>
-            Lock CHIPS to reduce your rake rate and earn passive yield. Higher tier = less rake every hand.
+      {/* Hero */}
+      <div className="page-hero">
+        <div style={{ maxWidth:800, margin:'0 auto', position:'relative', zIndex:1 }}>
+          <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:3, marginBottom:10, fontWeight:700 }}>
+            VIP TIERS
+          </div>
+          <h1 style={{
+            fontSize:36, color:'#d4af37', fontWeight:700, marginBottom:10,
+            fontFamily:"'Playfair Display',serif",
+            textShadow:'0 0 40px rgba(212,175,55,.2)',
+          }}>
+            Stake CHIPS, Play Better Poker
+          </h1>
+          <p style={{ fontSize:13, color:'#5a8a5a', maxWidth:520, lineHeight:1.7 }}>
+            Lock CHIPS to reduce your rake rate and earn passive yield.
+            Higher tier = less rake every hand.
           </p>
         </div>
+      </div>
+
+      <div style={{ maxWidth: 800, margin: '0 auto', padding: '28px 16px' }}>
 
         {/* Stats bar */}
         {mounted && isConnected && (

@@ -57,8 +57,9 @@ export default function WalletBar() {
 
   return (
     <header style={{
-      background: 'linear-gradient(180deg,#0a140a 0%,rgba(6,14,6,.96) 100%)',
+      background: 'linear-gradient(180deg,#0b160b 0%,rgba(6,14,6,.97) 100%)',
       borderBottom: '1px solid #1a3a1a',
+      boxShadow: '0 1px 24px rgba(0,0,0,.5)',
       padding: '0 20px',
       height: 58,
       display: 'flex',
@@ -67,7 +68,7 @@ export default function WalletBar() {
       position: 'sticky',
       top: 0,
       zIndex: 100,
-      backdropFilter: 'blur(12px)',
+      backdropFilter: 'blur(16px)',
       gap: 12,
     }}>
 
