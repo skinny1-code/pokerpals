@@ -21,7 +21,8 @@ const MENU_ICON = { fontSize:18, width:24, textAlign:'center' };
 
 export default function WalletBar() {
   const { address, isConnected, chipsBalance, isHuman,
-          connectMetaMask, connectWalletConnect, connectFarcaster, disconnect } = useWallet();
+          connectMetaMask, connectWalletConnect, connectFarcaster, disconnect,
+          connectStatus, connectError } = useWallet();
   const { myHandle } = useHandle();
   const { chainId, status: wagmiStatus } = useAccount();
   const { switchChain } = useSwitchChain();
@@ -48,7 +49,9 @@ export default function WalletBar() {
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function pick(fn) { fn(); setShowPicker(false); }
+  // Don't close the picker on click — keep it open so the "Connecting…"/error
+  // state is visible. On a successful connect the whole block unmounts (isConnected).
+  function pick(fn) { fn(); }
 
   const short = a => a ? `${a.slice(0,6)}…${a.slice(-4)}` : '';
   const wrongNet = mounted && isConnected && chainId && chainId !== EXPECTED;
@@ -313,12 +316,35 @@ export default function WalletBar() {
                     <WalletOption
                       icon="🔗"
                       label="WalletConnect"
-                      sub="Scan QR code"
+                      sub="Other wallets / mobile"
                       onClick={() => pick(connectWalletConnect)}
                     />
                   )}
 
+                  {/* Connecting / error feedback — turns a silent failure into something visible */}
+                  {connectStatus === 'pending' && (
+                    <div style={{ display:'flex', alignItems:'center', gap:8,
+                      padding:'8px 12px', color:'#d4af37', fontSize:11, fontWeight:600 }}>
+                      <span style={{ width:6, height:6, borderRadius:'50%', background:'#d4af37',
+                        animation:'live-dot 1s infinite' }} />
+                      Connecting… approve in your wallet
+                    </div>
+                  )}
+                  {connectStatus === 'error' && connectError && (
+                    <div style={{ padding:'8px 12px', color:'#e74c3c', fontSize:11,
+                      lineHeight:1.4, wordBreak:'break-word' }}>
+                      {connectError.shortMessage || connectError.message || 'Connection failed'}
+                    </div>
+                  )}
 
+                  {/* Explain the missing option instead of silently omitting it */}
+                  {!HAS_WC && !isInMiniApp && (
+                    <div style={{ padding:'6px 12px', color:'#3a6a3a', fontSize:9,
+                      letterSpacing:.3, lineHeight:1.4 }}>
+                      WalletConnect not configured — set NEXT_PUBLIC_WC_PROJECT_ID to enable
+                      mobile wallets.
+                    </div>
+                  )}
                 </div>
               </>
             )}
