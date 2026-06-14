@@ -1,6 +1,6 @@
 # Fly.io config for the PokerVsPals WebSocket game server.
 # Deploy: fly launch --no-deploy  (first time, creates the app)
-#         fly deploy               (subsequent deploys)
+#         fly deploy               (subsequent deploys — or trigger via GitHub Actions)
 # Secrets: fly secrets set OPERATOR_PRIVATE_KEY=... (see below)
 
 app = "pokerpals-server"
