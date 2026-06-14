@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:clean": "rm -rf .next && next dev",
-    "build": "next build",
+    "build": "NODE_ENV=production next build",
     "start": "next start",
     "server": "node --env-file=.env server/index.js",
     "oracle": "node --env-file=.env server/antiBotOracle.js",
@@ -24,7 +24,9 @@
   "dependencies": {
     "@farcaster/miniapp-sdk": "^0.3.0",
     "@farcaster/miniapp-wagmi-connector": "^2.0.0",
+    "@neynar/react": "^1.2.22",
     "@openzeppelin/contracts": "^5.0.0",
+    "@pigment-css/react": "^0.0.31",
     "@tanstack/react-query": "^5.51.0",
     "@vercel/analytics": "^2.0.1",
     "ethers": "^6.13.0",

@@ -127,6 +127,7 @@ function BetSlider({ min, max, value, onChange, bigBlind }) {
 
 export default function BettingControls({
   isActive = false,
+  inGame = false,
   canCheck = false,
   callAmount = 0,
   minRaise = 0,
@@ -158,14 +159,36 @@ export default function BettingControls({
     }
   }, [showRaise, raiseAmount, onRaise]);
 
-  if (!isActive) return null;
+  if (!isActive) {
+    if (!inGame) return null;
+    // Dimmed placeholder so layout stays stable during opponent's turn
+    return (
+      <div className="betting-controls betting-controls-bar" style={{
+        position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+        width: '100%', maxWidth: 640,
+        background: 'linear-gradient(0deg, rgba(6,14,6,.98) 0%, rgba(6,14,6,.7) 100%)',
+        padding: '12px 20px 20px', zIndex: 100,
+        display: 'flex', justifyContent: 'center', gap: 8,
+      }}>
+        {['FOLD', 'CHECK', 'RAISE'].map(label => (
+          <div key={label} style={{
+            background: '#060e06', border: '1px solid #0a150a',
+            borderRadius: 8, padding: '10px 16px',
+            color: '#0f1f0f', fontSize: 13, fontWeight: 700,
+            fontFamily: "'JetBrains Mono', monospace",
+            minWidth: 80, textAlign: 'center', userSelect: 'none',
+          }}>{label}</div>
+        ))}
+      </div>
+    );
+  }
 
   const potOdds = callAmount > 0 && pot > 0
     ? `${Math.round((callAmount / (pot + callAmount)) * 100)}%`
     : null;
 
   return (
-    <div style={{
+    <div className="betting-controls betting-controls-bar" style={{
       position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
       width: '100%', maxWidth: 640,
       background: 'linear-gradient(0deg, rgba(6,14,6,.98) 0%, rgba(6,14,6,.85) 80%, transparent 100%)',

@@ -1,8 +1,21 @@
 import './globals.css';
 import { Providers } from './providers';
-import { Analytics } from '@vercel/analytics/next';
+import AppErrorBoundary from '../components/AppErrorBoundary';
+import ErrorMonitorMount from '../components/ErrorMonitorMount';
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
+
+// Mobile-first viewport: render at device width, cover the notch so the
+// safe-area-inset padding in globals.css takes effect, and lock zoom for an
+// app-like feel during play.
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: '#060e06',
+};
 
 export const metadata = {
   title: 'PokerVsPals — Onchain Crypto Poker',
@@ -38,10 +51,12 @@ export default function RootLayout({ children }) {
         <link rel="icon" href="/icon.png" />
       </head>
       <body>
-        <Providers>
-          {children}
-        </Providers>
-        <Analytics />
+        <AppErrorBoundary>
+          <Providers>
+            <ErrorMonitorMount />
+            {children}
+          </Providers>
+        </AppErrorBoundary>
       </body>
     </html>
   );

@@ -138,6 +138,7 @@ async function main() {
   console.log("  Fully on-chain SVG — no IPFS needed");
 
   // Save deployment manifest
+  const deployBlock = await ethers.provider.getBlockNumber();
   const deplDir = path.resolve(__dirname, "../deployments");
   if (!fs.existsSync(deplDir)) fs.mkdirSync(deplDir, { recursive: true });
   fs.writeFileSync(
@@ -147,6 +148,7 @@ async function main() {
       chainId: CHAIN_IDS[networkName],
       deployedAt: new Date().toISOString(),
       deployer: deployer.address,
+      deployBlock,
       contracts: {
         ChipsToken:        tokenAddr,
         ChipsStaking:      stakingAddr,

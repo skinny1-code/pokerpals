@@ -7,17 +7,26 @@ import { createConfig, http, useAccount, useConnect, useDisconnect,
          useBalance, useSignMessage, usePublicClient } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
-import { injected, walletConnect, coinbaseWallet } from "wagmi/connectors";
+import { injected, walletConnect } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import { parseUnits, formatUnits, parseAbiItem } from "viem";
+
+// ─── WS URL HELPER ─────────────────────────────────────────────────────────────
+// Upgrades ws:// → wss:// when the page is served over https (avoids mixed-content block).
+export function safeWsUrl(url) {
+  if (!url) return url;
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return url.replace(/^ws:\/\//, 'wss://');
+  }
+  return url;
+}
 
 // ─── WAGMI CONFIG (export and wrap your app in <WagmiProvider config={wagmiConfig}>) ──
 const _wcProjectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 const _connectors = [
-  farcasterMiniApp(),   // auto-connects when running inside Farcaster / Base mini app
-  injected(),
+  injected(),           // MetaMask / injected wallets — try first so mobile in-app browsers work
   ...(_wcProjectId ? [walletConnect({ projectId: _wcProjectId })] : []),
-  coinbaseWallet({ appName: 'PokerVsPals' }),
+  farcasterMiniApp(),   // auto-connects when running inside Farcaster / Base mini app (last)
 ];
 
 export const wagmiConfig = createConfig({
@@ -145,6 +154,8 @@ export const HANDLE_ABI = [
     inputs:[], outputs:[{type:"uint256"}] },
   { name:"totalBurned", type:"function", stateMutability:"view",
     inputs:[], outputs:[{type:"uint256"}] },
+  { name:"tokenURI", type:"function", stateMutability:"view",
+    inputs:[{name:"tokenId",type:"uint256"}], outputs:[{type:"string"}] },
   { name:"HandleMinted", type:"event",
     inputs:[
       {name:"player",type:"address",indexed:true},
@@ -219,7 +230,6 @@ export function useWallet() {
     if (wc) connect({ connector: wc });
     else alert('WalletConnect is not configured. Set NEXT_PUBLIC_WC_PROJECT_ID.');
   };
-  const connectCoinbase      = () => connect({ connector: connectors.find(c => c.id === 'coinbaseWalletSDK') });
   const connectFarcaster     = () => connect({ connector: connectors.find(c => c.id === 'farcasterMiniApp') });
 
   return {
@@ -232,7 +242,6 @@ export function useWallet() {
     isHuman: !!isHuman,
     connectMetaMask,
     connectWalletConnect,
-    connectCoinbase,
     connectFarcaster,
     disconnect,
   };
@@ -242,6 +251,7 @@ export function useWallet() {
 export function useStaking() {
   const { address }            = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const publicClient           = usePublicClient();
   const [txHash, setTxHash]    = useState(null);
   const [status, setStatus]    = useState('idle');
 
@@ -272,33 +282,42 @@ export function useStaking() {
     if (!address || !STAKING) return;
     try {
       setStatus('approving');
-      const amountBN = parseUnits(String(amount), 18);
-      await writeContractAsync({
+      const chipsInt = Math.round(Number(amount));
+      if (!chipsInt || chipsInt <= 0) { setStatus('error'); return; }
+      const amountBN = parseUnits(String(chipsInt), 18);
+      const approveFees = await safeFeeOverrides(publicClient);
+      const approveTx = await writeContractAsync({
         address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
-        args: [STAKING, amountBN],
+        args: [STAKING, amountBN], ...approveFees,
       });
+      await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
       setStatus('staking');
+      // Recompute fees after approve confirms so gas estimate has correct allowance
+      const stakeFees = await safeFeeOverrides(publicClient);
       const tx = await writeContractAsync({
         address: STAKING, abi: STAKING_ABI, functionName: "stake",
-        args: [amountBN],
+        args: [amountBN], ...stakeFees,
       });
+      await waitForTransactionReceipt(wagmiConfig, { hash: tx, timeout: 60_000 });
       setTxHash(tx);
       setStatus('idle');
       return tx;
-    } catch { setStatus('error'); }
-  }, [address, writeContractAsync]);
+    } catch (e) { console.error('stake error:', e); setStatus('error'); }
+  }, [address, writeContractAsync, publicClient]);
 
   const unstake = useCallback(async (amount) => {
     if (!address || !STAKING) return;
     try {
       setStatus('unstaking');
+      const chipsInt = Math.round(Number(amount));
+      const feeOverrides = await safeFeeOverrides(publicClient);
       const tx = await writeContractAsync({
         address: STAKING, abi: STAKING_ABI, functionName: "unstake",
-        args: [parseUnits(String(amount), 18)],
+        args: [parseUnits(String(chipsInt), 18)], ...feeOverrides,
       });
       setTxHash(tx); setStatus('idle'); return tx;
-    } catch { setStatus('error'); }
-  }, [address, writeContractAsync]);
+    } catch (e) { console.error('unstake error:', e); setStatus('error'); }
+  }, [address, writeContractAsync, publicClient]);
 
   const claimYield = useCallback(async () => {
     if (!address || !STAKING) return;
@@ -347,7 +366,7 @@ export function useEscrow(tableId) {
     if (!address || !tableId) return;
     try {
       setStatus('approving');
-      const amountBN    = parseUnits(String(buyInAmount), 18);
+      const amountBN    = parseUnits(Math.round(Number(buyInAmount)).toString(), 18);
       const seatFeeAmt  = seatFeeRef.current; // 0 for open tables, >0 for leased tables
       const feeOverrides = await safeFeeOverrides(publicClient);
       // Step 1: Approve escrow to spend only what's needed
@@ -393,7 +412,7 @@ export function useEscrow(tableId) {
     if (!address || !tableId) return;
     try {
       setStatus('approving');
-      const amountBN = parseUnits(String(amount), 18);
+      const amountBN = parseUnits(Math.round(Number(amount)).toString(), 18);
       const feeOverrides = await safeFeeOverrides(publicClient);
       const approveTx = await writeContractAsync({
         address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
@@ -483,7 +502,7 @@ function clearAuthCache() {
 export function useTableSocket(tableId, tableConfig) {
   const { address }          = useAccount();
   const { signMessageAsync } = useSignMessage();
-  const serverUrl            = process.env.NEXT_PUBLIC_WS_URL;
+  const serverUrl            = safeWsUrl(process.env.NEXT_PUBLIC_WS_URL);
 
   const [gameState,       setGameState]       = useState(null);
   const [handOver,        setHandOver]        = useState(null);
@@ -496,6 +515,7 @@ export function useTableSocket(tableId, tableConfig) {
   const [refundAvailable, setRefundAvailable] = useState(false);
   const [seatPickerData,  setSeatPickerData]  = useState(null); // { maxPlayers, takenSeats }
   const [reconnectKey,    setReconnectKey]    = useState(0);
+  const [botStatus,       setBotStatus]       = useState(null); // null | 'spawning' | 'seated' | 'already_seated' | 'error'
   const wsRef           = useRef(null);
   const authCacheRef    = useRef(null);
   const authFailedRef   = useRef(false); // set true on sign dismiss — breaks infinite reconnect loop
@@ -506,7 +526,15 @@ export function useTableSocket(tableId, tableConfig) {
     if (!serverUrl || !address) return;
 
     setWsStatus('connecting');
-    const ws = new WebSocket(serverUrl);
+    let ws;
+    try {
+      ws = new WebSocket(serverUrl);
+    } catch (err) {
+      console.error('[useTableSocket] WebSocket creation failed:', err);
+      setWsError('Unable to connect to game server');
+      setWsStatus('disconnected');
+      return;
+    }
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -553,7 +581,6 @@ export function useTableSocket(tableId, tableConfig) {
           case 'GAME_STATE': {
             setGameState(msg.state);
             setSeatPickerData(null); // seated — dismiss picker
-            setHandOver(null);
             if (msg.state && address) {
               const hero = msg.state.players?.find(
                 p => p.addr?.toLowerCase() === address.toLowerCase()
@@ -582,15 +609,22 @@ export function useTableSocket(tableId, tableConfig) {
             setRefundAvailable(true);
             break;
           case 'SEAT_PICKER':
-            setSeatPickerData({ maxPlayers: msg.maxPlayers, takenSeats: msg.takenSeats || [] });
+            setSeatPickerData({ maxPlayers: msg.maxPlayers, takenSeats: msg.takenSeats || [],
+              minBuyIn: msg.minBuyIn, maxBuyIn: msg.maxBuyIn });
             break;
           case 'REBUY_OK':
             break;
           case 'TABLE_LIST':
             setTableList(msg.tables || []);
             break;
+          case 'BOT_STATUS':
+            setBotStatus(msg.status); // 'seated' | 'already_seated'
+            break;
           case 'ERROR':
             setWsError(msg.error);
+            if (msg.error?.toLowerCase().includes('bot') || msg.error?.toLowerCase().includes('seat')) {
+              setBotStatus('error');
+            }
             break;
         }
       } catch {}
@@ -631,17 +665,24 @@ export function useTableSocket(tableId, tableConfig) {
       wsRef.current.send(JSON.stringify({ type: 'LIST_TABLES' }));
   }, []);
 
-  const joinWithSeat = useCallback((seatIndex) => {
+  const joinWithSeat = useCallback((seatIndex, buyInAmount) => {
     if (wsRef.current?.readyState === WebSocket.OPEN)
-      wsRef.current.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, seatIndex, config: tableConfig || undefined } }));
+      wsRef.current.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, seatIndex, buyInAmount: buyInAmount || undefined, config: tableConfig || undefined } }));
   }, [tableId, tableConfig]);
+
+  const spawnBot = useCallback((buyInAmount) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      setBotStatus('spawning');
+      wsRef.current.send(JSON.stringify({ type: 'SPAWN_BOT', payload: { tableId, buyIn: buyInAmount } }));
+    }
+  }, [tableId]);
 
   return {
     gameState, handOver, tableList, wsStatus, wsError,
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData,
-    sendAction, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat,
+    sendAction, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat, spawnBot, botStatus,
   };
 }
 
@@ -675,8 +716,8 @@ export function useCreateTable() {
     }
     setStatus('pending');
     try {
-      const buyInBN    = parseUnits(String(buyIn), 18);
-      const bigBlindBN = parseUnits(String(bigBlind), 18);
+      const buyInBN    = parseUnits(Math.round(Number(buyIn)).toString(), 18);
+      const bigBlindBN = parseUnits(Math.round(Number(bigBlind)).toString(), 18);
       const feeOverrides = await safeFeeOverrides(publicClient);
       const hash = await writeContractAsync({
         address: ESCROW, abi: ESCROW_ABI, functionName: 'createTable',
@@ -822,6 +863,48 @@ export function useHandleMap(addresses) {
   }, [data, cleaned]);
 }
 
+// ─── HOOK: HANDLE AVATARS (on-chain NFT image per address) ───────────────────
+export function useHandleAvatars(addresses) {
+  const cleaned = useMemo(() => (addresses || []).filter(Boolean), [addresses?.join(',')]);
+
+  const { data: tokenIdData } = useReadContracts({
+    contracts: cleaned.map(addr => ({
+      address: HANDLE, abi: HANDLE_ABI,
+      functionName: 'ownerTokenId', args: [addr],
+    })),
+    query: { enabled: !!HANDLE && cleaned.length > 0 },
+  });
+
+  const validEntries = useMemo(() => {
+    if (!tokenIdData) return [];
+    return cleaned.map((addr, i) => {
+      const tokenId = tokenIdData[i]?.result;
+      return tokenId && tokenId > 0n ? { addr, tokenId } : null;
+    }).filter(Boolean);
+  }, [tokenIdData, cleaned]);
+
+  const { data: uriData } = useReadContracts({
+    contracts: validEntries.map(({ tokenId }) => ({
+      address: HANDLE, abi: HANDLE_ABI,
+      functionName: 'tokenURI', args: [tokenId],
+    })),
+    query: { enabled: validEntries.length > 0 },
+  });
+
+  return useMemo(() => {
+    const map = {};
+    validEntries.forEach(({ addr }, i) => {
+      const uri = uriData?.[i]?.result;
+      if (!uri) return;
+      try {
+        const json = JSON.parse(atob(uri.replace('data:application/json;base64,', '')));
+        if (json.image) map[addr.toLowerCase()] = json.image;
+      } catch {}
+    });
+    return map;
+  }, [uriData, validEntries]);
+}
+
 // ─── HOOK: LEADERBOARD (handle holders sorted by staked CHIPS) ───────────────
 export function useLeaderboard() {
   const publicClient = usePublicClient();
@@ -832,15 +915,20 @@ export function useLeaderboard() {
     if (!HANDLE || !STAKING || !publicClient) return;
     let cancelled = false;
     setLoading(true);
-    const deployBlock = process.env.NEXT_PUBLIC_DEPLOY_BLOCK
-      ? BigInt(process.env.NEXT_PUBLIC_DEPLOY_BLOCK)
-      : 0n;
     (async () => {
       try {
+        let fromBlock;
+        if (process.env.NEXT_PUBLIC_DEPLOY_BLOCK) {
+          fromBlock = BigInt(process.env.NEXT_PUBLIC_DEPLOY_BLOCK);
+        } else {
+          // No deploy block known — cap to last 500K blocks to stay within Alchemy limits
+          const latest = await publicClient.getBlockNumber();
+          fromBlock = latest > 500_000n ? latest - 500_000n : 0n;
+        }
         const logs = await publicClient.getLogs({
           address: HANDLE,
           event: parseAbiItem('event HandleMinted(address indexed player, uint256 indexed tokenId, string handle, uint256 burned)'),
-          fromBlock: deployBlock,
+          fromBlock,
         });
         if (cancelled) return;
         const addrMap = {};
@@ -975,7 +1063,13 @@ export function useGameSocket(serverUrl, address, onMessage) {
 
   useEffect(() => {
     if (!serverUrl || !address) return;
-    const ws = new WebSocket(serverUrl);
+    let ws;
+    try {
+      ws = new WebSocket(safeWsUrl(serverUrl));
+    } catch (err) {
+      console.error('[useGameSocket] WebSocket creation failed:', err);
+      return;
+    }
     wsRef.current = ws;
     ws.onopen    = () => setReady(true);
     ws.onmessage = (e) => { try { onMessage(JSON.parse(e.data)); } catch {} };

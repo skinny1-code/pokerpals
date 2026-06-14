@@ -98,21 +98,26 @@ export default function LeaderboardPage() {
     <div style={{ minHeight:'100vh', background:'var(--bg-deep)' }}>
       <WalletBar />
 
-      <div style={{ maxWidth:900, margin:'0 auto', padding:'32px 16px' }}>
-
-        {/* Header */}
-        <div style={{ marginBottom:24 }}>
-          <div style={{ fontSize:11, color:'#3a6a3a', letterSpacing:3, marginBottom:8 }}>
+      {/* Hero */}
+      <div className="page-hero">
+        <div style={{ maxWidth:900, margin:'0 auto', position:'relative', zIndex:1 }}>
+          <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:3, marginBottom:10, fontWeight:700 }}>
             HALL OF FAME
           </div>
-          <h1 style={{ fontSize:28, color:'#d4af37', fontWeight:700,
-            fontFamily:"'Playfair Display',serif" }}>
+          <h1 style={{
+            fontSize:36, color:'#d4af37', fontWeight:700,
+            fontFamily:"'Playfair Display',serif",
+            textShadow:'0 0 40px rgba(212,175,55,.2)', marginBottom:8,
+          }}>
             Leaderboard
           </h1>
-          <div style={{ fontSize:11, color:'#3a6a3a', marginTop:4 }}>
+          <div style={{ fontSize:12, color:'#4a7a4a' }}>
             Ranked by CHIPS staked · VIP tier determines rake discount
           </div>
         </div>
+      </div>
+
+      <div style={{ maxWidth:900, margin:'0 auto', padding:'28px 16px' }}>
 
         {/* Top 3 podium — only shown when data loaded */}
         {!loading && top3.length >= 3 && (

@@ -36,8 +36,12 @@ const PASSPORT_API = process.env.GITCOIN_PASSPORT_API;
 const SCORER_ID    = process.env.GITCOIN_SCORER_ID;
 
 // ─── CHAIN SETUP ─────────────────────────────────────────────────────────────
-const provider = new ethers.JsonRpcProvider(RPC_URL);
-const operator = new ethers.Wallet(OPERATOR_KEY, provider);
+const provider   = new ethers.JsonRpcProvider(RPC_URL);
+const operator   = new ethers.Wallet(OPERATOR_KEY, provider);
+
+// ─── IN-PROCESS BOT ──────────────────────────────────────────────────────────
+const BOT_KEY  = process.env.OPS_WALLET_KEY;
+const BOT_ADDR = BOT_KEY ? new ethers.Wallet(BOT_KEY).address.toLowerCase() : null;
 
 const ESCROW_ABI = [
   "function settle(uint256,uint256,address[],uint256[],bytes) external",
@@ -270,6 +274,9 @@ class PokerTable {
     const p = this.players[idx];
     if (p.folded || this.phase === 'showdown') return { error: 'Action not allowed' };
 
+    const VALID_ACTIONS = ['fold','check','call','raise','allin'];
+    if (!VALID_ACTIONS.includes(action)) return { error: 'Invalid action' };
+
     const due = Math.max(0, this.maxBet - p.bet);
 
     if (action === 'fold') {
@@ -419,8 +426,8 @@ const clients = new Map(); // ws => { addr, tableId }
 
 // Pre-seeded permanent tables — always available, reset (not deleted) when empty
 const SEED_TABLES = [
-  { id: 9001n, name: 'Micro — NLH 2-Max',      buyIn: 1000, bigBlind: 20, maxPlayers: 2, gameType: 0 },
-  { id: 9002n, name: 'High Stakes — NLH 2-Max', buyIn: 5000, bigBlind: 50, maxPlayers: 2, gameType: 0 },
+  { id: 9001n, name: 'Micro — NLH 2-Max',      buyIn: 1000, minBuyIn: 1000, maxBuyIn: 10000, bigBlind: 20, maxPlayers: 2, gameType: 0 },
+  { id: 9002n, name: 'High Stakes — NLH 2-Max', buyIn: 5000, minBuyIn: 5000, maxBuyIn: 50000, bigBlind: 50, maxPlayers: 2, gameType: 0 },
 ];
 for (const { id, name, ...config } of SEED_TABLES) {
   const t = new PokerTable(id, config);
@@ -432,13 +439,42 @@ console.log(`[Server] Seeded ${SEED_TABLES.length} permanent tables`);
 
 const server = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Public lobby data is open CORS; everything else is restricted to the frontend origin.
+  if (req.url === '/tables') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_ORIGIN || '');
+  }
   if (req.url === '/tables') {
     const list = [...tables.values()].map(t => ({
       id: String(t.id), name: t.name || null, config: t.config, seated: t.players.length, phase: t.phase,
     }));
     res.writeHead(200);
     res.end(JSON.stringify({ tables: list }));
+  } else if (req.url?.startsWith('/spawn-bot')) {
+    const secret = req.headers['x-bot-secret'];
+    if (!process.env.BOT_API_SECRET || secret !== process.env.BOT_API_SECRET) {
+      res.writeHead(401); return res.end('{"error":"Unauthorized"}');
+    }
+    const url    = new URL(req.url, 'http://x');
+    const tidKey = url.searchParams.get('tableId') || '9001';
+    const buyIn  = Number(url.searchParams.get('buyIn') || 1000);
+    const t = tables.get(tidKey);
+    if (!t)       { res.writeHead(404); return res.end('{"error":"table not found"}'); }
+    if (!BOT_ADDR){ res.writeHead(503); return res.end('{"error":"OPS_WALLET_KEY not configured"}'); }
+    if (t.players.find(p => p.isBot)) { return res.end('{"status":"bot already seated"}'); }
+    const min = t.config.minBuyIn ?? t.config.buyIn;
+    const max = t.config.maxBuyIn ?? t.config.buyIn;
+    const amt = Math.max(min, Math.min(max, buyIn));
+    const seated = t.seat({ addr: BOT_ADDR, ws: null, isBot: true, onChainDeposit: amt }, null);
+    if (!seated) { res.writeHead(400); return res.end('{"error":"could not seat bot"}'); }
+    console.log(`[Bot] In-process bot spawned at table ${tidKey} with ${amt} chips`);
+    broadcastTable(t);
+    if (t.players.length >= 2 && t.phase === 'waiting') {
+      t.isActive = true;
+      setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
+    }
+    res.end(JSON.stringify({ status: 'ok', addr: BOT_ADDR, chips: amt }));
   } else {
     res.writeHead(200);
     res.end(JSON.stringify({ service: 'PokerVsPals WS', tables: tables.size }));
@@ -456,6 +492,25 @@ function broadcastTable(t) {
     if (p.ws?.readyState === WebSocket.OPEN)
       send(p.ws, { type: 'GAME_STATE', state: t.pubState(p.addr) });
   });
+  maybeBotAct(t);
+}
+
+function maybeBotAct(t) {
+  if (!BOT_ADDR || t.botActPending) return;
+  const bot = t.players.find(p => p.isBot);
+  if (!bot || bot.folded) return;
+  const active = t.phase !== 'waiting' && t.phase !== 'showdown' ? t.players[t.actionIdx] : null;
+  if (!active || active.addr?.toLowerCase() !== BOT_ADDR) return;
+  t.botActPending = true;
+  setTimeout(async () => {
+    t.botActPending = false;
+    const callAmt = Math.max(0, (t.maxBet || 0) - (bot.bet || 0));
+    const action  = callAmt === 0 ? 'check' : 'call';
+    console.log(`[Bot] ${action}${callAmt > 0 ? ` ${callAmt}` : ''} at table ${t.id}`);
+    const result = t.applyAction(BOT_ADDR, action, callAmt);
+    broadcastTable(t);
+    if (result?.winners) await handleHandOver(t, result);
+  }, 800);
 }
 function broadcastToTable(t, msg) {
   t.players.forEach(p => send(p.ws, msg));
@@ -511,6 +566,7 @@ async function signAndRemovePlayer(t, addr, ws) {
     t.foldPlayer(addr);
     const result = t.advance();
     if (result?.winners) {
+      broadcastTable(t); // broadcast showdown state before hand-over
       try { await handleHandOver(t, result); }
       catch (e) { console.error('[Server] handleHandOver in signAndRemovePlayer:', e.message); }
     }
@@ -575,7 +631,7 @@ async function handleHandOver(t, result) {
   broadcastToTable(t, {
     type:      'HAND_OVER',
     winners:   result.winners,
-    results:   result.results.map(r => ({ addr: r.p.addr, hand: r.h.n })),
+    results:   result.results.map(r => ({ addr: r.p.addr, hand: r.h.n, cards: r.p.hand || [] })),
     pot:       result.pot,
     sig,
     tableId:   String(t.id),
@@ -595,10 +651,21 @@ async function handleHandOver(t, result) {
   }
 
   setTimeout(() => {
+    // Remove bust players (0 chips) before the next hand
+    const busted = t.players.filter(p => p.chips <= 0);
+    t.players = t.players.filter(p => p.chips > 0);
+    for (const p of busted) {
+      console.log(`[Server] Player ${p.addr?.slice(0,10)} busted — removed from table ${t.id}`);
+    }
     if (t.players.length < 2) { t.phase = 'waiting'; broadcastTable(t); return; }
     t.handNonce++;
     t.dealerIdx = (t.dealerIdx + 1) % t.players.length;
-    t.start();
+    try {
+      t.start();
+    } catch (e) {
+      console.error(`[Server] t.start() error in hand restart:`, e.message);
+      t.phase = 'waiting';
+    }
     broadcastTable(t);
   }, 6000);
 }
@@ -616,7 +683,12 @@ wss.on('connection', (ws, req) => {
     const { type, payload } = msg;
     const client = clients.get(ws);
     if (!client) return;
-    console.log(`[WS] ← ${type}`, payload?.tableId ? `tableId=${payload.tableId}` : payload?.address ? `addr=${payload.address.slice(0,10)}` : '');
+    // Sanitize attacker-controlled fields before logging to prevent ANSI/control-char console spoofing.
+    const clean = s => String(s).replace(/[^\x20-\x7E]/g, '?').slice(0, 42);
+    const safeType = clean(type).slice(0, 32);
+    const safeDetail = payload?.tableId ? `tableId=${clean(payload.tableId)}`
+      : payload?.address ? `addr=${clean(payload.address).slice(0,10)}` : '';
+    console.log(`[WS] ← ${safeType}`, safeDetail);
 
     switch (type) {
 
@@ -668,6 +740,11 @@ wss.on('connection', (ws, req) => {
         if (!t) {
           if (skipChainVerify) {
             const cfg = clientConfig || { buyIn: 1000, bigBlind: 20, maxPlayers: 6, gameType: 0 };
+            // Clamp client-supplied config so a malicious payload (e.g. bigBlind:0) can't corrupt blind math.
+            cfg.bigBlind   = (Number(cfg.bigBlind) >= 1) ? Math.floor(cfg.bigBlind) : 20;
+            cfg.maxPlayers = (cfg.maxPlayers >= 2 && cfg.maxPlayers <= 9) ? Math.floor(cfg.maxPlayers) : 6;
+            cfg.buyIn      = (Number(cfg.buyIn) >= cfg.bigBlind * 10) ? Math.floor(cfg.buyIn) : cfg.bigBlind * 100;
+            cfg.gameType   = [0,1,2,3].includes(Number(cfg.gameType)) ? Number(cfg.gameType) : 0;
             t = new PokerTable(BigInt(tableId), cfg);
             tables.set(tidKey, t);
             console.log(`[Server] Created table ${tidKey} from client config (TESTNET_SKIP_CHAIN_VERIFY)`);
@@ -698,7 +775,12 @@ wss.on('connection', (ws, req) => {
         // Verify player has bought in on-chain before seating them (skipped in testnet mode)
         let onChainDeposit;
         if (skipChainVerify) {
-          onChainDeposit = t.config.buyIn; // trust client, treat as fully bought-in
+          const min = t.config.minBuyIn ?? t.config.buyIn;
+          const max = t.config.maxBuyIn ?? t.config.buyIn;
+          const req = payload.buyInAmount;
+          onChainDeposit = (typeof req === 'number' && isFinite(req) && req > 0)
+            ? Math.max(min, Math.min(max, req))
+            : min;
         } else {
           try {
             onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
@@ -710,7 +792,10 @@ wss.on('connection', (ws, req) => {
         if (onChainDeposit === 0) {
           // Player hasn't bought in yet — send current seat occupancy so UI can show seat picker
           const takenSeats = t.players.map(p => ({ addr: p.addr, seatIndex: p.seatIndex }));
-          return send(ws, { type: 'SEAT_PICKER', tableId: tidKey, maxPlayers: t.config.maxPlayers, takenSeats });
+          return send(ws, { type: 'SEAT_PICKER', tableId: tidKey, maxPlayers: t.config.maxPlayers, takenSeats,
+            minBuyIn: t.config.minBuyIn ?? t.config.buyIn,
+            maxBuyIn: t.config.maxBuyIn ?? t.config.buyIn,
+          });
         }
 
         // Deliver pending cashout if this player has one from a prior disconnection
@@ -733,7 +818,7 @@ wss.on('connection', (ws, req) => {
         console.log(`[WS] Seated ${addr.slice(0,10)} at table ${tidKey} (${t.players.length}/${t.config.maxPlayers})`);
         broadcastTable(t);
 
-        if (t.players.length >= t.config.maxPlayers) {
+        if (t.players.length >= 2) {
           t.isActive = true;
           if (t.phase === 'waiting') {
             setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
@@ -804,6 +889,27 @@ wss.on('connection', (ws, req) => {
           broadcastTable(t);
         }
         clients.set(ws, { ...client, tableId: null });
+        break;
+      }
+
+      case 'SPAWN_BOT': {
+        const tidKey = String(payload?.tableId || client.tableId || '9001');
+        const t = tables.get(tidKey);
+        if (!t) { send(ws, { type: 'ERROR', error: 'Table not found' }); break; }
+        if (!BOT_ADDR) { send(ws, { type: 'ERROR', error: 'OPS_WALLET_KEY not configured' }); break; }
+        if (t.players.find(p => p.isBot)) { send(ws, { type: 'BOT_STATUS', status: 'already_seated' }); break; }
+        const min = t.config.minBuyIn ?? t.config.buyIn;
+        const max = t.config.maxBuyIn ?? t.config.buyIn;
+        const amt = Math.max(min, Math.min(max, Number(payload?.buyIn) || min));
+        const seated = t.seat({ addr: BOT_ADDR, ws: null, isBot: true, onChainDeposit: amt }, null);
+        if (!seated) { send(ws, { type: 'ERROR', error: 'Could not seat bot' }); break; }
+        console.log(`[Bot] In-process bot spawned at table ${tidKey} with ${amt} chips`);
+        send(ws, { type: 'BOT_STATUS', status: 'seated', chips: amt });
+        broadcastTable(t);
+        if (t.players.length >= 2 && t.phase === 'waiting') {
+          t.isActive = true;
+          setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
+        }
         break;
       }
 

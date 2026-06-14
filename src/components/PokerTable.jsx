@@ -2,26 +2,90 @@
 import Card, { EmptyCardSlot } from './Card';
 import PlayerSeat from './PlayerSeat';
 
-function CommunityCards({ cards = [], street = 'preflop' }) {
-  // streets: preflop (0), flop (3), turn (4), river (5)
-  const slots = 5;
+const CHIP_DENOMS = [
+  { bbMult: 1000, color: '#d4af37', hi: '#f1c40f' },
+  { bbMult: 500,  color: '#8e44ad', hi: '#9b59b6' },
+  { bbMult: 100,  color: '#1a1a1a', hi: '#555'    },
+  { bbMult: 25,   color: '#1a6b32', hi: '#27ae60' },
+  { bbMult: 5,    color: '#8b1a1a', hi: '#c0392b' },
+  { bbMult: 1,    color: '#1a3a8b', hi: '#2980b9' },
+  { bbMult: 0,    color: '#3a3a3a', hi: '#7f8c8d' },
+];
+
+function buildChips(amount, bigBlind, maxChips = 10) {
+  const bb = bigBlind || 100;
+  let rem = amount / bb;
+  const chips = [];
+  for (const { bbMult, color, hi } of CHIP_DENOMS) {
+    if (chips.length >= maxChips) break;
+    if (bbMult === 0) {
+      if (chips.length === 0) chips.push({ color, hi });
+      break;
+    }
+    if (rem >= bbMult) {
+      const n = Math.min(Math.floor(rem / bbMult), maxChips - chips.length, 4);
+      for (let i = 0; i < n; i++) chips.push({ color, hi });
+      rem -= n * bbMult;
+    }
+  }
+  return chips.length ? chips : [CHIP_DENOMS[CHIP_DENOMS.length - 1]];
+}
+
+function PotChips({ amount, bigBlind = 100 }) {
+  if (!amount || amount <= 0) return null;
+  const maxC = Math.min(10, Math.max(2, Math.ceil(Math.log10(amount / bigBlind + 1)) + 1));
+  const chips = buildChips(amount, bigBlind, maxC);
+  const chipW = 20, chipH = 7, gap = 5;
+
+  // Split into up to 3 columns
+  const colSize = Math.ceil(chips.length / 3);
+  const cols = [];
+  for (let i = 0; i < chips.length; i += colSize) cols.push(chips.slice(i, i + colSize));
+
+  return (
+    <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end' }}>
+      {cols.map((col, ci) => (
+        <div key={ci} style={{ position: 'relative', width: chipW, height: chipH + (col.length - 1) * gap + 4 }}>
+          {col.map((chip, i) => (
+            <div key={i} style={{
+              position: 'absolute',
+              bottom: i * gap,
+              left: 0,
+              width: chipW,
+              height: chipH,
+              borderRadius: chipH / 2,
+              background: `radial-gradient(ellipse at 50% 25%, ${chip.hi}bb, ${chip.color})`,
+              border: `1px solid ${chip.hi}55`,
+              boxShadow: i === col.length - 1
+                ? `0 3px 5px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.1)`
+                : `0 1px 3px rgba(0,0,0,.5)`,
+            }} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CommunityCards({ cards = [] }) {
   return (
     <div style={{
       display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center',
     }}>
-      {Array.from({ length: slots }).map((_, i) => {
+      {Array.from({ length: 5 }).map((_, i) => {
         const card = cards[i];
-        if (card) return <Card key={i} card={card} width={56} height={78} />;
-        // animate-in placeholder for unrevealed slots
-        return (
-          <EmptyCardSlot key={i} width={56} height={78} />
+        if (card) return (
+          <div key={`${i}-${card}`} className="card-deal" style={{ animationDelay: `${i * 0.08}s` }}>
+            <Card card={card} width={56} height={78} />
+          </div>
         );
+        return <EmptyCardSlot key={i} width={56} height={78} />;
       })}
     </div>
   );
 }
 
-function PotDisplay({ pot, sidePots = [] }) {
+function PotDisplay({ pot, sidePots = [], bigBlind = 100 }) {
   const fmt = v => v >= 1_000_000 ? `${(v/1_000_000).toFixed(2)}M`
     : v >= 1_000 ? `${(v/1_000).toFixed(1)}K` : v.toLocaleString();
 
@@ -30,26 +94,16 @@ function PotDisplay({ pot, sidePots = [] }) {
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
         background: 'rgba(0,0,0,.55)', border: '1px solid #d4af3733',
-        borderRadius: 20, padding: '6px 18px',
+        borderRadius: 20, padding: '6px 14px',
       }}>
-        {/* chip stack visual */}
-        <div style={{ display: 'flex', gap: -2 }}>
-          {['#c0392b','#2980b9','#27ae60','#2c2c2c'].map((c, i) => (
-            <div key={i} style={{
-              width: 14, height: 14, borderRadius: '50%',
-              background: c, border: '1.5px solid rgba(255,255,255,.2)',
-              marginLeft: i > 0 ? -4 : 0,
-              boxShadow: '0 2px 4px rgba(0,0,0,.5)',
-            }}/>
-          ))}
+        <PotChips amount={pot} bigBlind={bigBlind} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
+          <span style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 1 }}>POT</span>
+          <span style={{
+            fontSize: 14, color: '#d4af37', fontWeight: 700,
+            fontFamily: "'JetBrains Mono', monospace",
+          }}>◈ {fmt(pot)}</span>
         </div>
-        <span style={{
-          fontSize: 14, color: '#d4af37', fontWeight: 700,
-          fontFamily: "'JetBrains Mono', monospace",
-        }}>
-          ◈ {fmt(pot)}
-        </span>
-        <span style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 1 }}>POT</span>
       </div>
 
       {sidePots.length > 0 && (
@@ -122,9 +176,9 @@ export default function PokerTable({
   tableInfo = null,  // { name, buyIn, bigBlind, gameType }
   onSeatClick = null,
 }) {
-  // Table outer dimensions (responsive)
   const tableW = 720;
   const tableH = 420;
+  const bigBlind = tableInfo?.bigBlind || 100;
 
   return (
     <div style={{
@@ -176,7 +230,7 @@ export default function PokerTable({
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
         }}>
           <CommunityCards cards={communityCards} street={street} />
-          {pot > 0 && <PotDisplay pot={pot} sidePots={sidePots} />}
+          {pot > 0 && <PotDisplay pot={pot} sidePots={sidePots} bigBlind={bigBlind} />}
         </div>
 
         {/* table info strip (top) */}
@@ -226,6 +280,8 @@ export default function PokerTable({
           timerPct={seat?.timerPct ?? 1}
           lastAction={seat?.lastAction || null}
           betAmount={seat?.betAmount || 0}
+          bigBlind={bigBlind}
+          pot={pot}
           isDealer={seat?.isDealer || false}
           isEmpty={!seat?.player}
           onClick={!seat?.player && onSeatClick ? () => onSeatClick(i) : null}
