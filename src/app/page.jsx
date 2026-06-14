@@ -437,7 +437,7 @@ export default function LobbyPage() {
             ))}
           </div>
 
-          {mounted && !address && (
+          {(!mounted || !address) && (
             <p style={{ fontSize:12, color:'#3a5a3a', letterSpacing:.5 }}>
               Connect your wallet above to join a table
             </p>
@@ -493,7 +493,7 @@ export default function LobbyPage() {
               </span>
             </div>
 
-            {mounted && address && (
+            {mounted && address ? (
               <button onClick={() => setShowCreate(true)} style={{
                 background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
                 border:'1px solid rgba(212,175,55,.4)', borderRadius:8,
@@ -506,6 +506,19 @@ export default function LobbyPage() {
               onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(212,175,55,.4)'; e.currentTarget.style.boxShadow='0 0 12px rgba(212,175,55,.08)'; }}>
                 ＋ New Table
               </button>
+            ) : (
+              /* Skeleton placeholder — keeps layout stable pre-mount and for guests */
+              <div style={{
+                borderRadius:8, padding:'7px 16px',
+                background:'rgba(26,74,26,.15)',
+                border:'1px solid rgba(212,175,55,.12)',
+                color:'rgba(212,175,55,.3)', fontSize:12, fontWeight:700,
+                letterSpacing:.3, flexShrink:0, cursor:'default',
+                opacity: mounted ? 0 : 1,
+                transition:'opacity .2s',
+              }}>
+                ＋ New Table
+              </div>
             )}
           </div>
         </div>
