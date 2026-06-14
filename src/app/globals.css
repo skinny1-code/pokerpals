@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+@import '@neynar/react/dist/style.css';
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -26,6 +27,13 @@
   --chip-red:    #c0392b;
   --chip-blue:   #2980b9;
   --chip-green:  #27ae60;
+  /* shadows */
+  --shadow-sm:        0 2px 8px rgba(0,0,0,.4);
+  --shadow-md:        0 8px 24px rgba(0,0,0,.55);
+  --shadow-lg:        0 16px 48px rgba(0,0,0,.65);
+  --shadow-glow-gold: 0 0 20px rgba(212,175,55,.12);
+  --shadow-glow-green:0 0 20px rgba(39,174,96,.12);
+  --header-height:    58px;
 }
 
 html, body { height: 100%; background: var(--bg-deep); color: var(--cream); }
@@ -34,6 +42,14 @@ body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+::selection { background: rgba(212,175,55,.2); color: #f1d77a; }
+
+*:focus-visible {
+  outline: 2px solid rgba(212,175,55,.5);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 h1, h2, h3, .serif { font-family: 'Playfair Display', Georgia, serif; }
@@ -51,8 +67,9 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
   100% { box-shadow: 0 0 0 0 rgba(212,175,55,0); }
 }
 @keyframes deal-card {
-  from { transform: translate(-50%, -200px) rotate(-15deg) scale(.4); opacity: 0; }
-  to   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+  from { transform: translateY(20px) scale(0.65); opacity: 0; }
+  50%  { transform: translateY(-4px) scale(1.04); opacity: 1; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
 }
 @keyframes chip-toss {
   0%   { transform: translateY(0) scale(1); }
@@ -91,6 +108,9 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
 .animate-up     { animation: fade-up .35s ease forwards; }
 .pulse          { animation: pulse-ring 1.5s infinite; }
 .winner-glow    { animation: winner-glow 1s ease-in-out infinite; }
+.card-deal {
+  animation: deal-card 0.38s cubic-bezier(0.2, 0, 0.2, 1) both;
+}
 
 /* ── Glass card ─────────────────────────────────────────── */
 .glass {
@@ -98,6 +118,37 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
   border: 1px solid var(--border);
   border-radius: 12px;
   backdrop-filter: blur(8px);
+}
+
+/* ── Elevated card ───────────────────────────────────────── */
+.card-elevated {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.card-elevated:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(212,175,55,.08);
+  border-color: #2a4a2a;
+}
+
+/* ── Page hero (full-bleed section) ─────────────────────── */
+.page-hero {
+  background: radial-gradient(ellipse 120% 80% at 50% -20%, #0f2a0f 0%, #060e06 65%);
+  border-bottom: 1px solid #162816;
+  padding: 40px 24px 36px;
+  position: relative;
+  overflow: hidden;
+}
+.page-hero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%; transform: translateX(-50%);
+  width: 600px; height: 180px;
+  background: radial-gradient(ellipse at 50% 0%, rgba(212,175,55,.05) 0%, transparent 65%);
+  pointer-events: none;
 }
 
 /* ── Skeleton loader ─────────────────────────────────────── */
@@ -116,7 +167,7 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
   .table-side-panel {
     border-left: none !important;
     border-top: 1px solid var(--border);
-    max-height: 240px;
+    max-height: 220px;
     overflow-y: auto;
   }
   .lobby-col-header { display: none !important; }
@@ -132,4 +183,11 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
 }
 @media (min-width: 641px) {
   .show-mobile { display: none !important; }
+}
+
+/* ── Safe-area bottom padding for notched phones ──────────── */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .betting-controls-bar {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+  }
 }

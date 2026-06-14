@@ -1,11 +1,13 @@
 'use client';
-import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import WalletBar from '../../../components/WalletBar';
 import PokerTable from '../../../components/PokerTable';
 import BettingControls from '../../../components/BettingControls';
-import { useTableSocket, useEscrow, useHandleMap } from '../../../hooks/usePokerWallet';
+import Card from '../../../components/Card';
+import { useTableSocket, useEscrow, useHandleMap, useHandleAvatars } from '../../../hooks/usePokerWallet';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 
@@ -24,7 +26,7 @@ function parseActionLabel(label) {
 }
 
 // ── map server pubState → PokerTable seats array (uses seatIndex for position) ──
-function mapToSeats(state, heroAddr, handleMap = {}) {
+function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}) {
   if (!state) return Array(9).fill(null);
 
   const seats = Array(9).fill(null);
@@ -35,12 +37,13 @@ function mapToSeats(state, heroAddr, handleMap = {}) {
     if (idx == null || idx < 0 || idx > 8) return;
     seats[idx] = {
       player: {
-        address:  p.addr,
-        handle:   handleMap[p.addr?.toLowerCase()] || null,
-        chips:    p.chips,
-        isHero:   p.addr?.toLowerCase() === heroAddr?.toLowerCase(),
-        isFolded: p.folded,
-        isAllIn:  p.allIn,
+        address:   p.addr,
+        handle:    handleMap[p.addr?.toLowerCase()] || null,
+        avatarUrl: avatarMap[p.addr?.toLowerCase()] || null,
+        chips:     p.chips,
+        isHero:    p.addr?.toLowerCase() === heroAddr?.toLowerCase(),
+        isFolded:  p.folded,
+        isAllIn:   p.allIn,
       },
       cards:      (p.hand || []).map(c => c === '??' ? { faceDown: true } : c),
       isActive:   p.addr?.toLowerCase() === state.activeAddr?.toLowerCase(),
@@ -104,45 +107,95 @@ function ChatPanel({ messages }) {
 
 // ── hand-over overlay ─────────────────────────────────────────────────────────
 function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
+  const [secs, setSecs] = useState(7);
+  const identity = handOver?.handNonce ?? 0;
+
+  useEffect(() => {
+    if (!handOver) return;
+    setSecs(7);
+    const iv = setInterval(() => setSecs(s => s - 1), 1000);
+    const t  = setTimeout(() => { clearInterval(iv); onDismiss(); }, 7000);
+    return () => { clearInterval(iv); clearTimeout(t); };
+  }, [identity]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!handOver) return null;
-  const winners = handOver.winners || [];
-  const results = handOver.results || [];
+  const winners  = handOver.winners || [];
+  const results  = handOver.results || [];
+  // Non-winners who showed their cards (losers at showdown)
+  const losers   = results.filter(r => !winners.includes(r.addr) && r.cards?.length);
+
   return (
     <div style={{
-      position:'fixed', inset:0, background:'rgba(0,0,0,.7)',
+      position:'fixed', inset:0, background:'rgba(0,0,0,.8)',
       display:'flex', alignItems:'center', justifyContent:'center', zIndex:200,
     }} onClick={onDismiss}>
       <div style={{
         background:'linear-gradient(135deg,#0a1f0a,#060e06)',
         border:'1px solid #d4af37', borderRadius:16,
-        padding:'32px 48px', textAlign:'center',
+        padding:'28px 36px', textAlign:'center',
         boxShadow:'0 0 40px rgba(212,175,55,.3)',
         animation:'fade-in .4s ease forwards',
+        maxWidth: 480, width: '90vw',
       }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize:9, color:'#d4af3799', letterSpacing:4, marginBottom:8 }}>HAND COMPLETE</div>
+        <div style={{ fontSize:9, color:'#d4af3799', letterSpacing:4, marginBottom:12 }}>HAND COMPLETE</div>
+
+        {/* Winners */}
         {winners.map((w, i) => {
           const res = results.find(r => r.addr === w);
           const displayName = handleMap[w?.toLowerCase()] || `${w.slice(0,8)}…`;
           return (
-            <div key={i}>
-              <div style={{ fontSize:22, color:'#d4af37', fontWeight:700,
+            <div key={i} style={{ marginBottom: losers.length ? 16 : 0 }}>
+              <div style={{ fontSize:20, color:'#d4af37', fontWeight:700,
                 fontFamily:"'Playfair Display',serif" }}>
-                {displayName}
+                {displayName} wins
               </div>
               {res?.hand && (
-                <div style={{ fontSize:12, color:'#d4af3777', letterSpacing:1, marginTop:4 }}>
+                <div style={{ fontSize:11, color:'#d4af3799', letterSpacing:1, marginTop:2 }}>
                   {res.hand}
                 </div>
               )}
-              <div style={{ fontSize:16, color:'#27ae60', fontWeight:700, marginTop:4,
+              {res?.cards?.length > 0 && (
+                <div style={{ display:'flex', gap:4, justifyContent:'center', marginTop:8 }}>
+                  {res.cards.map((c, ci) => (
+                    <div key={ci} className="card-deal" style={{ animationDelay:`${ci*0.06}s` }}>
+                      <Card card={c} width={44} height={62} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ fontSize:15, color:'#27ae60', fontWeight:700, marginTop:8,
                 fontFamily:"'JetBrains Mono',monospace" }}>
                 ◈ {handOver.pot?.toLocaleString()}
               </div>
             </div>
           );
         })}
-        <div style={{ fontSize:9, color:'#3a6a3a', marginTop:16, letterSpacing:1 }}>
-          Click to continue
+
+        {/* Losers */}
+        {losers.length > 0 && (
+          <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #1a3a1a' }}>
+            {losers.map((r, i) => {
+              const displayName = handleMap[r.addr?.toLowerCase()] || `${r.addr?.slice(0,8)}…`;
+              return (
+                <div key={i} style={{ marginBottom: i < losers.length-1 ? 10 : 0 }}>
+                  <div style={{ fontSize:10, color:'#5a7a5a', marginBottom:4 }}>
+                    {displayName} · {r.hand}
+                  </div>
+                  <div style={{ display:'flex', gap:4, justifyContent:'center' }}>
+                    {r.cards.map((c, ci) => (
+                      <div key={ci} style={{ opacity:0.7 }}>
+                        <Card card={c} width={36} height={50} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={{ fontSize:9, color:'#3a6a3a', marginTop:14, letterSpacing:1 }}>
+          Next hand in {Math.max(0, secs)}s · tap to skip
         </div>
       </div>
     </div>
@@ -162,7 +215,7 @@ const SEAT_POS = [
   { x: 0.26, y: 0.80 }, // 8 bottom-left
 ];
 
-function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, buyInAmount, escrowStatus }) {
+function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, buyInAmount, onBuyInChange, minBuyIn, maxBuyIn, escrowStatus }) {
   const seats = SEAT_POS.slice(0, maxPlayers);
   const takenMap = Object.fromEntries((takenSeats || []).map(s => [s.seatIndex, s.addr]));
   const fmt = n => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M`
@@ -183,10 +236,16 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
           transform:'translate(-50%,-50%)', textAlign:'center',
         }}>
           <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:2 }}>SELECT A SEAT</div>
-          <div style={{ fontSize:13, color:'#d4af37', fontWeight:700,
-            fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>
-            {fmt(buyInAmount)} CHIPS
-          </div>
+          {minBuyIn != null && maxBuyIn != null && minBuyIn !== maxBuyIn ? (
+            <div style={{ fontSize:10, color:'#5a8a5a', marginTop:4 }}>
+              {fmt(minBuyIn)}–{fmt(maxBuyIn)} CHIPS
+            </div>
+          ) : (
+            <div style={{ fontSize:13, color:'#d4af37', fontWeight:700,
+              fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>
+              {fmt(buyInAmount)} CHIPS
+            </div>
+          )}
         </div>
 
         {/* Seat circles */}
@@ -236,18 +295,32 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
       {pendingSeat !== null && (
         <div style={{
           marginTop:16, background:'#060e06', border:'1px solid #d4af3744',
-          borderRadius:10, padding:'16px 20px',
-          display:'flex', alignItems:'center', justifyContent:'space-between', gap:12,
+          borderRadius:10, padding:'16px 20px', display:'flex', flexDirection:'column', gap:12,
         }}>
-          <div>
-            <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:1, marginBottom:3 }}>
-              SEAT {pendingSeat + 1} SELECTED
+          <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:1 }}>SEAT {pendingSeat + 1} — BUY IN</div>
+          {minBuyIn != null && maxBuyIn != null && minBuyIn !== maxBuyIn && (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              <input
+                type="range"
+                min={minBuyIn} max={maxBuyIn} step={minBuyIn}
+                value={buyInAmount}
+                onChange={e => onBuyInChange(Number(e.target.value))}
+                style={{ accentColor:'#d4af37', width:'100%' }}
+              />
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#3a6a3a' }}>
+                <span>{fmt(minBuyIn)}</span>
+                <span style={{ color:'#d4af37', fontWeight:700, fontFamily:"'JetBrains Mono',monospace", fontSize:13 }}>
+                  {fmt(buyInAmount)} CHIPS
+                </span>
+                <span>{fmt(maxBuyIn)}</span>
+              </div>
             </div>
-            <div style={{ fontSize:13, color:'#d4af37', fontWeight:700,
-              fontFamily:"'JetBrains Mono',monospace" }}>
+          )}
+          {(minBuyIn == null || minBuyIn === maxBuyIn) && (
+            <div style={{ fontSize:13, color:'#d4af37', fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>
               {fmt(buyInAmount)} CHIPS
             </div>
-          </div>
+          )}
           <button
             onClick={() => onBuyIn(pendingSeat)}
             disabled={escrowStatus !== 'idle'}
@@ -256,7 +329,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
               border:`1px solid ${escrowStatus !== 'idle' ? '#1a3a1a' : '#d4af37'}`,
               borderRadius:8, padding:'10px 20px', cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer',
               color: escrowStatus !== 'idle' ? '#3a6a3a' : '#d4af37',
-              fontSize:12, fontWeight:700, fontFamily:'inherit',
+              fontSize:12, fontWeight:700, fontFamily:'inherit', alignSelf:'flex-end',
             }}
           >
             {escrowStatus === 'approving' ? 'Approving…'
@@ -340,18 +413,32 @@ function TablePageInner() {
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData,
-    sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat,
+    sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot, botStatus,
   } = useTableSocket(id, tableConfig);
+
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [showRebuy,       setShowRebuy]       = useState(false);
   const [rebuyAmt,        setRebuyAmt]        = useState('');
   const [pendingSeat,     setPendingSeat]     = useState(null);
+  const [selectedBuyIn,   setSelectedBuyIn]   = useState(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+
+  // Initialise selectedBuyIn when seat picker appears
+  useEffect(() => {
+    if (seatPickerData && selectedBuyIn === null)
+      setSelectedBuyIn(seatPickerData.minBuyIn ?? tableConfig?.buyIn ?? 1000);
+  }, [seatPickerData, selectedBuyIn, tableConfig]);
 
   const [log, setLog] = useState([
     { type:'system', text:`Joined table ${id}` },
   ]);
   const [showHandOver, setShowHandOver] = useState(false);
+
+  const playerAddrs = useMemo(() => gameState?.players?.map(p => p.addr).filter(Boolean) || [], [gameState]);
+  const handleMap   = useHandleMap(playerAddrs);
+  const avatarMap   = useHandleAvatars(playerAddrs);
 
   // Append server events to the log
   useEffect(() => {
@@ -399,10 +486,7 @@ function TablePageInner() {
   const bigBlind   = gameState?.config?.bigBlind || 100;
   const minRaise   = Math.max(bigBlind, gameState?.lastRaiseAmount || bigBlind);
 
-  const playerAddrs = useMemo(() => gameState?.players?.map(p => p.addr).filter(Boolean) || [], [gameState]);
-  const handleMap   = useHandleMap(playerAddrs);
-
-  const seats = useMemo(() => mapToSeats(gameState, address, handleMap), [gameState, address, handleMap]);
+  const seats = useMemo(() => mapToSeats(gameState, address, handleMap, avatarMap), [gameState, address, handleMap, avatarMap]);
 
   const handleLeave = useCallback(() => {
     const isWaiting = gameState?.phase === 'waiting' || !gameState;
@@ -438,13 +522,13 @@ function TablePageInner() {
   }, [refund, router]);
 
   const handleBuyIn = useCallback(async (seatIndex) => {
-    // Use URL-param config first — permanent tables don't exist on-chain so tableInfo returns 0
-    const amount = tableConfig?.buyIn
+    const amount = selectedBuyIn
+      || tableConfig?.buyIn
       || (tableInfo?.buyInAmount ? Number(tableInfo.buyInAmount) / 1e18 : 0);
     if (!amount) return;
     await buyIn(amount);
-    joinWithSeat(seatIndex);
-  }, [buyIn, joinWithSeat, tableConfig, tableInfo]);
+    joinWithSeat(seatIndex, amount);
+  }, [buyIn, joinWithSeat, selectedBuyIn, tableConfig, tableInfo]);
 
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg-deep)', display:'flex', flexDirection:'column' }}>
@@ -509,25 +593,53 @@ function TablePageInner() {
                 You're at the table!
               </div>
               <div style={{ fontSize:11, color:'#6a9a6a', marginBottom:12 }}>
-                Waiting for {(gameState.config?.maxPlayers || 2) - gameState.players.length} more player{((gameState.config?.maxPlayers || 2) - gameState.players.length) !== 1 ? 's' : ''} to join ({gameState.players.length}/{gameState.config?.maxPlayers || 2} seated)
+                {gameState.players.length < 2
+                  ? `Waiting for ${2 - gameState.players.length} more player to start (${gameState.players.length}/${gameState.config?.maxPlayers || 2} seated)`
+                  : `${gameState.players.length}/${gameState.config?.maxPlayers || 2} seated — starting soon…`}
               </div>
-              <button
-                onClick={() => {
-                  navigator.clipboard?.writeText(window.location.href).catch(() => {});
-                  alert('Table link copied!\n\n' + window.location.href + '\n\nShare this with your opponent.');
-                }}
-                style={{
-                  background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-                  border:'1px solid #27ae6066', borderRadius:8,
-                  padding:'10px 20px', cursor:'pointer',
-                  color:'#27ae60', fontSize:11, fontFamily:'inherit', fontWeight:700,
-                  letterSpacing:1,
-                }}
-              >
-                COPY & SHARE TABLE LINK
-              </button>
+              <div style={{ display:'flex', gap:8, justifyContent:'center', flexWrap:'wrap' }}>
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(window.location.href).catch(() => {});
+                    alert('Table link copied!\n\n' + window.location.href + '\n\nShare this with your opponent.');
+                  }}
+                  style={{
+                    background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
+                    border:'1px solid #27ae6066', borderRadius:8,
+                    padding:'10px 20px', cursor:'pointer',
+                    color:'#27ae60', fontSize:11, fontFamily:'inherit', fontWeight:700,
+                    letterSpacing:1,
+                  }}
+                >
+                  COPY & SHARE TABLE LINK
+                </button>
+                <button
+                  onClick={() => spawnBot()}
+                  disabled={botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated'}
+                  style={{
+                    background: botStatus === 'seated' || botStatus === 'already_seated'
+                      ? 'linear-gradient(135deg,#0a2a1a,#060e06)'
+                      : 'linear-gradient(135deg,#1a2a3a,#0c1e2e)',
+                    border: `1px solid ${botStatus === 'seated' || botStatus === 'already_seated' ? '#27ae6066' : '#4a7aaa66'}`,
+                    borderRadius:8, padding:'10px 20px',
+                    cursor: botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated'
+                      ? 'not-allowed' : 'pointer',
+                    color: botStatus === 'seated' || botStatus === 'already_seated' ? '#27ae60'
+                         : botStatus === 'error' ? '#e74c3c' : '#7ab4e0',
+                    fontSize:11, fontFamily:'inherit', fontWeight:700, letterSpacing:1,
+                    opacity: botStatus === 'spawning' ? 0.7 : 1,
+                    transition:'all .2s',
+                  }}
+                >
+                  {botStatus === 'spawning'     ? '⏳ Spawning…'
+                   : botStatus === 'seated'     ? '✓ Bot Seated'
+                   : botStatus === 'already_seated' ? '✓ Bot Ready'
+                   : botStatus === 'error'      ? '✗ Failed'
+                   : '+ Spawn Bot'}
+                </button>
+              </div>
               <div style={{ fontSize:9, color:'#3a6a3a', marginTop:10, letterSpacing:1 }}>
-                The game starts automatically when all seats are filled
+                The game starts automatically when 2+ players are seated
               </div>
             </div>
           )}
@@ -540,7 +652,10 @@ function TablePageInner() {
               pendingSeat={pendingSeat}
               onSelect={setPendingSeat}
               onBuyIn={handleBuyIn}
-              buyInAmount={tableConfig?.buyIn || (tableInfo?.buyInAmount ? Number(tableInfo.buyInAmount) / 1e18 : 0)}
+              buyInAmount={selectedBuyIn ?? seatPickerData.minBuyIn ?? tableConfig?.buyIn ?? 1000}
+              onBuyInChange={setSelectedBuyIn}
+              minBuyIn={seatPickerData.minBuyIn}
+              maxBuyIn={seatPickerData.maxBuyIn}
               escrowStatus={escrowStatus}
             />
           )}
@@ -563,6 +678,7 @@ function TablePageInner() {
 
           <BettingControls
             isActive={!!isHeroTurn}
+            inGame={!!gameState && gameState.phase !== 'waiting' && !!heroPlayer && !heroPlayer.folded}
             canCheck={canCheck}
             callAmount={callAmount}
             minRaise={minRaise}
@@ -578,14 +694,35 @@ function TablePageInner() {
           />
         </div>
 
-        {/* Side panel */}
+        {/* Side panel — desktop: right column; mobile: slide-up bottom drawer */}
         <div className="table-side-panel" style={{
           display:'flex', flexDirection:'column', gap:8,
           padding:'16px 12px 16px 0',
           borderLeft:'1px solid #1a3a1a',
           background:'rgba(0,0,0,.2)',
           overflowY:'auto',
+          ...(isMobile ? {
+            position:'fixed', left:0, right:0, bottom:0,
+            maxHeight:'72vh',
+            padding:'8px 12px calc(16px + env(safe-area-inset-bottom))',
+            borderLeft:'none', borderTop:'1px solid var(--gold-dim)',
+            borderRadius:'16px 16px 0 0',
+            background:'linear-gradient(180deg,#0a160a,#060e06)',
+            boxShadow:'0 -8px 30px rgba(0,0,0,.6)',
+            transform: drawerOpen ? 'translateY(0)' : 'translateY(100%)',
+            transition:'transform .28s ease',
+            zIndex:150,
+          } : {}),
         }}>
+          {/* Mobile grab handle — tap to close the drawer */}
+          {isMobile && (
+            <div onClick={() => setDrawerOpen(false)}
+              style={{ flexShrink:0, padding:'2px 0 8px', cursor:'pointer' }}>
+              <div style={{ width:40, height:4, borderRadius:2,
+                background:'#3a6a3a', margin:'0 auto' }} />
+            </div>
+          )}
+
           {/* Player stacks */}
           <div style={{ background:'#060e06', border:'1px solid #1a3a1a',
             borderRadius:8, overflow:'hidden', flexShrink:0 }}>
@@ -763,6 +900,22 @@ function TablePageInner() {
           )}
         </div>
       </div>
+
+      {/* Mobile: floating pill toggle (clear 58px header) or tap-to-close backdrop */}
+      {isMobile && (drawerOpen
+        ? <div onClick={() => setDrawerOpen(false)} style={{
+            position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:145,
+          }} />
+        : <button onClick={() => setDrawerOpen(true)} style={{
+            position:'fixed', top:58, right:10, zIndex:140,
+            background:'rgba(10,22,10,.92)', border:'1px solid var(--gold-dim)',
+            borderRadius:20, padding:'6px 14px', cursor:'pointer',
+            color:'var(--gold)', fontSize:11, fontWeight:700, fontFamily:'inherit',
+            letterSpacing:1, boxShadow:'0 2px 10px rgba(0,0,0,.5)',
+          }}>
+            ☰ Stacks &amp; Log
+          </button>
+      )}
 
       <HandOverOverlay
         handOver={showHandOver ? handOver : null}

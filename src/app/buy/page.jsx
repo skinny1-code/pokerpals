@@ -80,27 +80,35 @@ export default function BuyPage() {
     <div style={{ minHeight: '100vh', background: 'var(--bg-deep)' }}>
       <WalletBar />
 
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '32px 16px' }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 10, color: '#3a6a3a', letterSpacing: 4, marginBottom: 6 }}>
+      {/* Hero */}
+      <div className="page-hero" style={{ textAlign:'center' }}>
+        <div style={{ position:'relative', zIndex:1 }}>
+          <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:4, marginBottom:10, fontWeight:700 }}>
             GET CHIPS
           </div>
-          <h1 style={{ fontSize: 28, fontWeight: 900, color: '#d4af37',
-            fontFamily: "'Playfair Display',serif", marginBottom: 6 }}>
+          <h1 style={{
+            fontSize:36, fontWeight:900, color:'#d4af37',
+            fontFamily:"'Playfair Display',serif", marginBottom:8,
+            textShadow:'0 0 40px rgba(212,175,55,.2)',
+          }}>
             Buy CHIPS
           </h1>
-          <p style={{ fontSize: 12, color: '#5a8a5a' }}>
+          <p style={{ fontSize:13, color:'#5a8a5a', maxWidth:400, margin:'0 auto' }}>
             CHIPS is used for all tables, buy-ins, and staking on PokerVsPals.
           </p>
           {mounted && address && (
-            <div style={{ marginTop: 10, fontSize: 12, color: '#6a9a6a' }}>
-              Your balance: <span style={{ color: '#d4af37', fontWeight: 700 }}>
-                {chipsBalance?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}
-              </span> CHIPS
+            <div style={{ marginTop:12, fontSize:13, color:'#6a9a6a' }}>
+              Your balance:{' '}
+              <span style={{ color:'#d4af37', fontWeight:700,
+                fontFamily:"'JetBrains Mono',monospace" }}>
+                ◈{chipsBalance?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}
+              </span>
             </div>
           )}
         </div>
+      </div>
+
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px' }}>
 
         {/* Token address */}
         <div style={{
