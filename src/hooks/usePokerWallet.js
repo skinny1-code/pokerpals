@@ -7,7 +7,7 @@ import { createConfig, http, useAccount, useConnect, useDisconnect,
          useBalance, useSignMessage, usePublicClient } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
-import { injected, walletConnect, coinbaseWallet } from "wagmi/connectors";
+import { injected, walletConnect } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import { parseUnits, formatUnits, parseAbiItem } from "viem";
 
@@ -17,7 +17,6 @@ const _connectors = [
   farcasterMiniApp(),   // auto-connects when running inside Farcaster / Base mini app
   injected(),
   ...(_wcProjectId ? [walletConnect({ projectId: _wcProjectId })] : []),
-  coinbaseWallet({ appName: 'PokerVsPals' }),
 ];
 
 export const wagmiConfig = createConfig({
@@ -221,7 +220,6 @@ export function useWallet() {
     if (wc) connect({ connector: wc });
     else alert('WalletConnect is not configured. Set NEXT_PUBLIC_WC_PROJECT_ID.');
   };
-  const connectCoinbase      = () => connect({ connector: connectors.find(c => c.id === 'coinbaseWalletSDK') });
   const connectFarcaster     = () => connect({ connector: connectors.find(c => c.id === 'farcasterMiniApp') });
 
   return {
@@ -234,7 +232,6 @@ export function useWallet() {
     isHuman: !!isHuman,
     connectMetaMask,
     connectWalletConnect,
-    connectCoinbase,
     connectFarcaster,
     disconnect,
   };

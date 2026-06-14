@@ -21,7 +21,7 @@ const MENU_ICON = { fontSize:18, width:24, textAlign:'center' };
 
 export default function WalletBar() {
   const { address, isConnected, chipsBalance, isHuman,
-          connectMetaMask, connectWalletConnect, connectCoinbase, connectFarcaster, disconnect } = useWallet();
+          connectMetaMask, connectWalletConnect, connectFarcaster, disconnect } = useWallet();
   const { myHandle } = useHandle();
   const { chainId, status: wagmiStatus } = useAccount();
   const { switchChain } = useSwitchChain();
@@ -318,15 +318,7 @@ export default function WalletBar() {
                     />
                   )}
 
-                  {/* Coinbase Wallet */}
-                  {!isInMiniApp && (
-                    <WalletOption
-                      icon="🔵"
-                      label="Coinbase Wallet"
-                      sub="Mobile or extension"
-                      onClick={() => pick(connectCoinbase)}
-                    />
-                  )}
+
                 </div>
               </>
             )}
