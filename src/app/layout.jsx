@@ -1,5 +1,7 @@
 import './globals.css';
 import { Providers } from './providers';
+import AppErrorBoundary from '../components/AppErrorBoundary';
+import ErrorMonitorMount from '../components/ErrorMonitorMount';
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
 
@@ -49,9 +51,12 @@ export default function RootLayout({ children }) {
         <link rel="icon" href="/icon.png" />
       </head>
       <body>
-        <Providers>
-          {children}
-        </Providers>
+        <AppErrorBoundary>
+          <Providers>
+            <ErrorMonitorMount />
+            {children}
+          </Providers>
+        </AppErrorBoundary>
       </body>
     </html>
   );

@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server';
 
 // Farcaster Mini App webhook — receives events like miniapp_added, notifications_enabled, etc.
 // Extend this to send push notifications via Neynar or a custom relay.
-export async function POST(req) {
+export async function POST(request) {
   try {
-    const body = await req.json();
-    console.log('[MiniApp webhook]', body.event);
-  } catch {}
-  return NextResponse.json({ ok: true });
+    const body = await request.json();
+    console.log('[miniapp-webhook]', JSON.stringify(body).slice(0, 500));
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ ok: false }, { status: 400 });
+  }
 }
