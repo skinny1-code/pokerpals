@@ -1,23 +1,37 @@
-# fly.toml app configuration file generated for pokerpals-server on 2026-06-14T16:45:40Z
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# Fly.io config for the PokerVsPals WebSocket game server.
+# Deploy: fly launch --no-deploy  (first time, creates the app)
+#         fly deploy               (subsequent deploys)
+# Secrets: fly secrets set OPERATOR_PRIVATE_KEY=... (see below)
 
-app = 'pokerpals-server'
-primary_region = 'ams'
+app = "pokerpals-server"
+primary_region = "iad"          # Washington DC — close to Arbitrum RPC endpoints
 
 [build]
+  # Fly auto-detects Node.js from package.json — no Dockerfile needed.
+  # Override the start command so it runs the WS server, not Next.js.
+  [build.args]
+    NODE_VERSION = "22"
+
+[env]
+  PORT = "4000"
+  NODE_ENV = "production"
 
 [http_service]
-  internal_port = 8080
+  internal_port = 4000
   force_https = true
-  auto_stop_machines = 'stop'
+  auto_stop_machines = false    # keep alive — game state lives in memory
   auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/tables"            # /tables returns 200 JSON — use as health check
+
+[processes]
+  app = "node server/index.js"
 
 [[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
-  cpus = 1
-  memory_mb = 256
+  size = "shared-cpu-1x"        # free tier — 256MB RAM, 1 shared vCPU

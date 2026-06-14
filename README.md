@@ -1,17 +1,17 @@
-# PokerPartyPals™
+# PokerVsPals
 ### Onchain PvP Crypto Poker Network
 
 > Real players. No bots. Instant onchain settlement. Your edge, your winnings.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Network: Arbitrum](https://img.shields.io/badge/Network-Arbitrum-blue.svg)](https://arbitrum.io)
-[![Token: PPP](https://img.shields.io/badge/Token-PPP-green.svg)](#)
+[![Token: CHIPS](https://img.shields.io/badge/Token-CHIPS-green.svg)](#)
 
 ---
 
 ## What It Is
 
-PokerPartyPals is a trustless PvP card game platform where:
+PokerVsPals is a trustless PvP card game platform where:
 
 - **All funds** are locked in a smart contract — not held by the house
 - **Every hand** is settled onchain via operator-signed payouts
@@ -172,4 +172,4 @@ MIT — see [LICENSE](LICENSE)
 
 ---
 
-*PokerPartyPals™ — RAWagon Portfolio · All edge belongs to the players*
+*PokerVsPals — All edge belongs to the players*

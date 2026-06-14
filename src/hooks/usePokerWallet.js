@@ -7,17 +7,26 @@ import { createConfig, http, useAccount, useConnect, useDisconnect,
          useBalance, useSignMessage, usePublicClient } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
-import { injected, walletConnect, coinbaseWallet } from "wagmi/connectors";
+import { injected, walletConnect } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import { parseUnits, formatUnits, parseAbiItem } from "viem";
+
+// ─── WS URL HELPER ─────────────────────────────────────────────────────────────
+// Upgrades ws:// → wss:// when the page is served over https (avoids mixed-content block).
+export function safeWsUrl(url) {
+  if (!url) return url;
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return url.replace(/^ws:\/\//, 'wss://');
+  }
+  return url;
+}
 
 // ─── WAGMI CONFIG (export and wrap your app in <WagmiProvider config={wagmiConfig}>) ──
 const _wcProjectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 const _connectors = [
-  farcasterMiniApp(),   // auto-connects when running inside Farcaster / Base mini app
-  injected(),
+  injected(),           // MetaMask / injected wallets — try first so mobile in-app browsers work
   ...(_wcProjectId ? [walletConnect({ projectId: _wcProjectId })] : []),
-  coinbaseWallet({ appName: 'PokerVsPals' }),
+  farcasterMiniApp(),   // auto-connects when running inside Farcaster / Base mini app (last)
 ];
 
 export const wagmiConfig = createConfig({
@@ -221,7 +230,6 @@ export function useWallet() {
     if (wc) connect({ connector: wc });
     else alert('WalletConnect is not configured. Set NEXT_PUBLIC_WC_PROJECT_ID.');
   };
-  const connectCoinbase      = () => connect({ connector: connectors.find(c => c.id === 'coinbaseWalletSDK') });
   const connectFarcaster     = () => connect({ connector: connectors.find(c => c.id === 'farcasterMiniApp') });
 
   return {
@@ -234,7 +242,6 @@ export function useWallet() {
     isHuman: !!isHuman,
     connectMetaMask,
     connectWalletConnect,
-    connectCoinbase,
     connectFarcaster,
     disconnect,
   };
@@ -495,7 +502,7 @@ function clearAuthCache() {
 export function useTableSocket(tableId, tableConfig) {
   const { address }          = useAccount();
   const { signMessageAsync } = useSignMessage();
-  const serverUrl            = process.env.NEXT_PUBLIC_WS_URL;
+  const serverUrl            = safeWsUrl(process.env.NEXT_PUBLIC_WS_URL);
 
   const [gameState,       setGameState]       = useState(null);
   const [handOver,        setHandOver]        = useState(null);
@@ -519,7 +526,15 @@ export function useTableSocket(tableId, tableConfig) {
     if (!serverUrl || !address) return;
 
     setWsStatus('connecting');
-    const ws = new WebSocket(serverUrl);
+    let ws;
+    try {
+      ws = new WebSocket(serverUrl);
+    } catch (err) {
+      console.error('[useTableSocket] WebSocket creation failed:', err);
+      setWsError('Unable to connect to game server');
+      setWsStatus('disconnected');
+      return;
+    }
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -1048,7 +1063,13 @@ export function useGameSocket(serverUrl, address, onMessage) {
 
   useEffect(() => {
     if (!serverUrl || !address) return;
-    const ws = new WebSocket(serverUrl);
+    let ws;
+    try {
+      ws = new WebSocket(safeWsUrl(serverUrl));
+    } catch (err) {
+      console.error('[useGameSocket] WebSocket creation failed:', err);
+      return;
+    }
     wsRef.current = ws;
     ws.onopen    = () => setReady(true);
     ws.onmessage = (e) => { try { onMessage(JSON.parse(e.data)); } catch {} };
