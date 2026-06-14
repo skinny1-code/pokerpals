@@ -14,21 +14,21 @@ npm install
 ENV_FILE="$CLAUDE_PROJECT_DIR/.env"
 
 # ── Decrypt .env from committed .env.enc ─────────────────────────────────────
-# ⚠ SECURITY: The fallback passphrase below is committed in plaintext.
-# Anyone with repo read access can decrypt .env.enc with it.
-# BEFORE MAINNET: rotate the Alchemy key, re-encrypt .env.enc with a new
-# passphrase stored only in GitHub Secrets, and remove the hardcoded fallback.
-PASS="${ALCHEMY_API_KEY:-d9thqdp49ecerdec}"
+# ENV_PASSPHRASE must be set in Claude Code environment secrets at code.claude.com.
 if [ -f "$CLAUDE_PROJECT_DIR/.env.enc" ]; then
-  TMP_ENV=$(mktemp)
-  if openssl enc -d -aes-256-cbc -pbkdf2 -pass pass:"$PASS" \
-    -in "$CLAUDE_PROJECT_DIR/.env.enc" \
-    -out "$TMP_ENV" 2>/dev/null; then
-    mv "$TMP_ENV" "$ENV_FILE"
-    echo "✅ .env decrypted from .env.enc"
+  if [ -z "${ENV_PASSPHRASE:-}" ]; then
+    echo "⚠️  ENV_PASSPHRASE not set — add it in Claude Code environment secrets"
   else
-    rm -f "$TMP_ENV"
-    echo "⚠️  .env.enc decryption failed (wrong passphrase?)"
+    TMP_ENV=$(mktemp)
+    if openssl enc -d -aes-256-cbc -pbkdf2 -pass env:ENV_PASSPHRASE \
+      -in "$CLAUDE_PROJECT_DIR/.env.enc" \
+      -out "$TMP_ENV" 2>/dev/null; then
+      mv "$TMP_ENV" "$ENV_FILE"
+      echo "✅ .env decrypted from .env.enc"
+    else
+      rm -f "$TMP_ENV"
+      echo "⚠️  .env.enc decryption failed (wrong ENV_PASSPHRASE?)"
+    fi
   fi
 fi
 
