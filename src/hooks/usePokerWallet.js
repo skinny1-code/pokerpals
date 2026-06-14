@@ -203,9 +203,12 @@ async function safeFeeOverrides(publicClient) {
 }
 
 // ─── HOOK: WALLET STATE ───────────────────────────────────────────────────────
+// Chain the app expects players to be on (matches WalletBar's EXPECTED).
+const EXPECTED_CHAIN = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
+
 export function useWallet() {
   const { address, isConnected, chainId } = useAccount();
-  const { connect, connectors }           = useConnect();
+  const { connect, connectors, status: connectStatus, error: connectError } = useConnect();
   const { disconnect }                    = useDisconnect();
 
   // CHIPS balance
@@ -224,10 +227,19 @@ export function useWallet() {
     args: [address], query: { enabled: !!address, refetchInterval: 30000 },
   });
 
-  const connectMetaMask      = () => connect({ connector: connectors.find(c => c.id === 'injected') });
+  const connectMetaMask      = () => {
+    // Prefer the EIP-6963-discovered MetaMask connector (e.g. inside MetaMask's
+    // in-app browser it announces as 'io.metamask'); fall back to generic injected.
+    const mm = connectors.find(c => c.id === 'io.metamask')
+            || connectors.find(c => c.type === 'injected' && /meta\s*mask/i.test(c.name || ''))
+            || connectors.find(c => c.id === 'injected');
+    if (!mm) { alert('No injected wallet found. Open this page inside MetaMask, or use WalletConnect.'); return; }
+    // Pass chainId so a chain mismatch can't silently stall the connect.
+    connect({ connector: mm, chainId: EXPECTED_CHAIN });
+  };
   const connectWalletConnect = () => {
     const wc = connectors.find(c => c.id === 'walletConnect');
-    if (wc) connect({ connector: wc });
+    if (wc) connect({ connector: wc, chainId: EXPECTED_CHAIN });
     else alert('WalletConnect is not configured. Set NEXT_PUBLIC_WC_PROJECT_ID.');
   };
   const connectFarcaster     = () => connect({ connector: connectors.find(c => c.id === 'farcasterMiniApp') });
@@ -243,6 +255,8 @@ export function useWallet() {
     connectMetaMask,
     connectWalletConnect,
     connectFarcaster,
+    connectStatus,            // 'idle' | 'pending' | 'success' | 'error'
+    connectError,             // wagmi connect error (null when none)
     disconnect,
   };
 }
