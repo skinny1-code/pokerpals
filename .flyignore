@@ -1,0 +1,11 @@
+.next
+node_modules
+.env
+.env.enc
+deployments
+scripts
+src
+public
+test
+BRAIN-MAP.md
+*.md
