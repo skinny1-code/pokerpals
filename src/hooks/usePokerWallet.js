@@ -189,16 +189,44 @@ const STAKING    = process.env.NEXT_PUBLIC_STAKING;
 const HANDLE     = process.env.NEXT_PUBLIC_POKER_HANDLE;
 const TOURNAMENT = process.env.NEXT_PUBLIC_TOURNAMENT;
 
-// Safe fee estimation — returns {} if blocked (Codespace sandbox) so MetaMask estimates instead
+// Safe fee estimation — returns {} if blocked (sandbox) so MetaMask estimates instead.
+// IMPORTANT: always return BOTH 1559 fields together (never leave one undefined).
+// On Arbitrum the priority fee is ~0; if we send only maxFeePerGas, MetaMask auto-fills
+// a garbage maxPriorityFeePerGas on testnets (the "network suggested = thousands of ETH"
+// bug) which can also stall the confirm popup. Sending an explicit 0n priority + headroom
+// on maxFeePerGas keeps the fee sane, cheap, and unstuck.
+// Floor at 0.1 gwei so MetaMask shows a visible non-zero "site suggested" fee instead
+// of "$0 / 0 ETH", which triggers MetaMask's "Review alerts" warning on mobile.
+const MIN_MAX_FEE_PER_GAS = 100_000_000n; // 0.1 gwei floor
 async function safeFeeOverrides(publicClient) {
   try {
     const fees = await publicClient.estimateFeesPerGas();
+    if (!fees.maxFeePerGas) return {}; // no data — let the wallet estimate
+    const maxPriorityFeePerGas = (fees.maxPriorityFeePerGas ?? 0n) * 120n / 100n;
+    const doubled = fees.maxFeePerGas * 2n;
+    // Ensure the fee is high enough to show as non-zero in MetaMask mobile
+    const maxFeePerGas = doubled < MIN_MAX_FEE_PER_GAS ? MIN_MAX_FEE_PER_GAS : doubled;
     return {
-      maxFeePerGas:         fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined,
-      maxPriorityFeePerGas: fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined,
+      maxFeePerGas: maxFeePerGas > maxPriorityFeePerGas ? maxFeePerGas : maxPriorityFeePerGas,
+      maxPriorityFeePerGas,
     };
   } catch {
     return {}; // let wallet estimate fees
+  }
+}
+
+// Returns true if `owner` has already approved at least `needed` CHIPS to `spender`.
+// Lets the write flows skip a redundant approve popup — critical on MetaMask mobile,
+// where back-to-back approve→action popups frequently leave the 2nd one blank/stuck.
+async function hasAllowance(publicClient, owner, spender, needed) {
+  if (!publicClient || !owner || !spender) return false;
+  try {
+    const current = await publicClient.readContract({
+      address: CHIPS, abi: CHIPS_ABI, functionName: "allowance", args: [owner, spender],
+    });
+    return current >= needed;
+  } catch {
+    return false; // can't read — fall back to approving
   }
 }
 
@@ -295,18 +323,21 @@ export function useStaking() {
   const stake = useCallback(async (amount) => {
     if (!address || !STAKING) return;
     try {
-      setStatus('approving');
       const chipsInt = Math.round(Number(amount));
       if (!chipsInt || chipsInt <= 0) { setStatus('error'); return; }
       const amountBN = parseUnits(String(chipsInt), 18);
-      const approveFees = await safeFeeOverrides(publicClient);
-      const approveTx = await writeContractAsync({
-        address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
-        args: [STAKING, amountBN], ...approveFees,
-      });
-      await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      // Skip the approve popup if we've already approved enough — avoids the flaky
+      // back-to-back double popup on MetaMask mobile that leaves the 2nd one blank.
+      if (!(await hasAllowance(publicClient, address, STAKING, amountBN))) {
+        setStatus('approving');
+        const approveFees = await safeFeeOverrides(publicClient);
+        const approveTx = await writeContractAsync({
+          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          args: [STAKING, amountBN], ...approveFees,
+        });
+        await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      }
       setStatus('staking');
-      // Recompute fees after approve confirms so gas estimate has correct allowance
       const stakeFees = await safeFeeOverrides(publicClient);
       const tx = await writeContractAsync({
         address: STAKING, abi: STAKING_ABI, functionName: "stake",
@@ -379,19 +410,22 @@ export function useEscrow(tableId) {
   const buyIn = useCallback(async (buyInAmount) => {
     if (!address || !tableId) return;
     try {
-      setStatus('approving');
       const amountBN    = parseUnits(Math.round(Number(buyInAmount)).toString(), 18);
       const seatFeeAmt  = seatFeeRef.current; // 0 for open tables, >0 for leased tables
+      const needed      = amountBN + seatFeeAmt;
       const feeOverrides = await safeFeeOverrides(publicClient);
-      // Step 1: Approve escrow to spend only what's needed
-      const approveTx = await writeContractAsync({
-        address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
-        args: [ESCROW, amountBN + seatFeeAmt],
-        ...feeOverrides,
-      });
-      setTxHash(approveTx);
-      // Wait for approve tx to be mined before submitting buyIn
-      await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      // Step 1: Approve escrow to spend only what's needed — skip if already approved
+      if (!(await hasAllowance(publicClient, address, ESCROW, needed))) {
+        setStatus('approving');
+        const approveTx = await writeContractAsync({
+          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          args: [ESCROW, needed],
+          ...feeOverrides,
+        });
+        setTxHash(approveTx);
+        // Wait for approve tx to be mined before submitting buyIn
+        await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      }
       // Step 2: Buy in
       setStatus('buying');
       const buyInTx = await writeContractAsync({
@@ -425,14 +459,16 @@ export function useEscrow(tableId) {
   const rebuy = useCallback(async (amount, notifyServer) => {
     if (!address || !tableId) return;
     try {
-      setStatus('approving');
       const amountBN = parseUnits(Math.round(Number(amount)).toString(), 18);
       const feeOverrides = await safeFeeOverrides(publicClient);
-      const approveTx = await writeContractAsync({
-        address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
-        args: [ESCROW, amountBN], ...feeOverrides,
-      });
-      await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      if (!(await hasAllowance(publicClient, address, ESCROW, amountBN))) {
+        setStatus('approving');
+        const approveTx = await writeContractAsync({
+          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          args: [ESCROW, amountBN], ...feeOverrides,
+        });
+        await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      }
       setStatus('buying');
       const rebuyTx = await writeContractAsync({
         address: ESCROW, abi: ESCROW_ABI, functionName: "rebuy",
@@ -814,22 +850,20 @@ export function useHandle() {
     setErrorMsg(null);
     if (!mintCostRaw) { setErrorMsg('Loading mint cost — please wait a moment and try again.'); setStatus('error'); return; }
     try {
-      setStatus('approving');
       const costBN = mintCostRaw;
-      const fees = await publicClient.estimateFeesPerGas();
-      const feeOverrides = {
-        maxFeePerGas:         fees.maxFeePerGas         ? fees.maxFeePerGas * 120n / 100n : undefined,
-        maxPriorityFeePerGas: fees.maxPriorityFeePerGas ? fees.maxPriorityFeePerGas * 120n / 100n : undefined,
-      };
-      const approveTx = await writeContractAsync({
-        address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
-        args: [HANDLE, costBN], ...feeOverrides,
-      });
-      await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      const feeOverrides = await safeFeeOverrides(publicClient);
+      if (!(await hasAllowance(publicClient, address, HANDLE, costBN))) {
+        setStatus('approving');
+        const approveTx = await writeContractAsync({
+          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          args: [HANDLE, costBN], ...feeOverrides,
+        });
+        await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      }
       setStatus('minting');
       const mintTx = await writeContractAsync({
         address: HANDLE, abi: HANDLE_ABI, functionName: "mintHandle",
-        args: [handle], ...feeOverrides,
+        args: [handle], gas: 400_000n, ...feeOverrides,
       });
       setTxHash(mintTx);
       setStatus('idle');
@@ -1045,14 +1079,16 @@ export function useRegisterTournament() {
   const register = useCallback(async (tournId, entryFee) => {
     if (!address || !TOURNAMENT || !CHIPS) return;
     try {
-      setStatus('approving');
       const feeBN = parseUnits(String(entryFee), 18);
       const feeOverrides = await safeFeeOverrides(publicClient);
-      const approveTx = await writeContractAsync({
-        address: CHIPS, abi: CHIPS_ABI, functionName: 'approve',
-        args: [TOURNAMENT, feeBN], ...feeOverrides,
-      });
-      await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      if (!(await hasAllowance(publicClient, address, TOURNAMENT, feeBN))) {
+        setStatus('approving');
+        const approveTx = await writeContractAsync({
+          address: CHIPS, abi: CHIPS_ABI, functionName: 'approve',
+          args: [TOURNAMENT, feeBN], ...feeOverrides,
+        });
+        await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      }
       setStatus('registering');
       const tx = await writeContractAsync({
         address: TOURNAMENT, abi: TOURNAMENT_ABI, functionName: 'register',
