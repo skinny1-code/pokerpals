@@ -195,12 +195,17 @@ const TOURNAMENT = process.env.NEXT_PUBLIC_TOURNAMENT;
 // a garbage maxPriorityFeePerGas on testnets (the "network suggested = thousands of ETH"
 // bug) which can also stall the confirm popup. Sending an explicit 0n priority + headroom
 // on maxFeePerGas keeps the fee sane, cheap, and unstuck.
+// Floor at 0.1 gwei so MetaMask shows a visible non-zero "site suggested" fee instead
+// of "$0 / 0 ETH", which triggers MetaMask's "Review alerts" warning on mobile.
+const MIN_MAX_FEE_PER_GAS = 100_000_000n; // 0.1 gwei floor
 async function safeFeeOverrides(publicClient) {
   try {
     const fees = await publicClient.estimateFeesPerGas();
     if (!fees.maxFeePerGas) return {}; // no data — let the wallet estimate
     const maxPriorityFeePerGas = (fees.maxPriorityFeePerGas ?? 0n) * 120n / 100n;
-    const maxFeePerGas = fees.maxFeePerGas * 2n; // headroom so the tx can't get stuck pending
+    const doubled = fees.maxFeePerGas * 2n;
+    // Ensure the fee is high enough to show as non-zero in MetaMask mobile
+    const maxFeePerGas = doubled < MIN_MAX_FEE_PER_GAS ? MIN_MAX_FEE_PER_GAS : doubled;
     return {
       maxFeePerGas: maxFeePerGas > maxPriorityFeePerGas ? maxFeePerGas : maxPriorityFeePerGas,
       maxPriorityFeePerGas,
@@ -858,7 +863,7 @@ export function useHandle() {
       setStatus('minting');
       const mintTx = await writeContractAsync({
         address: HANDLE, abi: HANDLE_ABI, functionName: "mintHandle",
-        args: [handle], ...feeOverrides,
+        args: [handle], gas: 400_000n, ...feeOverrides,
       });
       setTxHash(mintTx);
       setStatus('idle');

@@ -82,7 +82,7 @@ export default function HandlePage() {
             Poker Handle
           </h1>
           <p style={{ fontSize: 12, color: '#5a8a5a', lineHeight: 1.6 }}>
-            Mint a unique on-chain poker alias. Burns 500 CHIPS permanently —
+            Mint a unique on-chain poker alias. Burns CHIPS permanently —
             your handle lives on the blockchain forever.
           </p>
         </div>
