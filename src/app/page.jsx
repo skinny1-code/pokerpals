@@ -306,6 +306,11 @@ function CreateTableModal({ onClose }) {
   );
 }
 
+const SEED_TABLES = [
+  { id:9001, name:'Micro Stakes — NLH', config:{ gameType:0, maxPlayers:6, buyIn:1000,  bigBlind:20  }, phase:'waiting', seated:0 },
+  { id:9002, name:'High Stakes — NLH',  config:{ gameType:0, maxPlayers:6, buyIn:10000, bigBlind:200 }, phase:'waiting', seated:0 },
+];
+
 export default function LobbyPage() {
   const { address } = useAccount();
   const [tableList,   setTableList]   = useState([]);
@@ -334,7 +339,10 @@ export default function LobbyPage() {
     { id:'open', label:'Open' },
   ];
 
-  const filtered = tableList.filter(t => {
+  // Show live tables when server is reachable; fall back to seed tables so the lobby is never empty
+  const displayTables = serverOnline ? tableList : SEED_TABLES;
+
+  const filtered = displayTables.filter(t => {
     if (filter === 'nlh')  return (t.config?.gameType||0) === 0;
     if (filter === 'plo')  return (t.config?.gameType||0) === 1;
     if (filter === 'open') return !t.phase || t.phase === 'waiting';
@@ -345,8 +353,8 @@ export default function LobbyPage() {
     return bLive - aLive || (b.seated||0) - (a.seated||0);
   });
 
-  const liveCount   = tableList.filter(t => t.phase && t.phase !== 'waiting').length;
-  const totalSeated = tableList.reduce((s,t) => s + (t.seated||0), 0);
+  const liveCount   = displayTables.filter(t => t.phase && t.phase !== 'waiting').length;
+  const totalSeated = displayTables.reduce((s,t) => s + (t.seated||0), 0);
 
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg-deep)' }}>
@@ -537,10 +545,7 @@ export default function LobbyPage() {
               {!serverOnline ? (
                 <>
                   <div style={{ color:'#3a5a3a', fontSize:13, fontWeight:600, marginBottom:6 }}>
-                    Connecting to game server…
-                  </div>
-                  <div style={{ fontSize:10, color:'#1e3a1e' }}>
-                    Make sure <code style={{ color:'#2e5a2e' }}>npm run server</code> is running
+                    No filter matches — try All
                   </div>
                 </>
               ) : (
@@ -577,7 +582,7 @@ export default function LobbyPage() {
               Host your own poker room
             </div>
             <div style={{ fontSize:11, color:'#4a6a4a', maxWidth:360, lineHeight:1.6 }}>
-              100 CHIPS/week · Custom buy-ins · NFT-gate for your community
+              33,500 CHIPS/week · 100,000 CHIPS/month · NFT-gate for your community
             </div>
           </div>
           <Link href="/stake" style={{
