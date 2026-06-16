@@ -57,6 +57,8 @@ export const STAKING_ABI = [
     inputs:[{name:"amount",type:"uint256"}], outputs:[] },
   { name:"claimYield", type:"function", stateMutability:"nonpayable",
     inputs:[], outputs:[{type:"uint256"}] },
+  { name:"compound", type:"function", stateMutability:"nonpayable",
+    inputs:[], outputs:[] },
   { name:"getStakeInfo", type:"function", stateMutability:"view",
     inputs:[{name:"player",type:"address"}],
     outputs:[
@@ -386,9 +388,20 @@ export function useStaking() {
     } catch { setStatus('error'); }
   }, [address, writeContractAsync]);
 
+  const compound = useCallback(async () => {
+    if (!address || !STAKING) return;
+    try {
+      setStatus('compounding');
+      const tx = await writeContractAsync({
+        address: STAKING, abi: STAKING_ABI, functionName: "compound", args: [],
+      });
+      setTxHash(tx); setStatus('idle'); return tx;
+    } catch { setStatus('error'); }
+  }, [address, writeContractAsync]);
+
   return {
     stakedAmount, currentTier, lockedUntil, pendingYield, rakebackOwed,
-    stake, unstake, claimYield, claimRakeback,
+    stake, unstake, claimYield, claimRakeback, compound,
     status, confirmed,
     refetch: () => { refetchStake(); refetchPending(); refetchRakeback(); },
   };
@@ -825,7 +838,7 @@ export function useHandle() {
     query: { enabled: !!HANDLE, refetchInterval: 15000 },
   });
 
-  const { data: totalMinted } = useReadContract({
+  const { data: totalMinted, refetch: refetchTotalMinted } = useReadContract({
     address: HANDLE, abi: HANDLE_ABI, functionName: "totalMinted",
     query: { enabled: !!HANDLE, refetchInterval: 15000 },
   });
@@ -875,7 +888,12 @@ export function useHandle() {
     }
   }, [address, mintCostRaw, writeContractAsync, publicClient]);
 
-  useEffect(() => { if (confirmed) refetchHandle(); }, [confirmed, refetchHandle]);
+  useEffect(() => {
+    if (confirmed) {
+      refetchHandle();
+      refetchTotalMinted();
+    }
+  }, [confirmed, refetchHandle, refetchTotalMinted]);
 
   return {
     myHandle: myHandle || null,
