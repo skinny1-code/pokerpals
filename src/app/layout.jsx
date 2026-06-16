@@ -18,10 +18,10 @@ export const viewport = {
 };
 
 export const metadata = {
-  title: 'PokerVsPals — Onchain Crypto Poker',
+  title: 'PokerVsPlayer — Onchain Crypto Poker',
   description: 'Real PvP poker, instant onchain settlement, no bots',
   openGraph: {
-    title: 'PokerVsPals — Onchain Crypto Poker',
+    title: 'PokerVsPlayer — Onchain Crypto Poker',
     description: 'Real PvP poker, instant onchain settlement, no bots',
     images: APP_URL ? [`${APP_URL}/og.png`] : [],
   },
@@ -34,7 +34,7 @@ export const metadata = {
         title: '♠ Play Poker',
         action: {
           type: 'launch_frame',
-          name: 'PokerVsPals',
+          name: 'PokerVsPlayer',
           url: APP_URL || '',
           splashImageUrl: APP_URL ? `${APP_URL}/splash.png` : '',
           splashBackgroundColor: '#0c1a0c',

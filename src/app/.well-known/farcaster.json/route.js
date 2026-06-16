@@ -13,7 +13,7 @@ export function GET() {
     },
     frame: {
       version:              '1',
-      name:                 'PokerVsPals',
+      name:                 'PokerVsPlayer',
       iconUrl:              `${base}/icon.png`,
       homeUrl:              base || 'https://pokerpals.app',
       imageUrl:             `${base}/og.png`,

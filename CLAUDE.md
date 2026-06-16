@@ -119,10 +119,10 @@ Frontend pages (`src/app/`):
 | Tier | Stake | Rake | APR |
 |---|---|---|---|
 | 0 Standard | 0 | 1.5% | 0% |
-| 1 Bronze | 1,000 CHIPS | 1.3% | 2% |
-| 2 Silver | 10,000 CHIPS | 1.1% | 4% |
-| 3 Gold | 50,000 CHIPS | 0.9% | 7% |
-| 4 Whale | 200,000 CHIPS | 0.6% | 12% |
+| 1 Bronze | 25,000 CHIPS | 1.3% | 5% |
+| 2 Silver | 250,000 CHIPS | 1.1% | 8% |
+| 3 Gold | 1,000,000 CHIPS | 0.9% | 12% |
+| 4 Whale | 5,000,000 CHIPS | 0.6% | 18% |
 
 ## Settlement flow (trustless)
 

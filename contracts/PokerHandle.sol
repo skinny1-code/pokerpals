@@ -58,7 +58,7 @@ contract PokerHandle is ERC721, Ownable {
     error HandleAlreadyTaken(string handle);
     error AlreadyHasHandle(address player);
 
-    constructor(address _chipsToken) ERC721("PokerVsPals Handle", "HANDLE") Ownable(msg.sender) {
+    constructor(address _chipsToken) ERC721("PokerVsPlayer Handle", "HANDLE") Ownable(msg.sender) {
         chipsToken = IChipsTokenMint(_chipsToken);
     }
 
@@ -143,7 +143,7 @@ contract PokerHandle is ERC721, Ownable {
 
         bytes memory json = abi.encodePacked(
             '{"name":"@', handle, '",',
-            '"description":"PokerVsPals on-chain poker handle. Burns CHIPS to mint. Each handle has a unique poker animal identity.",',
+            '"description":"PokerVsPlayer on-chain poker handle. Burns CHIPS to mint. Each handle has a unique poker animal identity.",',
             '"image":"data:image/svg+xml;base64,', Base64.encode(svg), '",',
             '"attributes":[',
             '{"trait_type":"Handle","value":"', handle, '"},',
@@ -228,7 +228,7 @@ contract PokerHandle is ERC721, Ownable {
               'fill="#f0f4f8" text-anchor="middle" letter-spacing="1">', handle, '</text>',
             // Brand
             '<text x="200" y="276" font-family="monospace" font-size="9" fill="', accent, '" ',
-              'text-anchor="middle" opacity="0.4" letter-spacing="3">POKERVSPALS</text>',
+              'text-anchor="middle" opacity="0.4" letter-spacing="3">POKERVSPLAYER</text>',
             // Divider
             '<line x1="80" y1="293" x2="320" y2="293" stroke="', dimAccent, '" stroke-width="1"/>',
             // Edition text

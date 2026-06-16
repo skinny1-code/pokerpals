@@ -25,7 +25,7 @@ function HandlePreview({ handle }) {
         {display}
       </div>
       <div style={{ fontSize: 10, color: '#64748b', letterSpacing: 1 }}>
-        PokerVsPals Handle
+        PokerVsPlayer Handle
       </div>
     </div>
   );

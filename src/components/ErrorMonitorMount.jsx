@@ -19,10 +19,11 @@ export default function ErrorMonitorMount() {
   useEffect(() => {
     installErrorMonitor({
       onError(errorObj) {
-        // Report to server (fire-and-forget)
+        // Always report to server (fire-and-forget)
         reportError(errorObj);
 
-        // Truncate to 120 chars for display
+        // Only show banner for real errors, not benign console.error calls
+        if (errorObj.severity !== 'error') return;
         const short = (errorObj.message ?? 'Unknown error').slice(0, 120);
         setBanner({ message: short });
       },

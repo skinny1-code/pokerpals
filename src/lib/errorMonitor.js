@@ -8,6 +8,7 @@
 
 let _installed = false;
 let _originalConsoleError = null;
+let _lastReport = null; // { message, ts } — de-dupe window
 
 /**
  * POST an error payload to /api/client-error.
@@ -52,6 +53,14 @@ export function reportError(errorObj) {
  *
  * @param {{ onError: (errorObj: Object) => void }} options
  */
+function _dispatch(payload, onError) {
+  // De-dupe: same message within 1500ms (e.g. onerror + console.error for same throw)
+  const now = Date.now();
+  if (_lastReport && _lastReport.message === payload.message && now - _lastReport.ts < 1500) return;
+  _lastReport = { message: payload.message, ts: now };
+  try { onError(payload); } catch { /* never throw */ }
+}
+
 export function installErrorMonitor({ onError }) {
   if (typeof window === 'undefined') return;
   if (_installed) return;
@@ -64,13 +73,14 @@ export function installErrorMonitor({ onError }) {
       message: String(message),
       stack: error?.stack ?? '',
       type: 'onerror',
+      severity: 'error',
       url: source ?? window.location.href,
       line: lineno,
       col: colno,
       ua: navigator.userAgent,
       timestamp: new Date().toISOString(),
     };
-    try { onError(payload); } catch { /* never throw */ }
+    _dispatch(payload, onError);
     if (typeof prevOnError === 'function') {
       return prevOnError.call(this, message, source, lineno, colno, error);
     }
@@ -84,13 +94,14 @@ export function installErrorMonitor({ onError }) {
       message: reason?.message ?? String(reason),
       stack: reason?.stack ?? '',
       type: 'unhandledrejection',
+      severity: 'error',
       url: window.location.href,
       line: null,
       col: null,
       ua: navigator.userAgent,
       timestamp: new Date().toISOString(),
     };
-    try { onError(payload); } catch { /* never throw */ }
+    _dispatch(payload, onError);
   });
 
   // ── console.error patch ───────────────────────────────────────────────────
@@ -118,12 +129,13 @@ export function installErrorMonitor({ onError }) {
       message,
       stack,
       type: 'console.error',
+      severity: 'log', // benign; banner suppressed, but still reported to server
       url: window.location.href,
       line: null,
       col: null,
       ua: navigator.userAgent,
       timestamp: new Date().toISOString(),
     };
-    try { onError(payload); } catch { /* never throw */ }
+    _dispatch(payload, onError);
   };
 }

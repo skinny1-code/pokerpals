@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-/// @title ChipsToken — PokerVsPals in-game currency ("PokerChips / CHIPS")
+/// @title ChipsToken — PokerVsPlayer in-game currency ("PokerChips / CHIPS")
 /// @notice Used as the denomination for all tables, pots, and rake distribution.
 ///         Dev allocation is locked in-contract and linearly vested over 24 months.
 contract ChipsToken is ERC20, ERC20Burnable, Ownable {

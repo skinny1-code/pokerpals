@@ -30,7 +30,7 @@ function StatusBadge({ phase }) {
   );
 }
 
-function TableCard({ table }) {
+function TableCard({ table, preview }) {
   const [hov, setHov] = useState(false);
   const phase    = table.phase || 'waiting';
   const seated   = table.seated || 0;
@@ -43,92 +43,102 @@ function TableCard({ table }) {
   const q = `?buyIn=${buyIn}&bigBlind=${bigBlind}&maxPlayers=${max}&gameType=${gameType}`;
   const accentColor = isLive ? '#27ae60' : gameType === 1 ? '#9b59b6' : '#2e6b3a';
 
-  return (
-    <Link href={`/table/${table.id}${q}`} style={{ textDecoration:'none', display:'block' }}>
-      <div
-        onMouseEnter={() => setHov(true)}
-        onMouseLeave={() => setHov(false)}
-        style={{
-          background: hov ? '#0f1f0f' : '#090f09',
-          border: `1px solid ${hov ? '#2e4e2e' : '#162816'}`,
-          borderRadius: 12,
-          overflow: 'hidden',
-          cursor: 'pointer',
-          transition: 'transform .2s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease',
-          transform: hov ? 'translateY(-2px)' : 'none',
-          boxShadow: hov
-            ? '0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(212,175,55,.1)'
-            : '0 2px 8px rgba(0,0,0,.35)',
-          display: 'flex',
-        }}
-      >
-        {/* Left accent stripe */}
+  const cardDiv = (
+    <div
+      onMouseEnter={() => !preview && setHov(true)}
+      onMouseLeave={() => !preview && setHov(false)}
+      style={{
+        background: hov ? '#0f1f0f' : '#090f09',
+        border: `1px solid ${hov ? '#2e4e2e' : '#162816'}`,
+        borderRadius: 12,
+        overflow: 'hidden',
+        cursor: preview ? 'default' : 'pointer',
+        transition: 'transform .2s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease',
+        transform: hov ? 'translateY(-2px)' : 'none',
+        boxShadow: hov
+          ? '0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(212,175,55,.1)'
+          : '0 2px 8px rgba(0,0,0,.35)',
+        display: 'flex',
+        opacity: preview ? 0.5 : 1,
+        position: 'relative',
+      }}
+    >
+      {/* Left accent stripe */}
+      <div style={{
+        width: 4, flexShrink: 0,
+        background: `linear-gradient(180deg, ${accentColor}, ${accentColor}88)`,
+      }} />
+
+      <div style={{ flex:1, padding:'16px 20px', display:'flex', alignItems:'center', gap:16 }}>
+        {/* Game icon */}
         <div style={{
-          width: 4, flexShrink: 0,
-          background: `linear-gradient(180deg, ${accentColor}, ${accentColor}88)`,
-        }} />
+          width: 46, height: 46, borderRadius: 10, flexShrink: 0,
+          background: gameType === 1
+            ? 'rgba(155,89,182,.12)' : 'rgba(39,174,96,.1)',
+          border: `1px solid ${gameType === 1 ? 'rgba(155,89,182,.25)' : 'rgba(39,174,96,.2)'}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 22,
+        }}>
+          {gameType === 1 ? '♦' : '♠'}
+        </div>
 
-        <div style={{ flex:1, padding:'16px 20px', display:'flex', alignItems:'center', gap:16 }}>
-          {/* Game icon */}
-          <div style={{
-            width: 46, height: 46, borderRadius: 10, flexShrink: 0,
-            background: gameType === 1
-              ? 'rgba(155,89,182,.12)' : 'rgba(39,174,96,.1)',
-            border: `1px solid ${gameType === 1 ? 'rgba(155,89,182,.25)' : 'rgba(39,174,96,.2)'}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 22,
-          }}>
-            {gameType === 1 ? '♦' : '♠'}
-          </div>
-
-          {/* Name + meta */}
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
-              <span style={{
-                fontSize: 14, fontWeight: 700,
-                color: hov ? '#d4af37' : '#ddd5bb',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                transition: 'color .15s',
-              }}>
-                {table.name || `Table #${String(table.id).slice(0,8)}`}
-              </span>
-              <StatusBadge phase={phase} />
-            </div>
-            <div style={{ display:'flex', gap:8, alignItems:'center', fontSize:11, color:'#4a7a4a' }}>
-              <span className="hide-mobile">{GAME_LABEL[gameType]}</span>
-              <span className="hide-mobile" style={{ color:'#1e3a1e' }}>·</span>
-              <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>
-                {fmt(bigBlind/2)}/{fmt(bigBlind)}
-              </span>
-            </div>
-          </div>
-
-          {/* Buy-in + seats */}
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, flexShrink:0 }}>
+        {/* Name + meta */}
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
             <span style={{
-              fontSize: 15, color:'#d4af37', fontWeight:700,
-              fontFamily:"'JetBrains Mono',monospace",
+              fontSize: 14, fontWeight: 700,
+              color: hov ? '#d4af37' : '#ddd5bb',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              transition: 'color .15s',
             }}>
-              ◈{fmt(buyIn)}
+              {table.name || `Table #${String(table.id).slice(0,8)}`}
             </span>
-            <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-              <div style={{ display:'flex', gap:3 }}>
-                {Array.from({ length: max }).map((_,i) => (
-                  <div key={i} style={{
-                    width: 7, height: 7, borderRadius: '50%',
-                    background: i < seated ? '#27ae60' : 'rgba(255,255,255,.08)',
-                    boxShadow: i < seated ? '0 0 4px rgba(39,174,96,.6)' : 'none',
-                    transition: 'background .2s',
-                  }} />
-                ))}
-              </div>
-              <span style={{ fontSize:10, color:'#3a5a3a', marginLeft:2 }}>
-                {seated}/{max}
-              </span>
-            </div>
+            <StatusBadge phase={phase} />
+          </div>
+          <div style={{ display:'flex', gap:8, alignItems:'center', fontSize:11, color:'#4a7a4a' }}>
+            <span className="hide-mobile">{GAME_LABEL[gameType]}</span>
+            <span className="hide-mobile" style={{ color:'#1e3a1e' }}>·</span>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>
+              {fmt(bigBlind/2)}/{fmt(bigBlind)}
+            </span>
           </div>
         </div>
+
+        {/* Buy-in + seats */}
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, flexShrink:0 }}>
+          <span style={{
+            fontSize: 15, color:'#d4af37', fontWeight:700,
+            fontFamily:"'JetBrains Mono',monospace",
+          }}>
+            ◈{fmt(buyIn)}
+          </span>
+          <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+            <div style={{ display:'flex', gap:3 }}>
+              {Array.from({ length: max }).map((_,i) => (
+                <div key={i} style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: i < seated ? '#27ae60' : 'rgba(255,255,255,.08)',
+                  boxShadow: i < seated ? '0 0 4px rgba(39,174,96,.6)' : 'none',
+                  transition: 'background .2s',
+                }} />
+              ))}
+            </div>
+            <span style={{ fontSize:10, color:'#3a5a3a', marginLeft:2 }}>
+              {seated}/{max}
+            </span>
+          </div>
+          {preview && (
+            <span style={{ fontSize:9, color:'#4a6a4a', letterSpacing:1 }}>SERVER OFFLINE — PREVIEW</span>
+          )}
+        </div>
       </div>
+    </div>
+  );
+
+  if (preview) return <div style={{ display:'block' }}>{cardDiv}</div>;
+  return (
+    <Link href={`/table/${table.id}${q}`} style={{ textDecoration:'none', display:'block' }}>
+      {cardDiv}
     </Link>
   );
 }
@@ -306,6 +316,11 @@ function CreateTableModal({ onClose }) {
   );
 }
 
+const SEED_TABLES = [
+  { id:9001, name:'Micro Stakes — NLH', config:{ gameType:0, maxPlayers:6, buyIn:1000,  bigBlind:20  }, phase:'waiting', seated:0 },
+  { id:9002, name:'High Stakes — NLH',  config:{ gameType:0, maxPlayers:6, buyIn:10000, bigBlind:200 }, phase:'waiting', seated:0 },
+];
+
 export default function LobbyPage() {
   const { address } = useAccount();
   const [tableList,   setTableList]   = useState([]);
@@ -334,7 +349,10 @@ export default function LobbyPage() {
     { id:'open', label:'Open' },
   ];
 
-  const filtered = tableList.filter(t => {
+  // Show live tables when server is reachable; fall back to seed tables so the lobby is never empty
+  const displayTables = serverOnline ? tableList : SEED_TABLES;
+
+  const filtered = displayTables.filter(t => {
     if (filter === 'nlh')  return (t.config?.gameType||0) === 0;
     if (filter === 'plo')  return (t.config?.gameType||0) === 1;
     if (filter === 'open') return !t.phase || t.phase === 'waiting';
@@ -345,8 +363,8 @@ export default function LobbyPage() {
     return bLive - aLive || (b.seated||0) - (a.seated||0);
   });
 
-  const liveCount   = tableList.filter(t => t.phase && t.phase !== 'waiting').length;
-  const totalSeated = tableList.reduce((s,t) => s + (t.seated||0), 0);
+  const liveCount   = displayTables.filter(t => t.phase && t.phase !== 'waiting').length;
+  const totalSeated = displayTables.reduce((s,t) => s + (t.seated||0), 0);
 
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg-deep)' }}>
@@ -394,14 +412,11 @@ export default function LobbyPage() {
             ONCHAIN · PVP · POKER
           </div>
 
-          <h1 style={{
-            fontSize:52, fontWeight:900, color:'#d4af37',
-            fontFamily:"'Playfair Display',serif",
-            letterSpacing:-.5, marginBottom:14, lineHeight:1,
-            textShadow:'0 0 60px rgba(212,175,55,.25)',
-          }}>
-            PokerVsPals
-          </h1>
+          <img src="/logo.png" alt="Poker Vs Player" style={{
+            width:'min(440px,82vw)', height:'auto',
+            margin:'0 auto 14px', display:'block',
+            filter:'drop-shadow(0 0 60px rgba(212,175,55,.25))',
+          }} />
 
           <p style={{
             fontSize:14, color:'#5a8a5a', letterSpacing:.2,
@@ -525,7 +540,7 @@ export default function LobbyPage() {
 
         {/* Table list */}
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {filtered.map(t => <TableCard key={t.id} table={t} />)}
+          {filtered.map(t => <TableCard key={t.id} table={t} preview={!serverOnline} />)}
 
           {filtered.length === 0 && (
             <div style={{
@@ -537,10 +552,7 @@ export default function LobbyPage() {
               {!serverOnline ? (
                 <>
                   <div style={{ color:'#3a5a3a', fontSize:13, fontWeight:600, marginBottom:6 }}>
-                    Connecting to game server…
-                  </div>
-                  <div style={{ fontSize:10, color:'#1e3a1e' }}>
-                    Make sure <code style={{ color:'#2e5a2e' }}>npm run server</code> is running
+                    No filter matches — try All
                   </div>
                 </>
               ) : (
@@ -577,7 +589,7 @@ export default function LobbyPage() {
               Host your own poker room
             </div>
             <div style={{ fontSize:11, color:'#4a6a4a', maxWidth:360, lineHeight:1.6 }}>
-              100 CHIPS/week · Custom buy-ins · NFT-gate for your community
+              33,500 CHIPS/week · 100,000 CHIPS/month · NFT-gate for your community
             </div>
           </div>
           <Link href="/stake" style={{
