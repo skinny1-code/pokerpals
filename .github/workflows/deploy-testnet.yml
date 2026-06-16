@@ -4,6 +4,12 @@ on:
   # Manual one-click deploy from the Actions tab
   workflow_dispatch:
     inputs:
+      handle_only:
+        description: "Deploy only PokerHandle (skip full redeploy of all contracts)?"
+        required: false
+        default: "false"
+        type: choice
+        options: ["true", "false"]
       run_faucet:
         description: "Send 10 000 CHIPS to deployer after deploy?"
         required: false
@@ -41,7 +47,8 @@ jobs:
         env:
           HARDHAT_NETWORK: hardhat
 
-      - name: Deploy to Arbitrum Sepolia
+      - name: Deploy to Arbitrum Sepolia (full)
+        if: github.event.inputs.handle_only != 'true'
         run: npm run deploy:testnet
         env:
           DEPLOYER_KEY:       ${{ secrets.DEPLOYER_KEY }}
@@ -54,6 +61,13 @@ jobs:
           OPS_WALLET:         ${{ secrets.OPS_WALLET }}
           COMMUNITY_WALLET:   ${{ secrets.COMMUNITY_WALLET }}
           LIQUIDITY_WALLET:   ${{ secrets.LIQUIDITY_WALLET }}
+
+      - name: Deploy PokerHandle only
+        if: github.event.inputs.handle_only == 'true'
+        run: npm run deploy:handle
+        env:
+          DEPLOYER_KEY:    ${{ secrets.DEPLOYER_KEY }}
+          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC }}
 
       - name: Re-encrypt .env and commit deployment manifest
         run: |
