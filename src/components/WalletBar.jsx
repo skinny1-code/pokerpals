@@ -76,23 +76,8 @@ export default function WalletBar() {
     }}>
 
       {/* Logo */}
-      <Link href="/" style={{ textDecoration:'none', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
-        <div style={{
-          width: 32, height: 32, borderRadius: 8,
-          background: 'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-          border: '1px solid #d4af3733',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 18, lineHeight: 1,
-        }}>♠</div>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#d4af37', letterSpacing: .5, lineHeight: 1.1,
-            fontFamily:"'Playfair Display',serif" }}>
-            PokerVsPals
-          </div>
-          <div style={{ fontSize: 8, color: '#3a6a3a', letterSpacing: 2, fontFamily:'Inter,sans-serif' }}>
-            ONCHAIN PVP
-          </div>
-        </div>
+      <Link href="/" style={{ textDecoration:'none', display:'flex', alignItems:'center', flexShrink:0 }}>
+        <img src="/logo.png" alt="Poker Vs Player" style={{ height:30, width:'auto', display:'block' }} />
       </Link>
 
       {/* Desktop nav — hidden on mobile */}

@@ -402,14 +402,11 @@ export default function LobbyPage() {
             ONCHAIN · PVP · POKER
           </div>
 
-          <h1 style={{
-            fontSize:52, fontWeight:900, color:'#d4af37',
-            fontFamily:"'Playfair Display',serif",
-            letterSpacing:-.5, marginBottom:14, lineHeight:1,
-            textShadow:'0 0 60px rgba(212,175,55,.25)',
-          }}>
-            PokerVsPals
-          </h1>
+          <img src="/logo.png" alt="Poker Vs Player" style={{
+            width:'min(440px,82vw)', height:'auto',
+            margin:'0 auto 14px', display:'block',
+            filter:'drop-shadow(0 0 60px rgba(212,175,55,.25))',
+          }} />
 
           <p style={{
             fontSize:14, color:'#5a8a5a', letterSpacing:.2,
