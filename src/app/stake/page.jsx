@@ -4,11 +4,11 @@ import WalletBar from '../../components/WalletBar';
 import { useWallet, useStaking } from '../../hooks/usePokerWallet';
 
 const TIERS = [
-  { id:0, name:'Standard', icon:'♠', stake:0,       rake:'1.5%', apr:'0%',  color:'#6a9a6a', border:'#1a3a1a' },
-  { id:1, name:'Bronze',   icon:'◈', stake:1_000,   rake:'1.3%', apr:'2%',  color:'#cd7f32', border:'#cd7f3244' },
-  { id:2, name:'Silver',   icon:'◈', stake:10_000,  rake:'1.1%', apr:'4%',  color:'#c0c0c0', border:'#c0c0c044' },
-  { id:3, name:'Gold',     icon:'◈', stake:50_000,  rake:'0.9%', apr:'7%',  color:'#d4af37', border:'#d4af3744' },
-  { id:4, name:'Whale',    icon:'◈', stake:200_000, rake:'0.6%', apr:'12%', color:'#9b59b6', border:'#9b59b644' },
+  { id:0, name:'Standard', icon:'♠', stake:0,           rake:'1.5%', apr:'0%',  color:'#6a9a6a', border:'#1a3a1a' },
+  { id:1, name:'Bronze',   icon:'◈', stake:25_000,      rake:'1.3%', apr:'5%',  color:'#cd7f32', border:'#cd7f3244' },
+  { id:2, name:'Silver',   icon:'◈', stake:250_000,     rake:'1.1%', apr:'8%',  color:'#c0c0c0', border:'#c0c0c044' },
+  { id:3, name:'Gold',     icon:'◈', stake:1_000_000,   rake:'0.9%', apr:'12%', color:'#d4af37', border:'#d4af3744' },
+  { id:4, name:'Whale',    icon:'◈', stake:5_000_000,   rake:'0.6%', apr:'18%', color:'#9b59b6', border:'#9b59b644' },
 ];
 
 function fmt(v) {
@@ -165,7 +165,7 @@ export default function StakePage() {
   const { chipsBalance, isConnected } = useWallet();
   const {
     stakedAmount, currentTier, lockedUntil, pendingYield, rakebackOwed,
-    stake, unstake, claimYield, claimRakeback, status, confirmed, refetch,
+    stake, unstake, claimYield, claimRakeback, compound, status, confirmed, refetch,
   } = useStaking();
 
   const [selectedTier, setSelectedTier] = useState(null);
@@ -195,6 +195,11 @@ export default function StakePage() {
     await claimRakeback();
     refetch();
   }, [claimRakeback, refetch]);
+
+  const handleCompound = useCallback(async () => {
+    await compound();
+    refetch();
+  }, [compound, refetch]);
 
   const loading = status !== 'idle' && status !== 'error';
 
@@ -274,10 +279,16 @@ export default function StakePage() {
               fontFamily: "'JetBrains Mono',monospace", marginBottom: 12 }}>
               ◈ {fmt(pendingYield)}
             </div>
-            <TxButton onClick={handleClaimYield} disabled={pendingYield < 0.01 || !isConnected}
-              loading={loading && status === 'claiming'} color="#27ae60" wide>
-              Claim Yield
-            </TxButton>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <TxButton onClick={handleClaimYield} disabled={pendingYield < 0.01 || !isConnected}
+                loading={loading && status === 'claiming'} color="#27ae60" wide>
+                Claim Yield
+              </TxButton>
+              <TxButton onClick={handleCompound} disabled={pendingYield < 0.01 || !isConnected || currentTier === 0}
+                loading={loading && status === 'compounding'} color="#9b59b6" wide>
+                ↻ Compound
+              </TxButton>
+            </div>
           </div>
 
           <div style={{ background: '#0c1e0c', border: '1px solid #1a3a1a', borderRadius: 12,

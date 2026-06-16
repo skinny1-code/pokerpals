@@ -38,6 +38,13 @@ for (const [k, v] of Object.entries(deployed)) {
 const nextConfig = {
   reactStrictMode: true,
   env,
+  // Turbopack alias stubs for Next.js 16+ (replaces webpack aliases below)
+  turbopack: {
+    resolveAlias: {
+      '@react-native-async-storage/async-storage': './src/stubs/empty.js',
+      'pino-pretty': './src/stubs/empty.js',
+    },
+  },
   webpack: (config) => {
     // MetaMask SDK and WalletConnect pull in React Native / Node-only modules
     // that don't exist in a browser bundle. Stub them out so webpack treats

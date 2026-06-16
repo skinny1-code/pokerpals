@@ -9,13 +9,14 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 /// @title ChipsStaking — Stake CHIPS to unlock VIP rake tiers and earn yield
 ///
 /// Tiers (by staked CHIPS):
-///   0 Standard  —       0 CHIPS — 1.5% rake
-///   1 Bronze    —   1,000 CHIPS — 1.3% rake
-///   2 Silver    —  10,000 CHIPS — 1.1% rake
-///   3 Gold      —  50,000 CHIPS — 0.9% rake
-///   4 Whale     — 200,000 CHIPS — 0.6% rake
+///   0 Standard  —           0 CHIPS — 1.5% rake —  0% APR
+///   1 Bronze    —      25,000 CHIPS — 1.3% rake —  5% APR
+///   2 Silver    —     250,000 CHIPS — 1.1% rake —  8% APR
+///   3 Gold      —   1,000,000 CHIPS — 0.9% rake — 12% APR
+///   4 Whale     —   5,000,000 CHIPS — 0.6% rake — 18% APR
 ///
 /// Yield is pushed automatically from 35% of every rake settlement via receiveYield().
+/// Use compound() to reinvest pending yield back into staked principal (true compounding).
 contract ChipsStaking is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -31,14 +32,14 @@ contract ChipsStaking is Ownable, ReentrancyGuard {
     // Tier thresholds in CHIPS (18 decimals)
     uint256[5] public tierThresholds = [
         0,
-        1_000   * 10**18,
-        10_000  * 10**18,
-        50_000  * 10**18,
-        200_000 * 10**18
+        25_000     * 10**18,
+        250_000    * 10**18,
+        1_000_000  * 10**18,
+        5_000_000  * 10**18
     ];
 
     // APR per tier in basis points (500 = 5% APR)
-    uint256[5] public tierAPR = [0, 200, 400, 700, 1200]; // 0%, 2%, 4%, 7%, 12%
+    uint256[5] public tierAPR = [0, 500, 800, 1200, 1800]; // 0%, 5%, 8%, 12%, 18%
 
     uint256 public minLockPeriod = 7 days;
 
@@ -54,6 +55,7 @@ contract ChipsStaking is Ownable, ReentrancyGuard {
     event Staked(address indexed player, uint256 amount, uint8 tier);
     event Unstaked(address indexed player, uint256 amount, uint256 yieldEarned);
     event YieldClaimed(address indexed player, uint256 amount);
+    event Compounded(address indexed player, uint256 yieldAdded, uint8 newTier);
     event YieldPoolFunded(uint256 amount);
     event YieldSourceSet(address indexed src, bool enabled);
 
@@ -104,6 +106,32 @@ contract ChipsStaking is Ownable, ReentrancyGuard {
 
     function claimYield() external nonReentrant returns (uint256) {
         return _claimYield(msg.sender);
+    }
+
+    /// @notice Reinvest pending yield into staked principal (true compounding).
+    ///         Yield moves from yieldPool → staked amount, upgrading tier if threshold crossed.
+    function compound() external nonReentrant {
+        StakeInfo storage s = stakes[msg.sender];
+        require(s.amount > 0 && s.tier > 0, "No active stake");
+
+        uint256 elapsed = block.timestamp - s.lastClaim;
+        uint256 earned  = (s.amount * tierAPR[s.tier] * elapsed) / (10000 * 365 days);
+        if (earned > yieldPool) earned = yieldPool;
+        require(earned > 0, "Nothing to compound");
+
+        yieldPool   -= earned;
+        s.lastClaim  = block.timestamp;
+
+        uint8 prevTier = s.tier;
+        totalStakedByTier[prevTier] -= s.amount;
+
+        s.amount += earned;          // yield added to principal
+        s.tier    = _calcTier(s.amount);
+
+        totalStakedByTier[s.tier] += s.amount;
+        totalStaked               += earned;
+
+        emit Compounded(msg.sender, earned, s.tier);
     }
 
     function _claimYield(address player) internal returns (uint256 earned) {
