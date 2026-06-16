@@ -30,7 +30,7 @@ function StatusBadge({ phase }) {
   );
 }
 
-function TableCard({ table }) {
+function TableCard({ table, preview }) {
   const [hov, setHov] = useState(false);
   const phase    = table.phase || 'waiting';
   const seated   = table.seated || 0;
@@ -43,92 +43,102 @@ function TableCard({ table }) {
   const q = `?buyIn=${buyIn}&bigBlind=${bigBlind}&maxPlayers=${max}&gameType=${gameType}`;
   const accentColor = isLive ? '#27ae60' : gameType === 1 ? '#9b59b6' : '#2e6b3a';
 
-  return (
-    <Link href={`/table/${table.id}${q}`} style={{ textDecoration:'none', display:'block' }}>
-      <div
-        onMouseEnter={() => setHov(true)}
-        onMouseLeave={() => setHov(false)}
-        style={{
-          background: hov ? '#0f1f0f' : '#090f09',
-          border: `1px solid ${hov ? '#2e4e2e' : '#162816'}`,
-          borderRadius: 12,
-          overflow: 'hidden',
-          cursor: 'pointer',
-          transition: 'transform .2s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease',
-          transform: hov ? 'translateY(-2px)' : 'none',
-          boxShadow: hov
-            ? '0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(212,175,55,.1)'
-            : '0 2px 8px rgba(0,0,0,.35)',
-          display: 'flex',
-        }}
-      >
-        {/* Left accent stripe */}
+  const cardDiv = (
+    <div
+      onMouseEnter={() => !preview && setHov(true)}
+      onMouseLeave={() => !preview && setHov(false)}
+      style={{
+        background: hov ? '#0f1f0f' : '#090f09',
+        border: `1px solid ${hov ? '#2e4e2e' : '#162816'}`,
+        borderRadius: 12,
+        overflow: 'hidden',
+        cursor: preview ? 'default' : 'pointer',
+        transition: 'transform .2s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease',
+        transform: hov ? 'translateY(-2px)' : 'none',
+        boxShadow: hov
+          ? '0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(212,175,55,.1)'
+          : '0 2px 8px rgba(0,0,0,.35)',
+        display: 'flex',
+        opacity: preview ? 0.5 : 1,
+        position: 'relative',
+      }}
+    >
+      {/* Left accent stripe */}
+      <div style={{
+        width: 4, flexShrink: 0,
+        background: `linear-gradient(180deg, ${accentColor}, ${accentColor}88)`,
+      }} />
+
+      <div style={{ flex:1, padding:'16px 20px', display:'flex', alignItems:'center', gap:16 }}>
+        {/* Game icon */}
         <div style={{
-          width: 4, flexShrink: 0,
-          background: `linear-gradient(180deg, ${accentColor}, ${accentColor}88)`,
-        }} />
+          width: 46, height: 46, borderRadius: 10, flexShrink: 0,
+          background: gameType === 1
+            ? 'rgba(155,89,182,.12)' : 'rgba(39,174,96,.1)',
+          border: `1px solid ${gameType === 1 ? 'rgba(155,89,182,.25)' : 'rgba(39,174,96,.2)'}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 22,
+        }}>
+          {gameType === 1 ? '♦' : '♠'}
+        </div>
 
-        <div style={{ flex:1, padding:'16px 20px', display:'flex', alignItems:'center', gap:16 }}>
-          {/* Game icon */}
-          <div style={{
-            width: 46, height: 46, borderRadius: 10, flexShrink: 0,
-            background: gameType === 1
-              ? 'rgba(155,89,182,.12)' : 'rgba(39,174,96,.1)',
-            border: `1px solid ${gameType === 1 ? 'rgba(155,89,182,.25)' : 'rgba(39,174,96,.2)'}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 22,
-          }}>
-            {gameType === 1 ? '♦' : '♠'}
-          </div>
-
-          {/* Name + meta */}
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
-              <span style={{
-                fontSize: 14, fontWeight: 700,
-                color: hov ? '#d4af37' : '#ddd5bb',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                transition: 'color .15s',
-              }}>
-                {table.name || `Table #${String(table.id).slice(0,8)}`}
-              </span>
-              <StatusBadge phase={phase} />
-            </div>
-            <div style={{ display:'flex', gap:8, alignItems:'center', fontSize:11, color:'#4a7a4a' }}>
-              <span className="hide-mobile">{GAME_LABEL[gameType]}</span>
-              <span className="hide-mobile" style={{ color:'#1e3a1e' }}>·</span>
-              <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>
-                {fmt(bigBlind/2)}/{fmt(bigBlind)}
-              </span>
-            </div>
-          </div>
-
-          {/* Buy-in + seats */}
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, flexShrink:0 }}>
+        {/* Name + meta */}
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
             <span style={{
-              fontSize: 15, color:'#d4af37', fontWeight:700,
-              fontFamily:"'JetBrains Mono',monospace",
+              fontSize: 14, fontWeight: 700,
+              color: hov ? '#d4af37' : '#ddd5bb',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              transition: 'color .15s',
             }}>
-              ◈{fmt(buyIn)}
+              {table.name || `Table #${String(table.id).slice(0,8)}`}
             </span>
-            <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-              <div style={{ display:'flex', gap:3 }}>
-                {Array.from({ length: max }).map((_,i) => (
-                  <div key={i} style={{
-                    width: 7, height: 7, borderRadius: '50%',
-                    background: i < seated ? '#27ae60' : 'rgba(255,255,255,.08)',
-                    boxShadow: i < seated ? '0 0 4px rgba(39,174,96,.6)' : 'none',
-                    transition: 'background .2s',
-                  }} />
-                ))}
-              </div>
-              <span style={{ fontSize:10, color:'#3a5a3a', marginLeft:2 }}>
-                {seated}/{max}
-              </span>
-            </div>
+            <StatusBadge phase={phase} />
+          </div>
+          <div style={{ display:'flex', gap:8, alignItems:'center', fontSize:11, color:'#4a7a4a' }}>
+            <span className="hide-mobile">{GAME_LABEL[gameType]}</span>
+            <span className="hide-mobile" style={{ color:'#1e3a1e' }}>·</span>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>
+              {fmt(bigBlind/2)}/{fmt(bigBlind)}
+            </span>
           </div>
         </div>
+
+        {/* Buy-in + seats */}
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, flexShrink:0 }}>
+          <span style={{
+            fontSize: 15, color:'#d4af37', fontWeight:700,
+            fontFamily:"'JetBrains Mono',monospace",
+          }}>
+            ◈{fmt(buyIn)}
+          </span>
+          <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+            <div style={{ display:'flex', gap:3 }}>
+              {Array.from({ length: max }).map((_,i) => (
+                <div key={i} style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: i < seated ? '#27ae60' : 'rgba(255,255,255,.08)',
+                  boxShadow: i < seated ? '0 0 4px rgba(39,174,96,.6)' : 'none',
+                  transition: 'background .2s',
+                }} />
+              ))}
+            </div>
+            <span style={{ fontSize:10, color:'#3a5a3a', marginLeft:2 }}>
+              {seated}/{max}
+            </span>
+          </div>
+          {preview && (
+            <span style={{ fontSize:9, color:'#4a6a4a', letterSpacing:1 }}>SERVER OFFLINE — PREVIEW</span>
+          )}
+        </div>
       </div>
+    </div>
+  );
+
+  if (preview) return <div style={{ display:'block' }}>{cardDiv}</div>;
+  return (
+    <Link href={`/table/${table.id}${q}`} style={{ textDecoration:'none', display:'block' }}>
+      {cardDiv}
     </Link>
   );
 }
@@ -530,7 +540,7 @@ export default function LobbyPage() {
 
         {/* Table list */}
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {filtered.map(t => <TableCard key={t.id} table={t} />)}
+          {filtered.map(t => <TableCard key={t.id} table={t} preview={!serverOnline} />)}
 
           {filtered.length === 0 && (
             <div style={{

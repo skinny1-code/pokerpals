@@ -35,24 +35,23 @@ for (const [k, v] of Object.entries(deployed)) {
   env[k] = process.env[k] || v;
 }
 
+// MetaMask SDK and WalletConnect pull in React Native / Node-only modules.
+// Turbopack needs a real stub file; webpack accepts false (empty module).
+const STUB_MODULES = [
+  '@react-native-async-storage/async-storage',
+  'pino-pretty',
+];
+
 const nextConfig = {
   reactStrictMode: true,
   env,
-  // Turbopack alias stubs for Next.js 16+ (replaces webpack aliases below)
   turbopack: {
-    resolveAlias: {
-      '@react-native-async-storage/async-storage': './src/stubs/empty.js',
-      'pino-pretty': './src/stubs/empty.js',
-    },
+    resolveAlias: Object.fromEntries(STUB_MODULES.map(m => [m, './src/stubs/empty.js'])),
   },
   webpack: (config) => {
-    // MetaMask SDK and WalletConnect pull in React Native / Node-only modules
-    // that don't exist in a browser bundle. Stub them out so webpack treats
-    // them as empty modules instead of crashing at runtime.
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@react-native-async-storage/async-storage': false,
-      'pino-pretty': false,
+      ...Object.fromEntries(STUB_MODULES.map(m => [m, false])),
     };
     return config;
   },

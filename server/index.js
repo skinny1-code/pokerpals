@@ -460,21 +460,13 @@ const server = createServer((req, res) => {
     const tidKey = url.searchParams.get('tableId') || '9001';
     const buyIn  = Number(url.searchParams.get('buyIn') || 1000);
     const t = tables.get(tidKey);
-    if (!t)       { res.writeHead(404); return res.end('{"error":"table not found"}'); }
-    if (!BOT_ADDR){ res.writeHead(503); return res.end('{"error":"OPS_WALLET_KEY not configured"}'); }
-    if (t.players.find(p => p.isBot)) { return res.end('{"status":"bot already seated"}'); }
-    const min = t.config.minBuyIn ?? t.config.buyIn;
-    const max = t.config.maxBuyIn ?? t.config.buyIn;
-    const amt = Math.max(min, Math.min(max, buyIn));
-    const seated = t.seat({ addr: BOT_ADDR, ws: null, isBot: true, onChainDeposit: amt }, null);
-    if (!seated) { res.writeHead(400); return res.end('{"error":"could not seat bot"}'); }
-    console.log(`[Bot] In-process bot spawned at table ${tidKey} with ${amt} chips`);
-    broadcastTable(t);
-    if (t.players.length >= 2 && t.phase === 'waiting') {
-      t.isActive = true;
-      setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
+    if (!t) { res.writeHead(404); return res.end('{"error":"table not found"}'); }
+    const result = spawnBot(t, buyIn);
+    if (!result.ok) {
+      const code = result.error.includes('configured') ? 503 : 400;
+      res.writeHead(code); return res.end(JSON.stringify({ error: result.error }));
     }
-    res.end(JSON.stringify({ status: 'ok', addr: BOT_ADDR, chips: amt }));
+    res.end(JSON.stringify({ status: 'ok', addr: BOT_ADDR, chips: result.chips }));
   } else {
     res.writeHead(200);
     res.end(JSON.stringify({ service: 'PokerVsPlayer WS', tables: tables.size }));
@@ -493,6 +485,23 @@ function broadcastTable(t) {
       send(p.ws, { type: 'GAME_STATE', state: t.pubState(p.addr) });
   });
   maybeBotAct(t);
+}
+
+function spawnBot(t, buyIn) {
+  if (!BOT_ADDR) return { ok: false, error: 'OPS_WALLET_KEY not configured' };
+  if (t.players.find(p => p.isBot)) return { ok: false, error: 'bot already seated' };
+  const min = t.config.minBuyIn ?? t.config.buyIn;
+  const max = t.config.maxBuyIn ?? t.config.buyIn;
+  const chips = Math.max(min, Math.min(max, buyIn || min));
+  const seated = t.seat({ addr: BOT_ADDR, ws: null, isBot: true, onChainDeposit: chips }, null);
+  if (!seated) return { ok: false, error: 'could not seat bot' };
+  console.log(`[Bot] In-process bot spawned at table ${t.id} with ${chips} chips`);
+  broadcastTable(t);
+  if (t.players.length >= 2 && t.phase === 'waiting') {
+    t.isActive = true;
+    setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
+  }
+  return { ok: true, chips };
 }
 
 function maybeBotAct(t) {
@@ -896,20 +905,11 @@ wss.on('connection', (ws, req) => {
         const tidKey = String(payload?.tableId || client.tableId || '9001');
         const t = tables.get(tidKey);
         if (!t) { send(ws, { type: 'ERROR', error: 'Table not found' }); break; }
-        if (!BOT_ADDR) { send(ws, { type: 'ERROR', error: 'OPS_WALLET_KEY not configured' }); break; }
-        if (t.players.find(p => p.isBot)) { send(ws, { type: 'BOT_STATUS', status: 'already_seated' }); break; }
-        const min = t.config.minBuyIn ?? t.config.buyIn;
-        const max = t.config.maxBuyIn ?? t.config.buyIn;
-        const amt = Math.max(min, Math.min(max, Number(payload?.buyIn) || min));
-        const seated = t.seat({ addr: BOT_ADDR, ws: null, isBot: true, onChainDeposit: amt }, null);
-        if (!seated) { send(ws, { type: 'ERROR', error: 'Could not seat bot' }); break; }
-        console.log(`[Bot] In-process bot spawned at table ${tidKey} with ${amt} chips`);
-        send(ws, { type: 'BOT_STATUS', status: 'seated', chips: amt });
-        broadcastTable(t);
-        if (t.players.length >= 2 && t.phase === 'waiting') {
-          t.isActive = true;
-          setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
+        const result = spawnBot(t, Number(payload?.buyIn) || undefined);
+        if (!result.ok) {
+          send(ws, { type: 'ERROR', error: result.error }); break;
         }
+        send(ws, { type: 'BOT_STATUS', status: 'seated', chips: result.chips });
         break;
       }
 

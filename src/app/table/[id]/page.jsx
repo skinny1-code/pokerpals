@@ -28,7 +28,7 @@ function VerifyBanner({ address, onVerified }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Verification failed');
       setStatus('done');
-      setTimeout(() => onVerified?.(), 3000);
+      onVerified?.();
     } catch (e) {
       setErr(e.message);
       setStatus('error');

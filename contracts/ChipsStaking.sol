@@ -121,6 +121,7 @@ contract ChipsStaking is Ownable, ReentrancyGuard {
 
         yieldPool   -= earned;
         s.lastClaim  = block.timestamp;
+        // s.since is intentionally NOT reset: compounding does not extend the lock period.
 
         uint8 prevTier = s.tier;
         totalStakedByTier[prevTier] -= s.amount;

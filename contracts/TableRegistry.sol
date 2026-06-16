@@ -112,42 +112,19 @@ contract TableRegistry is Ownable, ReentrancyGuard {
         if (weeks_ < minWeeks || weeks_ > maxWeeks) revert WeekCountOutOfRange(weeks_);
         require(maxPlayers >= 2 && maxPlayers <= 9, "Bad seat count");
         require(maxBuyIn == 0 || maxBuyIn >= minBuyIn, "maxBuyIn < minBuyIn");
-
         uint256 fee = weeklyFee * weeks_;
-        _collectAndSplitFee(fee);
-
-        roomId = ++roomCount;
-        rooms[roomId] = Room({
-            id:          roomId,
-            lessee:      msg.sender,
-            name:        name,
-            nftGate:     nftGate,
-            minBuyIn:    minBuyIn,
-            maxBuyIn:    maxBuyIn,
-            maxPlayers:  maxPlayers,
-            gameType:    gameType,
-            isPublic:    isPublic,
-            leaseExpiry: block.timestamp + (weeks_ * 7 days),
-            dailyRate:   weeklyFee / 7
-        });
-
+        roomId = _createRoom(weeks_ * 7 days, fee, nftGate, minBuyIn, maxBuyIn, maxPlayers, gameType, isPublic, name);
         emit RoomLeased(roomId, msg.sender, name, nftGate, rooms[roomId].leaseExpiry, fee);
     }
 
-    /// @notice Extend an existing lease by weeks. Adds weeks_ × weeklyFee from expiry (or now if expired).
+    /// @notice Extend an existing lease by weeks.
     function renewLease(uint256 roomId, uint256 weeks_) external nonReentrant {
         Room storage r = rooms[roomId];
         if (r.lessee == address(0)) revert RoomNotFound(roomId);
         if (r.lessee != msg.sender) revert NotLessee(roomId);
         if (weeks_ < minWeeks || weeks_ > maxWeeks) revert WeekCountOutOfRange(weeks_);
-
         uint256 fee = weeklyFee * weeks_;
-        _collectAndSplitFee(fee);
-
-        uint256 base = r.leaseExpiry > block.timestamp ? r.leaseExpiry : block.timestamp;
-        r.leaseExpiry = base + (weeks_ * 7 days);
-        r.dailyRate   = weeklyFee / 7;
-
+        _extendLease(r, fee, weeks_ * 7 days);
         emit LeaseRenewed(roomId, r.leaseExpiry, fee);
     }
 
@@ -166,25 +143,8 @@ contract TableRegistry is Ownable, ReentrancyGuard {
         if (months_ < minMonths || months_ > maxMonths) revert MonthCountOutOfRange(months_);
         require(maxPlayers >= 2 && maxPlayers <= 9, "Bad seat count");
         require(maxBuyIn == 0 || maxBuyIn >= minBuyIn, "maxBuyIn < minBuyIn");
-
         uint256 fee = monthlyFee * months_;
-        _collectAndSplitFee(fee);
-
-        roomId = ++roomCount;
-        rooms[roomId] = Room({
-            id:          roomId,
-            lessee:      msg.sender,
-            name:        name,
-            nftGate:     nftGate,
-            minBuyIn:    minBuyIn,
-            maxBuyIn:    maxBuyIn,
-            maxPlayers:  maxPlayers,
-            gameType:    gameType,
-            isPublic:    isPublic,
-            leaseExpiry: block.timestamp + (months_ * 30 days),
-            dailyRate:   monthlyFee / 30
-        });
-
+        roomId = _createRoom(months_ * 30 days, fee, nftGate, minBuyIn, maxBuyIn, maxPlayers, gameType, isPublic, name);
         emit RoomLeased(roomId, msg.sender, name, nftGate, rooms[roomId].leaseExpiry, fee);
     }
 
@@ -194,14 +154,8 @@ contract TableRegistry is Ownable, ReentrancyGuard {
         if (r.lessee == address(0)) revert RoomNotFound(roomId);
         if (r.lessee != msg.sender) revert NotLessee(roomId);
         if (months_ < minMonths || months_ > maxMonths) revert MonthCountOutOfRange(months_);
-
         uint256 fee = monthlyFee * months_;
-        _collectAndSplitFee(fee);
-
-        uint256 base = r.leaseExpiry > block.timestamp ? r.leaseExpiry : block.timestamp;
-        r.leaseExpiry = base + (months_ * 30 days);
-        r.dailyRate   = monthlyFee / 30;
-
+        _extendLease(r, fee, months_ * 30 days);
         emit LeaseRenewed(roomId, r.leaseExpiry, fee);
     }
 
@@ -268,6 +222,48 @@ contract TableRegistry is Ownable, ReentrancyGuard {
     }
 
     // ─── INTERNAL ─────────────────────────────────────────────────────────────
+
+    function _createRoom(
+        uint256 durationSecs,
+        uint256 fee,
+        address nftGate,
+        uint256 minBuyIn,
+        uint256 maxBuyIn,
+        uint8   maxPlayers,
+        uint8   gameType,
+        bool    isPublic,
+        string calldata name
+    ) internal returns (uint256 roomId) {
+        _collectAndSplitFee(fee);
+        roomId = ++roomCount;
+        rooms[roomId] = Room({
+            id:          roomId,
+            lessee:      msg.sender,
+            name:        name,
+            nftGate:     nftGate,
+            minBuyIn:    minBuyIn,
+            maxBuyIn:    maxBuyIn,
+            maxPlayers:  maxPlayers,
+            gameType:    gameType,
+            isPublic:    isPublic,
+            leaseExpiry: block.timestamp + durationSecs,
+            dailyRate:   fee * 1 days / durationSecs
+        });
+    }
+
+    /// @dev Extend lease and recompute a blended dailyRate so terminateLease
+    ///      refunds the correct proportion regardless of weekly/monthly mix.
+    function _extendLease(Room storage r, uint256 fee, uint256 durationSecs) internal {
+        // Value of the remaining time under the old rate (0 if expired)
+        uint256 remVal = r.leaseExpiry > block.timestamp
+            ? r.dailyRate * (r.leaseExpiry - block.timestamp) / 1 days
+            : 0;
+        _collectAndSplitFee(fee);
+        uint256 base  = r.leaseExpiry > block.timestamp ? r.leaseExpiry : block.timestamp;
+        r.leaseExpiry = base + durationSecs;
+        // Blended rate: total remaining value ÷ total remaining seconds
+        r.dailyRate   = (remVal + fee) * 1 days / (r.leaseExpiry - block.timestamp);
+    }
 
     function _collectAndSplitFee(uint256 fee) internal {
         chipsToken.safeTransferFrom(msg.sender, address(this), fee);

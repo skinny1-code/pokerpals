@@ -1,7 +1,7 @@
 // Testnet-only endpoint: marks a wallet address as human-verified on PokerEscrow.
 // Called by the table page when a player can't buy in due to humanVerified == false.
 // On mainnet, human verification goes through the antibot oracle process instead.
-import { createWalletClient, http, parseAbi } from 'viem';
+import { createWalletClient, createPublicClient, http, parseAbi } from 'viem';
 import { arbitrumSepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 
@@ -11,9 +11,8 @@ const MARK_HUMAN_ABI = parseAbi([
 ]);
 
 export async function POST(req) {
-  // Only available on testnet
-  const chainId = process.env.NEXT_PUBLIC_CHAIN_ID;
-  if (chainId && chainId !== '421614') {
+  // Fail closed: only serve on explicit testnet chain ID
+  if (process.env.NEXT_PUBLIC_CHAIN_ID !== '421614') {
     return Response.json({ error: 'Verification via API only available on testnet' }, { status: 403 });
   }
 
@@ -37,20 +36,21 @@ export async function POST(req) {
   }
 
   try {
-    const key     = deployerKey.startsWith('0x') ? deployerKey : `0x${deployerKey}`;
-    const account = privateKeyToAccount(key);
-    const client  = createWalletClient({
-      account,
-      chain:     arbitrumSepolia,
-      transport: http(rpc || 'https://sepolia-rollup.arbitrum.io/rpc'),
-    });
+    const transport   = http(rpc || 'https://sepolia-rollup.arbitrum.io/rpc');
+    const key         = deployerKey.startsWith('0x') ? deployerKey : `0x${deployerKey}`;
+    const account     = privateKeyToAccount(key);
+    const wallet      = createWalletClient({ account, chain: arbitrumSepolia, transport });
+    const publicClient = createPublicClient({ chain: arbitrumSepolia, transport });
 
-    const hash = await client.writeContract({
+    const hash = await wallet.writeContract({
       address:      escrowAddr,
       abi:          MARK_HUMAN_ABI,
       functionName: 'markHuman',
       args:         [address, true],
     });
+
+    // Wait for the tx to be mined so success === humanVerified on-chain
+    await publicClient.waitForTransactionReceipt({ hash });
 
     return Response.json({ success: true, hash });
   } catch (e) {
