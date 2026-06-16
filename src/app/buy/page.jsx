@@ -94,7 +94,7 @@ export default function BuyPage() {
             Buy CHIPS
           </h1>
           <p style={{ fontSize:13, color:'#5a8a5a', maxWidth:400, margin:'0 auto' }}>
-            CHIPS is used for all tables, buy-ins, and staking on PokerVsPals.
+            CHIPS is used for all tables, buy-ins, and staking on PokerVsPlayer.
           </p>
           {mounted && address && (
             <div style={{ marginTop:12, fontSize:13, color:'#6a9a6a' }}>

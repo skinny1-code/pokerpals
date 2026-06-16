@@ -1,4 +1,4 @@
-# PokerVsPals
+# PokerVsPlayer
 ### Onchain PvP Crypto Poker Network
 
 > Real players. No bots. Instant onchain settlement. Your edge, your winnings.
@@ -11,7 +11,7 @@
 
 ## What It Is
 
-PokerVsPals is a trustless PvP card game platform where:
+PokerVsPlayer is a trustless PvP card game platform where:
 
 - **All funds** are locked in a smart contract — not held by the house
 - **Every hand** is settled onchain via operator-signed payouts
@@ -172,4 +172,4 @@ MIT — see [LICENSE](LICENSE)
 
 ---
 
-*PokerVsPals — All edge belongs to the players*
+*PokerVsPlayer — All edge belongs to the players*

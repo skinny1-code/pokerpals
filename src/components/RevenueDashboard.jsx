@@ -125,7 +125,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
         display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
         <div>
           <div style={{fontSize:18,color:gold,fontWeight:700,letterSpacing:2}}>♠ Revenue Dashboard</div>
-          <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:3}}>POKERVSPALS™ OPERATOR VIEW</div>
+          <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:3}}>POKERVSPLAYER™ OPERATOR VIEW</div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
           <div style={{width:6,height:6,borderRadius:'50%',background:green,

@@ -477,7 +477,7 @@ const server = createServer((req, res) => {
     res.end(JSON.stringify({ status: 'ok', addr: BOT_ADDR, chips: amt }));
   } else {
     res.writeHead(200);
-    res.end(JSON.stringify({ service: 'PokerVsPals WS', tables: tables.size }));
+    res.end(JSON.stringify({ service: 'PokerVsPlayer WS', tables: tables.size }));
   }
 });
 
@@ -936,4 +936,4 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-server.listen(PORT, () => console.log(`PokerVsPals WS server on :${PORT}`));
+server.listen(PORT, () => console.log(`PokerVsPlayer WS server on :${PORT}`));

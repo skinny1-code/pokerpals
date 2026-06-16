@@ -19,7 +19,7 @@ export function GET() {
           fontSize: 28, fontWeight: 'bold',
           color: '#d4af37', marginTop: 8, fontFamily: 'serif',
         }}>
-          PokerVsPals
+          PokerVsPlayer
         </div>
       </div>
     ),

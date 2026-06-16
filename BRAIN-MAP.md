@@ -1,4 +1,4 @@
-# PokerVsPals — Brain Map & Reference
+# PokerVsPlayer — Brain Map & Reference
 
 > Keep this file private. Contains wallet addresses and role descriptions.
 > Private keys are stored only in `.env` (encrypted as `.env.enc`).
@@ -9,7 +9,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        PokerVsPals                              │
+│                        PokerVsPlayer                              │
 │                                                                 │
 │  Players ──WS──► Game Server ──signs──► Settlement Sig         │
 │                      │                       │                  │

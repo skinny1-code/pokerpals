@@ -1,7 +1,7 @@
 {
   "name": "pokerpals",
   "version": "1.0.0",
-  "description": "PokerVsPals — Onchain PvP Crypto Poker Network",
+  "description": "PokerVsPlayer — Onchain PvP Crypto Poker Network",
   "private": true,
   "type": "module",
   "scripts": {
