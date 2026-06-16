@@ -1,7 +1,7 @@
 {
   "network": "arbitrumSepolia",
   "chainId": "421614",
-  "deployedAt": "2026-06-10T20:58:00.701Z",
+  "deployedAt": "2026-06-16T06:08:34.598Z",
   "deployer": "0x0B58C02408E095F8f7527FF42184E3FC54e6Df86",
   "contracts": {
     "ChipsToken": "0xCE88943bFB408376af8A7B5788497F57a6913d3A",
@@ -10,6 +10,6 @@
     "PokerEscrow": "0x555eD8617Bba49Ce04EB7EB3c975C81D3e8859D3",
     "TournamentManager": "0x59017c38D4Fa13143F95aC9e48f674dc7367Fb41",
     "TableRegistry": "0x0a231417bfD9D7BD7516780F6F77b06A1443Dd2a",
-    "PokerHandle": "0x1eba55244B49f760a4b9dB1B070f494B9D84733A"
+    "PokerHandle": "0xAb5221F91159d5F1F83366Ed811d70F4162b109E"
   }
 }
