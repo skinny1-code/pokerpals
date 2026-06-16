@@ -28,24 +28,24 @@
     "@neynar/react": "^1.2.22",
     "@openzeppelin/contracts": "^5.0.0",
     "@pigment-css/react": "^0.0.31",
-    "@tanstack/react-query": "^5.51.0",
+    "@tanstack/react-query": "^5.101.0",
     "@vercel/analytics": "^2.0.1",
     "ethers": "^6.13.0",
-    "next": "^15.5.18",
+    "next": "^16.2.9",
     "node-fetch": "^3.3.2",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0",
-    "viem": "^2.17.0",
-    "wagmi": "^2.12.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "viem": "^2.52.2",
+    "wagmi": "^2.19.5",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-ethers": "^4.0.11",
-    "@nomicfoundation/hardhat-mocha": "^3.0.20",
+    "@nomicfoundation/hardhat-ethers": "^4.0.13",
+    "@nomicfoundation/hardhat-mocha": "^3.0.21",
     "chai": "^6.2.2",
-    "dotenv": "^16.4.0",
-    "hardhat": "^3.4.5",
+    "dotenv": "^17.4.2",
+    "hardhat": "^3.9.0",
     "mocha": "^11.7.6",
-    "solc": "^0.8.26"
+    "solc": "^0.8.35"
   }
 }
