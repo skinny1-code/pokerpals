@@ -59,9 +59,9 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     uint256 public seatFeeCHIPS = 2  * 10**18; // flat per seat
 
     // Rake distribution (bps / 10000, must sum to 10000)
-    uint256 public rakeBurnBps     = 3500; // 35% burned
-    uint256 public rakeStakingBps  = 3500; // 35% to staking yield
-    uint256 public rakeTreasuryBps = 2000; // 20% to treasury
+    uint256 public rakeBurnBps     = 2000; // 20% burned
+    uint256 public rakeStakingBps  = 4500; // 45% to staking yield
+    uint256 public rakeTreasuryBps = 2500; // 25% to treasury
     uint256 public referralBps     = 1000; // 10% to referrer
 
     // Rakeback loyalty — players earn back a % of their rake as claimable CHIPS
@@ -235,13 +235,13 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
 
         uint256 remaining = totalRake - referralPaid;
 
-        // 35% of total rake → burn
+        // 20% of total rake → burn
         uint256 burnAmt = (totalRake * rakeBurnBps) / 10000;
         if (burnAmt > remaining) burnAmt = remaining;
         if (burnAmt > 0) chipsToken.burn(burnAmt);
         remaining -= burnAmt;
 
-        // 35% of total rake → staking yield pool
+        // 45% of total rake → staking yield pool
         uint256 stakingAmt = (totalRake * rakeStakingBps) / 10000;
         if (stakingAmt > remaining) stakingAmt = remaining;
         if (stakingAmt > 0) {

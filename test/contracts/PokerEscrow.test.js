@@ -181,8 +181,8 @@ describe("PokerEscrow", () => {
     const stakAfter  = await token.balanceOf(stakingAddr);
     const rakeAfter  = await token.balanceOf(owner.address);
 
-    const expectedBurn    = (totalRake * 3500n) / 10000n;
-    const expectedStaking = (totalRake * 3500n) / 10000n;
+    const expectedBurn    = (totalRake * 2000n) / 10000n;
+    const expectedStaking = (totalRake * 4500n) / 10000n;
     const expectedTreasury = totalRake - expectedBurn - expectedStaking;
 
     expect(burnBefore - burnAfter).to.equal(expectedBurn);

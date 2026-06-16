@@ -53,9 +53,9 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     uint256 public rakeDenominator = 1000;
 
     // Rake split (bps / 10000, burn + staking + treasury must sum to 10000)
-    uint256 public rakeBurnBps    = 3500; // 35%
-    uint256 public rakeStakingBps = 3500; // 35%
-    // treasury = 10000 - rakeBurnBps - rakeStakingBps = 30%
+    uint256 public rakeBurnBps    = 2000; // 20%
+    uint256 public rakeStakingBps = 4500; // 45%
+    // treasury = 10000 - rakeBurnBps - rakeStakingBps = 35%
 
     uint256 public tournamentCount;
     mapping(uint256 => Tournament)              public tournaments;

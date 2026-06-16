@@ -98,22 +98,27 @@ Frontend pages (`src/app/`):
 **Supply: 1,000,000,000 CHIPS**
 | Allocation | Amount | Destination |
 |---|---|---|
-| 10% Dev | 100M | Vested linearly in-contract over 24 months; dev calls `claimDevVest()` — personal equity |
+| 10% Dev | 100M | 25M released at deploy + 2M/month (2%/mo) vested thereafter; dev calls `claimDevVest()` |
 | 20% Staking | 200M | Seeded to ChipsStaking yield pool at deploy |
 | 10% Ops Reserve | 100M | Ops wallet — devops budget: servers, staff, marketing |
 | 10% Community | 100M | Community wallet (tournaments, airdrops, grants) |
 | 50% Liquidity | 500M | Liquidity wallet (DEX pools) |
 
 **Owner income streams:**
-- `RAKE_WALLET`: 20% of all rake per hand + 100% of seat fees + 30% of tournament rake — ongoing personal income
-- `DEV_WALLET`: 100M CHIPS vested linearly over 24 months — personal equity stake
+- `RAKE_WALLET`: 25% of all rake per hand + 100% of seat fees + 35% of tournament rake — ongoing personal income
+- `DEV_WALLET`: 25M CHIPS at deploy + 2M/month from remaining 75M vest — personal equity stake
 - `OPS_WALLET`: 100M CHIPS one-time — operational budget (separate from personal earnings)
 
 **Rake split per hand (of total rake):**
-- 35% burned → deflationary supply reduction
-- 35% → ChipsStaking yield pool → stakers earn passively
-- 20% → treasury (rake wallet)
+- 20% burned → deflationary supply reduction
+- 45% → ChipsStaking yield pool → stakers earn passively
+- 25% → treasury (rake wallet)
 - 10% → referrer (if player has one)
+
+**Table lease fee split:**
+- 20% burned
+- 45% → ChipsStaking yield pool
+- 35% → treasury (rake wallet)
 
 **VIP staking tiers:**
 | Tier | Stake | Rake | APR |

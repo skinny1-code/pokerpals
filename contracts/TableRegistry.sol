@@ -57,9 +57,9 @@ contract TableRegistry is Ownable, ReentrancyGuard {
     uint256 public maxMonths   = 12;
 
     // Lease fee split (bps / 10000)
-    uint256 public leaseBurnBps    = 3500; // 35%
-    uint256 public leaseStakingBps = 3500; // 35%
-    // treasury = 10000 - leaseBurnBps - leaseStakingBps = 30%
+    uint256 public leaseBurnBps    = 2000; // 20%
+    uint256 public leaseStakingBps = 4500; // 45%
+    // treasury = 10000 - leaseBurnBps - leaseStakingBps = 35%
 
     uint256 public roomCount;
     mapping(uint256 => Room) public rooms;
