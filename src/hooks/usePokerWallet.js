@@ -252,7 +252,7 @@ export function useWallet() {
   const { data: nativeBal } = useBalance({ address, query: { enabled: !!address } });
 
   // Is human verified on-chain?
-  const { data: isHuman } = useReadContract({
+  const { data: isHuman, refetch: refetchIsHuman } = useReadContract({
     address: ESCROW, abi: ESCROW_ABI, functionName: "humanVerified",
     args: [address], query: { enabled: !!address, refetchInterval: 30000 },
   });
@@ -282,6 +282,7 @@ export function useWallet() {
     pppBalance: chipsBalance,  // backwards-compat alias
     nativeBalance: nativeBal ? Number(formatUnits(nativeBal.value, 18)) : 0,
     isHuman: !!isHuman,
+    refetchIsHuman,
     connectMetaMask,
     connectWalletConnect,
     connectFarcaster,
