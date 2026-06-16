@@ -14,6 +14,9 @@ interface IChipsTokenBurnable is IERC20 {
 interface IChipsStakingForTourn {
     function receiveYield(uint256 amount) external;
 }
+interface IKingsPoolForTourn {
+    function receiveOps(uint256 amount) external;
+}
 
 /// @title TournamentManager — scheduled tournaments with entry fees and operator-signed payouts
 ///
@@ -44,6 +47,7 @@ contract TournamentManager is Ownable, ReentrancyGuard {
 
     IChipsTokenBurnable public immutable chipsToken;
     IChipsStakingForTourn public stakingContract;
+    IKingsPoolForTourn    public kingsPool;
     address public operatorSigner;
     address public rakeRecipient;
     address public antiBotOracle;
@@ -52,10 +56,11 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     uint256 public tournamentRake  = 100;
     uint256 public rakeDenominator = 1000;
 
-    // Rake split (bps / 10000, burn + staking + treasury must sum to 10000)
-    uint256 public rakeBurnBps    = 2000; // 20%
+    // Rake split (bps / 10000, burn + staking + kings + treasury must sum to 10000)
+    uint256 public rakeBurnBps    = 1500; // 15%
     uint256 public rakeStakingBps = 4500; // 45%
-    // treasury = 10000 - rakeBurnBps - rakeStakingBps = 35%
+    uint256 public rakeKingsBps   = 1000; // 10% → King of Spades Pool
+    // treasury = 10000 - rakeBurnBps - rakeStakingBps - rakeKingsBps = 30%
 
     uint256 public tournamentCount;
     mapping(uint256 => Tournament)              public tournaments;
@@ -149,7 +154,8 @@ contract TournamentManager is Ownable, ReentrancyGuard {
         // ── Rake distribution ──────────────────────────────────────────────
         uint256 burnAmt    = (rake * rakeBurnBps)    / 10000;
         uint256 stakingAmt = (rake * rakeStakingBps) / 10000;
-        uint256 treasuryAmt = rake - burnAmt - stakingAmt;
+        uint256 kingsAmt   = (rake * rakeKingsBps)   / 10000;
+        uint256 treasuryAmt = rake - burnAmt - stakingAmt - kingsAmt;
 
         if (burnAmt > 0) chipsToken.burn(burnAmt);
 
@@ -160,6 +166,13 @@ contract TournamentManager is Ownable, ReentrancyGuard {
             } else {
                 chipsToken.safeTransfer(rakeRecipient, stakingAmt);
             }
+        }
+
+        if (kingsAmt > 0 && address(kingsPool) != address(0)) {
+            chipsToken.safeTransfer(address(kingsPool), kingsAmt);
+            kingsPool.receiveOps(kingsAmt);
+        } else if (kingsAmt > 0) {
+            chipsToken.safeTransfer(rakeRecipient, kingsAmt);
         }
 
         if (treasuryAmt > 0) chipsToken.safeTransfer(rakeRecipient, treasuryAmt);
@@ -240,14 +253,16 @@ contract TournamentManager is Ownable, ReentrancyGuard {
         tournamentRake = num; rakeDenominator = den;
     }
 
-    function setRakeSplit(uint256 burnBps, uint256 stakingBps) external onlyOwner {
-        require(burnBps + stakingBps <= 10000, "Exceeds 100%");
+    function setRakeSplit(uint256 burnBps, uint256 stakingBps, uint256 kingsBps) external onlyOwner {
+        require(burnBps + stakingBps + kingsBps <= 10000, "Exceeds 100%");
         rakeBurnBps    = burnBps;
         rakeStakingBps = stakingBps;
+        rakeKingsBps   = kingsBps;
     }
 
     function setOperatorSigner(address s)  external onlyOwner { operatorSigner = s; }
     function setRakeRecipient(address r)   external onlyOwner { rakeRecipient = r; }
     function setStaking(address s)         external onlyOwner { stakingContract = IChipsStakingForTourn(s); }
     function setAntiBotOracle(address o)   external onlyOwner { antiBotOracle = o; }
+    function setKingsPool(address pool)    external onlyOwner { kingsPool = IKingsPoolForTourn(pool); }
 }

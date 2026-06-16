@@ -22,6 +22,9 @@ interface IReferralRegistry {
 interface ITableRegistry {
     function canSit(uint256 roomId, address player) external view returns (bool);
 }
+interface IKingsPool {
+    function receiveOps(uint256 amount) external;
+}
 
 /// @title PokerEscrow — seat fees + VIP rake tiers + referral splits + auto rake distribution
 ///
@@ -58,11 +61,12 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     uint256 public rakeCapCHIPS = 50 * 10**18;
     uint256 public seatFeeCHIPS = 2  * 10**18; // flat per seat
 
-    // Rake distribution (bps / 10000, must sum to 10000)
-    uint256 public rakeBurnBps     = 2000; // 20% burned
+    // Rake distribution (bps / 10000, all five must sum to 10000)
+    uint256 public rakeBurnBps     = 1500; // 15% burned
     uint256 public rakeStakingBps  = 4500; // 45% to staking yield
-    uint256 public rakeTreasuryBps = 2500; // 25% to treasury
+    uint256 public rakeTreasuryBps = 2000; // 20% to treasury (owner wallet)
     uint256 public referralBps     = 1000; // 10% to referrer
+    uint256 public rakeKingsBps    = 1000; // 10% to King of Spades Pool (ops)
 
     // Rakeback loyalty — players earn back a % of their rake as claimable CHIPS
     uint256 public rakebackBps = 500;  // 5% of rake paid accrues to player
@@ -74,6 +78,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     IChipsStaking     public stakingContract;
     IReferralRegistry public referralRegistry;
     ITableRegistry    public tableRegistry;
+    IKingsPool        public kingsPool;
     address public operatorSigner;
     address public rakeRecipient;
     address public antiBotOracle;
@@ -254,7 +259,18 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         }
         remaining -= stakingAmt;
 
-        // Remaining (~20%) → treasury
+        // 10% of total rake → King of Spades Pool (operating expenses)
+        uint256 kingsAmt = (totalRake * rakeKingsBps) / 10000;
+        if (kingsAmt > remaining) kingsAmt = remaining;
+        if (kingsAmt > 0 && address(kingsPool) != address(0)) {
+            chipsToken.safeTransfer(address(kingsPool), kingsAmt);
+            kingsPool.receiveOps(kingsAmt);
+        } else if (kingsAmt > 0) {
+            chipsToken.safeTransfer(rakeRecipient, kingsAmt);
+        }
+        remaining -= kingsAmt;
+
+        // Remaining (~20%) → treasury (owner's personal wallet)
         if (remaining > 0) chipsToken.safeTransfer(rakeRecipient, remaining);
 
         totalRakeCollected  += totalRake;
@@ -397,15 +413,16 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         tierRakeNum = tiers; rakeCapCHIPS = cap; seatFeeCHIPS = seatFee;
     }
 
-    /// @notice Adjust rake split. All four values must sum to 10000.
+    /// @notice Adjust rake split. All five values must sum to 10000.
     function setRakeSplit(
-        uint256 burnBps, uint256 stakingBps, uint256 treasuryBps, uint256 refBps
+        uint256 burnBps, uint256 stakingBps, uint256 treasuryBps, uint256 refBps, uint256 kingsBps
     ) external onlyOwner {
-        require(burnBps + stakingBps + treasuryBps + refBps == 10000, "Must sum to 10000");
+        require(burnBps + stakingBps + treasuryBps + refBps + kingsBps == 10000, "Must sum to 10000");
         rakeBurnBps     = burnBps;
         rakeStakingBps  = stakingBps;
         rakeTreasuryBps = treasuryBps;
         referralBps     = refBps;
+        rakeKingsBps    = kingsBps;
     }
 
     function setOperatorSigner(address s)  external onlyOwner { operatorSigner = s; }
@@ -415,4 +432,5 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     function setAntiBotOracle(address o)   external onlyOwner { antiBotOracle = o; }
     function setTableRegistry(address reg) external onlyOwner { tableRegistry = ITableRegistry(reg); }
     function setRakebackBps(uint256 bps)   external onlyOwner { require(bps <= 1000, "Max 10%"); rakebackBps = bps; }
+    function setKingsPool(address pool)    external onlyOwner { kingsPool = IKingsPool(pool); }
 }

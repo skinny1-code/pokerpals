@@ -1,0 +1,117 @@
+import { expect } from "chai";
+import { network } from "hardhat";
+import { parseUnits } from "ethers";
+
+describe("ChipsLiquidityPool", () => {
+  let ethers;
+  let token, mockUsdc, stablePool, liqPool;
+  let owner, player;
+
+  // Rate: 1000 USDC-wei per 1e18 CHIPS = $0.001/CHIP
+  const RATE = 1000n;
+  const CHIPS_FLOAT = parseUnits("500000000", 18); // 500M CHIPS
+
+  beforeEach(async () => {
+    ({ ethers } = await network.create());
+    [owner, player] = await ethers.getSigners();
+
+    const Token = await ethers.getContractFactory("ChipsToken");
+    token = await Token.deploy(owner.address, owner.address, owner.address, owner.address);
+
+    const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    mockUsdc = await MockUSDC.deploy();
+
+    const StablePool = await ethers.getContractFactory("StablecoinPool");
+    stablePool = await StablePool.deploy(await mockUsdc.getAddress());
+
+    const LiqPool = await ethers.getContractFactory("ChipsLiquidityPool");
+    liqPool = await LiqPool.deploy(
+      await token.getAddress(),
+      await mockUsdc.getAddress(),
+      await stablePool.getAddress(),
+      RATE
+    );
+
+    // Authorize liqPool in stablePool
+    await stablePool.setAuthorized(await liqPool.getAddress(), true);
+
+    // Seed liqPool with CHIPS float
+    await token.transfer(await liqPool.getAddress(), CHIPS_FLOAT);
+
+    // Seed stablePool with USDC (so redemptions can pay out)
+    await mockUsdc.mint(owner.address, 1_000_000n * 1_000_000n);
+    await mockUsdc.approve(await stablePool.getAddress(), 1_000_000n * 1_000_000n);
+    await stablePool.deposit(1_000_000n * 1_000_000n);
+
+    // Give player USDC to buy CHIPS
+    await mockUsdc.mint(player.address, 1_000n * 1_000_000n); // 1,000 USDC
+  });
+
+  it("buyChips: player receives correct CHIPS for USDC", async () => {
+    // Buy 100 USDC worth: 100 USDC = 100 * 1e6 USDC-wei → 100 * 1e6 * 1e18 / 1000 = 1e23 = 100,000 CHIPS
+    const usdcIn   = 100n * 1_000_000n; // 100 USDC
+    const liqAddr  = await liqPool.getAddress();
+    await mockUsdc.connect(player).approve(liqAddr, usdcIn);
+
+    const chipsBefore = await token.balanceOf(player.address);
+    await liqPool.connect(player).buyChips(usdcIn);
+    const chipsAfter  = await token.balanceOf(player.address);
+
+    const expectedChips = (usdcIn * parseUnits("1", 18)) / RATE;
+    expect(chipsAfter - chipsBefore).to.equal(expectedChips);
+  });
+
+  it("buyChips: USDC lands in StablecoinPool, not LiquidityPool", async () => {
+    const usdcIn = 100n * 1_000_000n;
+    const liqAddr = await liqPool.getAddress();
+    const stableAddr = await stablePool.getAddress();
+    await mockUsdc.connect(player).approve(liqAddr, usdcIn);
+
+    const liqUsdcBefore    = await mockUsdc.balanceOf(liqAddr);
+    const stableUsdcBefore = await mockUsdc.balanceOf(stableAddr);
+    await liqPool.connect(player).buyChips(usdcIn);
+
+    expect(await mockUsdc.balanceOf(liqAddr)).to.equal(liqUsdcBefore);         // unchanged
+    expect(await mockUsdc.balanceOf(stableAddr) - stableUsdcBefore).to.equal(usdcIn);
+  });
+
+  it("redeemChips: player receives correct USDC for CHIPS", async () => {
+    // Give player some CHIPS first via buyChips
+    const usdcIn = 100n * 1_000_000n;
+    const liqAddr = await liqPool.getAddress();
+    await mockUsdc.connect(player).approve(liqAddr, usdcIn);
+    await liqPool.connect(player).buyChips(usdcIn);
+
+    // Now redeem 1000 CHIPS
+    const chipsToRedeem = parseUnits("1000", 18);
+    await token.connect(player).approve(liqAddr, chipsToRedeem);
+
+    const usdcBefore = await mockUsdc.balanceOf(player.address);
+    await liqPool.connect(player).redeemChips(chipsToRedeem);
+    const usdcAfter  = await mockUsdc.balanceOf(player.address);
+
+    const expectedUsdc = (chipsToRedeem * RATE) / parseUnits("1", 18);
+    expect(usdcAfter - usdcBefore).to.equal(expectedUsdc);
+  });
+
+  it("reverts when pool is paused", async () => {
+    await liqPool.setPaused(true);
+    await mockUsdc.connect(player).approve(await liqPool.getAddress(), 1_000_000n);
+    let reverted = false;
+    try { await liqPool.connect(player).buyChips(1_000_000n); } catch { reverted = true; }
+    expect(reverted).to.equal(true);
+  });
+
+  it("owner can change rate", async () => {
+    await liqPool.setRate(2000n); // $0.002/CHIP
+    expect(await liqPool.rateUsdcPerChip()).to.equal(2000n);
+  });
+
+  it("quote helpers return consistent values", async () => {
+    const usdcIn = 500n * 1_000_000n;
+    const chipsOut = await liqPool.quoteChipsOut(usdcIn);
+    const usdcBack = await liqPool.quoteUsdcOut(chipsOut);
+    // Allow 1 wei rounding
+    expect(usdcBack >= usdcIn - 1n).to.equal(true);
+  });
+});

@@ -13,6 +13,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VALID_NETWORKS = ["arbitrumSepolia", "arbitrum"];
 const CHAIN_IDS      = { arbitrumSepolia: "421614", arbitrum: "42161" };
 
+// Real USDC on Arbitrum One (native)
+const USDC_MAINNET = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
+
 const networkName = process.env.DEPLOY_NETWORK || "arbitrumSepolia";
 if (!VALID_NETWORKS.includes(networkName)) {
   throw new Error(`Unknown DEPLOY_NETWORK="${networkName}". Valid: ${VALID_NETWORKS.join(", ")}`);
@@ -22,21 +25,28 @@ async function main() {
   const conn = await network.connect({ network: networkName });
   const ethers = conn.ethers;
   const [deployer] = await ethers.getSigners();
+  const isTestnet = networkName === "arbitrumSepolia";
   console.log("Deployer:", deployer.address);
+  console.log("Network: ", networkName);
 
   const OPERATOR  = process.env.OPERATOR_SIGNER  || deployer.address;
   const RAKE_ADDR = process.env.RAKE_WALLET       || deployer.address;
   const ORACLE    = process.env.ANTIBOT_ORACLE    || deployer.address;
   const DEV       = process.env.DEV_WALLET        || deployer.address;
-  const OPS       = process.env.OPS_WALLET        || deployer.address;
-  const COMMUNITY = process.env.COMMUNITY_WALLET  || deployer.address;
-  const LIQUIDITY = process.env.LIQUIDITY_WALLET  || deployer.address;
+
+  // Community, ops, and liquidity allocations now go to pool contracts.
+  // Deployer holds them temporarily and transfers post-deploy.
 
   // 1. ChipsToken
-  //    Mints: 10% dev (vested in-contract), 10% community, 10% ops, 50% liquidity,
-  //    20% staking pool to deployer (transferred to staking contract in step 6).
+  //    Deployer receives: STAKING_POOL (200M) + COMMUNITY_ALLOC (100M) + OPS_RESERVE (100M) + LIQUIDITY_ALLOC (500M)
+  //    Dev wallet receives: DEV_INITIAL_GRANT (25M) + vested remainder stays in contract
   const Token = await ethers.getContractFactory("ChipsToken");
-  const token = await Token.deploy(DEV, COMMUNITY, LIQUIDITY, OPS);
+  const token = await Token.deploy(
+    DEV,                // devWallet — receives 25M upfront, rest vested in-contract
+    deployer.address,   // communityWallet → deployer (transferred to PromotionsPool below)
+    deployer.address,   // liquidityWallet → deployer (transferred to ChipsLiquidityPool below)
+    deployer.address    // opsWallet → deployer (transferred to KingOfSpadesPool below)
+  );
   await token.waitForDeployment();
   const tokenAddr = await token.getAddress();
   console.log("✅ ChipsToken:", tokenAddr);
@@ -78,20 +88,82 @@ async function main() {
   const registryAddr = await registry.getAddress();
   console.log("✅ TableRegistry:", registryAddr);
 
-  // 7. PokerHandle — username NFT (burn 5,000 CHIPS to mint at tier-0)
+  // 7. PokerHandle — username NFT
   const Handle = await ethers.getContractFactory("PokerHandle");
   const handle = await Handle.deploy(tokenAddr);
   await handle.waitForDeployment();
   const handleAddr = await handle.getAddress();
   console.log("✅ PokerHandle:", handleAddr);
 
-  // 7. Seed staking yield pool: transfer 200M CHIPS from deployer → staking
-  const STAKING_POOL = ethers.parseUnits("200000000", 18);
+  // ── NEW POOL CONTRACTS ────────────────────────────────────────────────────
+
+  // 8. KingOfSpadesPool — operating expenses (seeded with 100M OPS_RESERVE)
+  const KingsPool = await ethers.getContractFactory("KingOfSpadesPool");
+  const kingsPool = await KingsPool.deploy(tokenAddr);
+  await kingsPool.waitForDeployment();
+  const kingsPoolAddr = await kingsPool.getAddress();
+  console.log("✅ KingOfSpadesPool:", kingsPoolAddr);
+
+  // 9. PromotionsPool — community budget (seeded with 100M COMMUNITY_ALLOC)
+  const PromoPool = await ethers.getContractFactory("PromotionsPool");
+  const promoPool = await PromoPool.deploy(tokenAddr);
+  await promoPool.waitForDeployment();
+  const promoPoolAddr = await promoPool.getAddress();
+  console.log("✅ PromotionsPool:", promoPoolAddr);
+
+  // 10. MockUSDC (testnet) or resolve mainnet USDC address
+  let usdcAddr;
+  if (isTestnet) {
+    const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    const mockUsdc = await MockUSDC.deploy();
+    await mockUsdc.waitForDeployment();
+    usdcAddr = await mockUsdc.getAddress();
+    console.log("✅ MockUSDC:", usdcAddr);
+  } else {
+    usdcAddr = USDC_MAINNET;
+    console.log("ℹ️  Using mainnet USDC:", usdcAddr);
+  }
+
+  // 11. StablecoinPool — USDC reserve for on-network use (prizes, payouts, promos)
+  const StablePool = await ethers.getContractFactory("StablecoinPool");
+  const stablePool = await StablePool.deploy(usdcAddr);
+  await stablePool.waitForDeployment();
+  const stablePoolAddr = await stablePool.getAddress();
+  console.log("✅ StablecoinPool:", stablePoolAddr);
+
+  // 12. ChipsLiquidityPool — 500M CHIPS trading pool at $0.001/CHIP peg
+  //     rateUsdcPerChip = 1000 → 1000 USDC-wei per 1e18 CHIPS = $0.001/CHIP
+  const LiqPool = await ethers.getContractFactory("ChipsLiquidityPool");
+  const liqPool = await LiqPool.deploy(tokenAddr, usdcAddr, stablePoolAddr, 1000n);
+  await liqPool.waitForDeployment();
+  const liqPoolAddr = await liqPool.getAddress();
+  console.log("✅ ChipsLiquidityPool:", liqPoolAddr);
+
+  // ── STAKING POOL SEED ────────────────────────────────────────────────────
+
+  const STAKING_POOL    = ethers.parseUnits("200000000", 18);  // 200M
+  const OPS_RESERVE     = ethers.parseUnits("100000000", 18);  // 100M
+  const COMMUNITY_ALLOC = ethers.parseUnits("100000000", 18);  // 100M
+  const LIQUIDITY_ALLOC = ethers.parseUnits("500000000", 18);  // 500M
+
+  // 13. Seed staking yield pool: 200M deployer → staking
   await token.transfer(stakingAddr, STAKING_POOL);
   await staking.initYieldPool();
   console.log("✅ Staking yield pool seeded with 200M CHIPS");
 
-  // 8+9. Authorize yield sources and referral registry — sequential submit (nonce order), parallel confirm
+  // 14. Transfer allocations to pool contracts
+  await token.transfer(kingsPoolAddr, OPS_RESERVE);
+  console.log("✅ KingOfSpadesPool seeded with 100M OPS_RESERVE");
+
+  await token.transfer(promoPoolAddr, COMMUNITY_ALLOC);
+  console.log("✅ PromotionsPool seeded with 100M COMMUNITY_ALLOC");
+
+  await token.transfer(liqPoolAddr, LIQUIDITY_ALLOC);
+  console.log("✅ ChipsLiquidityPool seeded with 500M LIQUIDITY_ALLOC");
+
+  // ── AUTHORIZATIONS ───────────────────────────────────────────────────────
+
+  // 15. Authorize yield sources and referral registry (parallel nonce submit)
   {
     const n = await deployer.getNonce('pending');
     const a = await staking.setYieldSource(escrowAddr,    true, { nonce: n });
@@ -104,38 +176,49 @@ async function main() {
   console.log("✅ Yield sources authorized (escrow + tournament + registry)");
   console.log("✅ Referral registry authorized");
 
-  // 10+11. Wire escrow → table registry and token → escrow factory — sequential submit, parallel confirm
+  // 16. Authorize King of Spades Pool rake sources
   {
     const n = await deployer.getNonce('pending');
-    const f = await escrow.setTableRegistry(registryAddr, { nonce: n });
-    const g = await token.setEscrowFactory(escrowAddr,    { nonce: n + 1 });
-    await Promise.all([f.wait(), g.wait()]);
+    const a = await kingsPool.setAuthorized(escrowAddr,    true, { nonce: n });
+    const b = await kingsPool.setAuthorized(tournAddr,     true, { nonce: n + 1 });
+    const c = await kingsPool.setAuthorized(registryAddr,  true, { nonce: n + 2 });
+    await Promise.all([a.wait(), b.wait(), c.wait()]);
   }
+  console.log("✅ KingOfSpadesPool authorized for escrow + tournament + registry");
+
+  // 17. Authorize ChipsLiquidityPool as StablecoinPool caller
+  await stablePool.setAuthorized(liqPoolAddr, true);
+  console.log("✅ StablecoinPool authorized ChipsLiquidityPool");
+
+  // 18. Wire pool addresses into rake contracts and other wiring
+  {
+    const n = await deployer.getNonce('pending');
+    const a = await escrow.setKingsPool(kingsPoolAddr,    { nonce: n });
+    const b = await tourn.setKingsPool(kingsPoolAddr,     { nonce: n + 1 });
+    const c = await registry.setKingsPool(kingsPoolAddr,  { nonce: n + 2 });
+    const d = await escrow.setTableRegistry(registryAddr, { nonce: n + 3 });
+    const e = await token.setEscrowFactory(escrowAddr,    { nonce: n + 4 });
+    await Promise.all([a.wait(), b.wait(), c.wait(), d.wait(), e.wait()]);
+  }
+  console.log("✅ KingsPool wired into escrow + tournament + registry");
   console.log("✅ PokerEscrow wired to TableRegistry");
   console.log("✅ Token wired to escrow");
 
-  console.log("\n── Role wallets used in this deploy ──────────────────");
+  console.log("\n── Role wallets ───────────────────────────────────────");
   console.log(`Deployer:          ${deployer.address}`);
   console.log(`Operator signer:   ${OPERATOR}`);
-  console.log(`Rake recipient:    ${RAKE_ADDR}   ← personal income stream`);
-  console.log(`Anti-bot oracle:   ${ORACLE}`);
-  console.log(`Dev wallet:        ${DEV}   ← personal equity (100M CHIPS vested 24 mo)`);
-  console.log(`Ops wallet:        ${OPS}   ← devops budget (100M CHIPS)`);
-  console.log(`Community wallet:  ${COMMUNITY}   ← 100M CHIPS`);
-  console.log(`Liquidity wallet:  ${LIQUIDITY}   ← 500M CHIPS`);
-  console.log("\n── Token economy ─────────────────────────────────────");
-  console.log("  10% Dev       — 100M CHIPS, vested linearly over 24 months");
-  console.log("  20% Staking   — 200M CHIPS, seeded into yield pool");
-  console.log("  10% Ops       — 100M CHIPS → ops wallet (devops budget)");
-  console.log("  10% Community — 100M CHIPS → community wallet");
-  console.log("  50% Liquidity — 500M CHIPS → liquidity wallet");
+  console.log(`Rake recipient:    ${RAKE_ADDR}   ← personal income (20% treasury rake)`);
+  console.log(`Dev wallet:        ${DEV}   ← 25M CHIPS + 2M/month vest`);
+  console.log("\n── On-chain pools ─────────────────────────────────────");
+  console.log(`KingOfSpadesPool:  ${kingsPoolAddr}   ← 100M ops + 10% rake`);
+  console.log(`PromotionsPool:    ${promoPoolAddr}   ← 100M community`);
+  console.log(`ChipsLiquidityPool:${liqPoolAddr}   ← 500M CHIPS ($0.001/CHIP)`);
+  console.log(`StablecoinPool:    ${stablePoolAddr}   ← USDC reserve`);
+  console.log(`ChipsStaking:      ${stakingAddr}   ← 200M + 45% rake`);
   console.log("\n── Rake split per hand ───────────────────────────────");
-  console.log("  35% burned | 35% staking yield | 20% treasury | 10% referral");
+  console.log("  15% burned | 45% staking | 20% treasury | 10% KingsPool | 10% referral");
   console.log("\n── Room lease fee split ──────────────────────────────");
-  console.log("  35% burned | 35% staking yield | 30% treasury");
-  console.log("\n── Handle NFT ────────────────────────────────────────");
-  console.log("  Mint cost: 5,000 CHIPS burned tier-0 (rises with supply — see PokerHandle.tierCosts)");
-  console.log("  Fully on-chain SVG — no IPFS needed");
+  console.log("  15% burned | 45% staking | 30% treasury | 10% KingsPool");
 
   // Save deployment manifest
   const deployBlock = await ethers.provider.getBlockNumber();
@@ -150,17 +233,22 @@ async function main() {
       deployer: deployer.address,
       deployBlock,
       contracts: {
-        ChipsToken:        tokenAddr,
-        ChipsStaking:      stakingAddr,
-        ReferralRegistry:  referralAddr,
-        PokerEscrow:       escrowAddr,
-        TournamentManager: tournAddr,
-        TableRegistry:     registryAddr,
-        PokerHandle:       handleAddr,
+        ChipsToken:          tokenAddr,
+        ChipsStaking:        stakingAddr,
+        ReferralRegistry:    referralAddr,
+        PokerEscrow:         escrowAddr,
+        TournamentManager:   tournAddr,
+        TableRegistry:       registryAddr,
+        PokerHandle:         handleAddr,
+        KingOfSpadesPool:    kingsPoolAddr,
+        PromotionsPool:      promoPoolAddr,
+        StablecoinPool:      stablePoolAddr,
+        ChipsLiquidityPool:  liqPoolAddr,
+        ...(isTestnet ? { MockUSDC: usdcAddr } : { USDC: usdcAddr }),
       },
     }, null, 2)
   );
-  console.log(`✅ deployments/${networkName}.json saved`);
+  console.log(`\n✅ deployments/${networkName}.json saved`);
 
   // Auto-write contract addresses into .env
   const envArgs = [
@@ -171,6 +259,11 @@ async function main() {
     `NEXT_PUBLIC_TOURNAMENT=${tournAddr}`,
     `NEXT_PUBLIC_TABLE_REGISTRY=${registryAddr}`,
     `NEXT_PUBLIC_POKER_HANDLE=${handleAddr}`,
+    `NEXT_PUBLIC_KINGS_POOL=${kingsPoolAddr}`,
+    `NEXT_PUBLIC_PROMOTIONS_POOL=${promoPoolAddr}`,
+    `NEXT_PUBLIC_STABLECOIN_POOL=${stablePoolAddr}`,
+    `NEXT_PUBLIC_LIQUIDITY_POOL=${liqPoolAddr}`,
+    ...(isTestnet ? [`NEXT_PUBLIC_MOCK_USDC=${usdcAddr}`] : [`NEXT_PUBLIC_USDC=${usdcAddr}`]),
   ].join(" ");
   try {
     execSync(`node ${__dirname}/updateEnv.js ${envArgs}`, { stdio: "inherit" });
@@ -184,6 +277,12 @@ async function main() {
     console.log(`NEXT_PUBLIC_TOURNAMENT=${tournAddr}`);
     console.log(`NEXT_PUBLIC_TABLE_REGISTRY=${registryAddr}`);
     console.log(`NEXT_PUBLIC_POKER_HANDLE=${handleAddr}`);
+    console.log(`NEXT_PUBLIC_KINGS_POOL=${kingsPoolAddr}`);
+    console.log(`NEXT_PUBLIC_PROMOTIONS_POOL=${promoPoolAddr}`);
+    console.log(`NEXT_PUBLIC_STABLECOIN_POOL=${stablePoolAddr}`);
+    console.log(`NEXT_PUBLIC_LIQUIDITY_POOL=${liqPoolAddr}`);
+    if (isTestnet) console.log(`NEXT_PUBLIC_MOCK_USDC=${usdcAddr}`);
+    else console.log(`NEXT_PUBLIC_USDC=${usdcAddr}`);
   }
   console.log("──────────────────────────────────────────────────────");
 }

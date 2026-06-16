@@ -39,6 +39,20 @@ export const wagmiConfig = createConfig({
   ssr: true,  // prevents wagmi from reading localStorage during SSR hydration
 });
 
+// ─── CONTRACT ADDRESSES (exported for dashboard and other consumers) ──────────
+export const CONTRACT_ADDRESSES = {
+  chipsToken:      CHIPS,
+  escrow:          ESCROW,
+  staking:         STAKING,
+  handle:          HANDLE,
+  tournament:      TOURNAMENT,
+  kingsPool:       KINGS_POOL,
+  promotionsPool:  PROMOTIONS_POOL,
+  stablecoinPool:  STABLECOIN_POOL,
+  liquidityPool:   LIQUIDITY_POOL,
+  usdc:            USDC_ADDR,
+};
+
 // ─── ABIs ─────────────────────────────────────────────────────────────────────
 export const CHIPS_ABI = [
   { name:"balanceOf",  type:"function", stateMutability:"view",
@@ -185,11 +199,17 @@ export const TOURNAMENT_ABI = [
     inputs:[{name:"",type:"uint256"},{name:"",type:"address"}], outputs:[{type:"bool"}] },
 ];
 
-const CHIPS      = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
-const ESCROW     = process.env.NEXT_PUBLIC_ESCROW;
-const STAKING    = process.env.NEXT_PUBLIC_STAKING;
-const HANDLE     = process.env.NEXT_PUBLIC_POKER_HANDLE;
-const TOURNAMENT = process.env.NEXT_PUBLIC_TOURNAMENT;
+const CHIPS          = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
+const ESCROW         = process.env.NEXT_PUBLIC_ESCROW;
+const STAKING        = process.env.NEXT_PUBLIC_STAKING;
+const HANDLE         = process.env.NEXT_PUBLIC_POKER_HANDLE;
+const TOURNAMENT     = process.env.NEXT_PUBLIC_TOURNAMENT;
+const KINGS_POOL     = process.env.NEXT_PUBLIC_KINGS_POOL;
+const PROMOTIONS_POOL = process.env.NEXT_PUBLIC_PROMOTIONS_POOL;
+const STABLECOIN_POOL = process.env.NEXT_PUBLIC_STABLECOIN_POOL;
+const LIQUIDITY_POOL  = process.env.NEXT_PUBLIC_LIQUIDITY_POOL;
+const MOCK_USDC      = process.env.NEXT_PUBLIC_MOCK_USDC;
+const USDC_ADDR      = MOCK_USDC || process.env.NEXT_PUBLIC_USDC;
 
 // Safe fee estimation — returns {} if blocked (sandbox) so MetaMask estimates instead.
 // IMPORTANT: always return BOTH 1559 fields together (never leave one undefined).

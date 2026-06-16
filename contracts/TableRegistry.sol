@@ -12,6 +12,9 @@ interface IChipsTokenBurn is IERC20 {
 interface IChipsStakingYield {
     function receiveYield(uint256 amount) external;
 }
+interface IKingsPoolForRegistry {
+    function receiveOps(uint256 amount) external;
+}
 interface IERC721Minimal {
     function balanceOf(address owner) external view returns (uint256);
 }
@@ -45,9 +48,10 @@ contract TableRegistry is Ownable, ReentrancyGuard {
         uint256 dailyRate;     // CHIPS per day paid; used for pro-rata refunds on terminate
     }
 
-    IChipsTokenBurn    public immutable chipsToken;
-    IChipsStakingYield public stakingContract;
-    address            public rakeRecipient;
+    IChipsTokenBurn      public immutable chipsToken;
+    IChipsStakingYield   public stakingContract;
+    IKingsPoolForRegistry public kingsPool;
+    address              public rakeRecipient;
 
     uint256 public weeklyFee   = 33_500  * 10**18;  // 33,500 CHIPS per week
     uint256 public monthlyFee  = 100_000 * 10**18;  // 100,000 CHIPS per month (~30 days)
@@ -57,9 +61,10 @@ contract TableRegistry is Ownable, ReentrancyGuard {
     uint256 public maxMonths   = 12;
 
     // Lease fee split (bps / 10000)
-    uint256 public leaseBurnBps    = 2000; // 20%
+    uint256 public leaseBurnBps    = 1500; // 15%
     uint256 public leaseStakingBps = 4500; // 45%
-    // treasury = 10000 - leaseBurnBps - leaseStakingBps = 35%
+    uint256 public leaseKingsBps   = 1000; // 10% → King of Spades Pool
+    // treasury = 10000 - leaseBurnBps - leaseStakingBps - leaseKingsBps = 30%
 
     uint256 public roomCount;
     mapping(uint256 => Room) public rooms;
@@ -270,7 +275,8 @@ contract TableRegistry is Ownable, ReentrancyGuard {
 
         uint256 burnAmt    = (fee * leaseBurnBps)    / 10000;
         uint256 stakingAmt = (fee * leaseStakingBps) / 10000;
-        uint256 treasury   = fee - burnAmt - stakingAmt;
+        uint256 kingsAmt   = (fee * leaseKingsBps)   / 10000;
+        uint256 treasury   = fee - burnAmt - stakingAmt - kingsAmt;
 
         if (burnAmt > 0) chipsToken.burn(burnAmt);
 
@@ -281,6 +287,13 @@ contract TableRegistry is Ownable, ReentrancyGuard {
             } else {
                 chipsToken.safeTransfer(rakeRecipient, stakingAmt);
             }
+        }
+
+        if (kingsAmt > 0 && address(kingsPool) != address(0)) {
+            chipsToken.safeTransfer(address(kingsPool), kingsAmt);
+            kingsPool.receiveOps(kingsAmt);
+        } else if (kingsAmt > 0) {
+            chipsToken.safeTransfer(rakeRecipient, kingsAmt);
         }
 
         if (treasury > 0) chipsToken.safeTransfer(rakeRecipient, treasury);
@@ -294,11 +307,14 @@ contract TableRegistry is Ownable, ReentrancyGuard {
 
     function setWeeklyFee(uint256 fee) external onlyOwner { weeklyFee = fee; }
 
-    function setLeaseSplit(uint256 burnBps, uint256 stakingBps) external onlyOwner {
-        require(burnBps + stakingBps <= 10000, "Exceeds 100%");
+    function setLeaseSplit(uint256 burnBps, uint256 stakingBps, uint256 kingsBps) external onlyOwner {
+        require(burnBps + stakingBps + kingsBps <= 10000, "Exceeds 100%");
         leaseBurnBps    = burnBps;
         leaseStakingBps = stakingBps;
+        leaseKingsBps   = kingsBps;
     }
+
+    function setKingsPool(address pool) external onlyOwner { kingsPool = IKingsPoolForRegistry(pool); }
 
     function setWeekLimits(uint256 min_, uint256 max_) external onlyOwner {
         require(min_ >= 1 && max_ >= min_, "Bad limits");
