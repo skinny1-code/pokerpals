@@ -13,6 +13,7 @@
     "oracle": "node --env-file=.env server/antiBotOracle.js",
     "compile": "npx hardhat compile",
     "deploy:testnet": "npx hardhat run scripts/deploy.js",
+    "deploy:handle": "npx hardhat run scripts/deployHandle.js",
     "deploy:mainnet": "DEPLOY_NETWORK=arbitrum npx hardhat run scripts/deploy.js",
     "test": "node test/holdem.test.mjs",
     "test:contracts": "npx hardhat test",
