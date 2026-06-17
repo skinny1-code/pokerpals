@@ -316,7 +316,9 @@ contract TableRegistry is Ownable, ReentrancyGuard {
 
         if (kingsAmt > 0 && address(kingsPool) != address(0)) {
             chipsToken.safeTransfer(address(kingsPool), kingsAmt);
-            kingsPool.receiveOps(kingsAmt);
+            // Notification only — funds already moved, so a revert here (e.g. pool not
+            // yet authorized) must not roll back lease settlement.
+            try kingsPool.receiveOps(kingsAmt) {} catch {}
         } else if (kingsAmt > 0) {
             chipsToken.safeTransfer(rakeRecipient, kingsAmt);
         }
@@ -355,6 +357,7 @@ contract TableRegistry is Ownable, ReentrancyGuard {
     function terminateLease(uint256 roomId) external nonReentrant onlyOwner {
         Room storage r = rooms[roomId];
         require(r.lessee != address(0), "Not found");
+        require(r.leaseExpiry > 0, "Already terminated");
         uint256 held = r.heldFunds;
         r.heldFunds = 0;
         uint256 refund;

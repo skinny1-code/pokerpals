@@ -120,6 +120,16 @@ describe("TableRegistry", () => {
     expect(await token.balanceOf(await registry.getAddress())).to.equal(0n);
   });
 
+  it("terminateLease reverts if called again on an already-terminated room", async () => {
+    const roomId = await leaseOneWeek();
+
+    await ethers.provider.send("evm_increaseTime", [3.5 * 24 * 60 * 60]);
+    await ethers.provider.send("evm_mine");
+
+    await expectNotReverted(registry.terminateLease(roomId));
+    await expectReverted(registry.terminateLease(roomId), "Already terminated");
+  });
+
   it("settleLease lets anyone release funds once a lease has run its course", async () => {
     const roomId = await leaseOneWeek();
 

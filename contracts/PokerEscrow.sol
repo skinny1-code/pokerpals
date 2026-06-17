@@ -30,8 +30,9 @@ interface IKingsPool {
 ///
 /// Rake split (of total rake per hand):
 ///   10% → referrer (if player has one)
-///   35% → burned (deflationary)
-///   35% → staking yield pool (stakers earn from every hand)
+///   15% → burned (deflationary)
+///   45% → staking yield pool (stakers earn from every hand)
+///   10% → King of Spades Pool (operating expenses)
 ///   20% → treasury (rakeRecipient)
 contract PokerEscrow is Ownable, ReentrancyGuard {
     using SafeERC20 for IChipsToken;
@@ -240,7 +241,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
 
         uint256 remaining = totalRake - referralPaid;
 
-        // 20% of total rake → burn
+        // 15% of total rake → burn
         uint256 burnAmt = (totalRake * rakeBurnBps) / 10000;
         if (burnAmt > remaining) burnAmt = remaining;
         if (burnAmt > 0) chipsToken.burn(burnAmt);
@@ -264,7 +265,9 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         if (kingsAmt > remaining) kingsAmt = remaining;
         if (kingsAmt > 0 && address(kingsPool) != address(0)) {
             chipsToken.safeTransfer(address(kingsPool), kingsAmt);
-            kingsPool.receiveOps(kingsAmt);
+            // Notification only — funds already moved, so a revert here (e.g. pool not
+            // yet authorized) must not roll back the whole settlement.
+            try kingsPool.receiveOps(kingsAmt) {} catch {}
         } else if (kingsAmt > 0) {
             chipsToken.safeTransfer(rakeRecipient, kingsAmt);
         }

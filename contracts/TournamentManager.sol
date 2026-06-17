@@ -21,8 +21,9 @@ interface IKingsPoolForTourn {
 /// @title TournamentManager — scheduled tournaments with entry fees and operator-signed payouts
 ///
 /// Rake split (of tournament rake):
-///   35% → burned (deflationary)
-///   35% → staking yield pool
+///   15% → burned (deflationary)
+///   45% → staking yield pool
+///   10% → King of Spades Pool (operating expenses)
 ///   30% → treasury (rakeRecipient)
 contract TournamentManager is Ownable, ReentrancyGuard {
     using SafeERC20 for IChipsTokenBurnable;
@@ -170,7 +171,9 @@ contract TournamentManager is Ownable, ReentrancyGuard {
 
         if (kingsAmt > 0 && address(kingsPool) != address(0)) {
             chipsToken.safeTransfer(address(kingsPool), kingsAmt);
-            kingsPool.receiveOps(kingsAmt);
+            // Notification only — funds already moved, so a revert here (e.g. pool not
+            // yet authorized) must not roll back tournament start.
+            try kingsPool.receiveOps(kingsAmt) {} catch {}
         } else if (kingsAmt > 0) {
             chipsToken.safeTransfer(rakeRecipient, kingsAmt);
         }
