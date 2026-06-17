@@ -127,7 +127,8 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
   const nftGateInvalid = nftGate.trim().length > 0 && !isAddress(nftGate.trim());
 
   const busy = status === 'approving' || status === 'leasing';
-  const canSubmit = !busy && !!name.trim() && effectiveCount > 0 && !nftGateInvalid;
+  const countValid = effectiveCount > 0 && Number.isInteger(effectiveCount);
+  const canSubmit = !busy && !!name.trim() && countValid && !nftGateInvalid;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -209,7 +210,7 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
               }}>{n}</button>
             ))}
             <input
-              type="number" placeholder="Custom" min={1}
+              type="number" placeholder="Custom" min={1} step={1}
               value={customCount}
               onChange={e => setCustomCount(e.target.value)}
               style={{
@@ -224,6 +225,13 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
           <div style={{ fontSize:11, color:'#5a8a5a', marginTop:8, fontFamily:"'JetBrains Mono',monospace" }}>
             Total: ◈ {fmt(totalFee)} CHIPS
           </div>
+          {effectiveCount > 0 && !Number.isInteger(effectiveCount) && (
+            <div style={{ fontSize:11, color:'#e74c3c', marginTop:8,
+              background:'rgba(192,57,43,.08)', border:'1px solid rgba(192,57,43,.3)',
+              borderRadius:8, padding:'8px 12px', lineHeight:1.4 }}>
+              Duration must be a whole number of {periodMode === 'weeks' ? 'weeks' : 'months'}.
+            </div>
+          )}
         </div>
 
         {/* Game type */}
