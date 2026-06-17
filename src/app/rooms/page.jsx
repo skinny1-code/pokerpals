@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import WalletBar from '../../components/WalletBar';
 import { useAccount } from 'wagmi';
+import { isAddress } from 'viem';
 import { useTableRegistry } from '../../hooks/usePokerWallet';
 
 const ZERO_ADDR    = '0x0000000000000000000000000000000000000000';
@@ -119,15 +120,17 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
   const [maxBuyIn,   setMaxBuyIn]   = useState('');
   const [nftGate,    setNftGate]    = useState('');
 
-  const effectiveCount = customCount ? Number(customCount) : count;
+  const effectiveCount = Math.max(0, customCount ? Number(customCount) || 0 : count);
   const presets = periodMode === 'weeks' ? WEEK_PRESETS : MONTH_PRESETS;
   const rate     = periodMode === 'weeks' ? weeklyFee : monthlyFee;
   const totalFee = (effectiveCount || 0) * rate;
+  const nftGateInvalid = nftGate.trim().length > 0 && !isAddress(nftGate.trim());
 
   const busy = status === 'approving' || status === 'leasing';
+  const canSubmit = !busy && !!name.trim() && effectiveCount > 0 && !nftGateInvalid;
 
   const handleSubmit = () => {
-    if (!name.trim() || !effectiveCount || effectiveCount <= 0) return;
+    if (!canSubmit) return;
     leaseRoom({
       name: name.trim(),
       weeks:  periodMode === 'weeks'  ? effectiveCount : undefined,
@@ -320,6 +323,13 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
               outline:'none',
             }}
           />
+          {nftGateInvalid && (
+            <div style={{ fontSize:11, color:'#e74c3c', marginTop:8,
+              background:'rgba(192,57,43,.08)', border:'1px solid rgba(192,57,43,.3)',
+              borderRadius:8, padding:'8px 12px', lineHeight:1.4 }}>
+              Not a valid address — leave blank for an open room, or enter a valid 0x… contract address.
+            </div>
+          )}
         </div>
 
         {errorMsg && (
@@ -339,14 +349,14 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
           }}>
             Cancel
           </button>
-          <button onClick={handleSubmit} disabled={busy} style={{
-            flex:2, padding:'12px', borderRadius:8, cursor: busy ? 'not-allowed' : 'pointer',
-            background: busy ? '#0a160a' : 'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-            border:`1px solid ${busy ? '#1e3a1e' : '#d4af37'}`,
-            color: busy ? '#3a5a3a' : '#d4af37',
+          <button onClick={handleSubmit} disabled={!canSubmit} style={{
+            flex:2, padding:'12px', borderRadius:8, cursor: canSubmit ? 'pointer' : 'not-allowed',
+            background: canSubmit ? 'linear-gradient(135deg,#1a4a1a,#0c2e0c)' : '#0a160a',
+            border:`1px solid ${canSubmit ? '#d4af37' : '#1e3a1e'}`,
+            color: canSubmit ? '#d4af37' : '#3a5a3a',
             fontSize:13, fontWeight:700, fontFamily:'inherit',
             transition:'all .15s',
-            boxShadow: busy ? 'none' : '0 0 16px rgba(212,175,55,.12)',
+            boxShadow: canSubmit ? '0 0 16px rgba(212,175,55,.12)' : 'none',
           }}>
             {status === 'approving' ? 'Approving…' : status === 'leasing' ? 'Leasing…' : '＋ Lease Room'}
           </button>

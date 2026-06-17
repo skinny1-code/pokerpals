@@ -9,7 +9,7 @@ import { waitForTransactionReceipt } from "wagmi/actions";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
-import { parseUnits, formatUnits, parseAbiItem } from "viem";
+import { parseUnits, formatUnits, parseAbiItem, isAddress } from "viem";
 
 // ─── WS URL HELPER ─────────────────────────────────────────────────────────────
 // Upgrades ws:// → wss:// when the page is served over https (avoids mixed-content block).
@@ -1233,12 +1233,13 @@ export function useTableRegistry() {
     setErrorMsg(null);
     if (!address) { setErrorMsg('Connect your wallet first.'); return null; }
     if (!TABLE_REGISTRY || !CHIPS) { setErrorMsg('Contract not configured — run npm run setup:env and restart.'); return null; }
+    if (nftGate && !isAddress(nftGate)) { setErrorMsg('NFT gate must be a valid contract address.'); return null; }
     try {
       const useMonths = !!months;
       const count   = BigInt(useMonths ? months : weeks);
       const feeRate = useMonths ? (monthlyFeeRaw ?? 0n) : (weeklyFeeRaw ?? 0n);
       const feeBN   = feeRate * count;
-      const nftGateAddr = nftGate && nftGate.length === 42 ? nftGate : '0x0000000000000000000000000000000000000000';
+      const nftGateAddr = nftGate ? nftGate : '0x0000000000000000000000000000000000000000';
       const minBuyInBN  = parseUnits(String(minBuyIn || 0), 18);
       const maxBuyInBN  = parseUnits(String(maxBuyIn || 0), 18);
       const feeOverrides = await safeFeeOverrides(publicClient);

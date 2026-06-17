@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { href:'/tournament',  label:'Tournaments',  icon:'🏆' },
   { href:'/leaderboard', label:'Leaderboard',  icon:'◉' },
   { href:'/stake',       label:'Stake',        icon:'◈' },
+  { href:'/rooms',       label:'Rooms',        icon:'♛' },
   { href:'/buy',         label:'Buy CHIPS',    icon:'$' },
   { href:'/handle',      label:'Handle',       icon:'@' },
 ];
