@@ -46,13 +46,18 @@ Run `server` and `oracle` as two independent Node processes.
 The system has three independent runtime layers:
 
 **1. Smart contracts** (`contracts/`) — Solidity 0.8.26, deployed on Arbitrum One. Deployment order matters and is handled by `scripts/deploy.js`:
-- `ChipsToken` — ERC-20 token named "Chips" (ticker: CHIPS), 1B supply. Allocation: 10% dev (vested 24 months in-contract), 20% staking rewards pool (seeded to ChipsStaking at deploy), 10% ops reserve, 10% community, 50% liquidity
-- `ChipsStaking` — players lock CHIPS to earn a VIP tier (0–4); tier determines rake rate. Also receives 35% of every rake payment as yield for stakers
+- `ChipsToken` — ERC-20 token named "Chips" (ticker: CHIPS), 1B supply. Allocation: 10% dev (vested 24 months in-contract), 20% staking rewards pool (seeded to ChipsStaking at deploy), 10% ops reserve (→ KingOfSpadesPool), 10% community (→ PromotionsPool), 50% liquidity (→ ChipsLiquidityPool)
+- `ChipsStaking` — players lock CHIPS to earn a VIP tier (0–4); tier determines rake rate. Also receives 45% of every rake payment as yield for stakers
 - `ReferralRegistry` — tracks referrer per player; must be `setAuthorized(escrowAddr, true)` before it will record rake credits
 - `PokerEscrow` — core cash-game contract: buy-in locking, per-hand signed settlement, VIP rake tiers, referral splits, seat fees. Optionally links tables to a `TableRegistry` room for access control.
 - `TournamentManager` — scheduled tournaments; mirrors the signed-settlement pattern of `PokerEscrow`
-- `TableRegistry` — on-chain private room leasing. Anyone pays a weekly CHIPS fee to lease a room. Rooms can be NFT-gated (ERC-721 ownership required to sit). Lease fee split: 35% burn / 35% staking / 30% treasury. `canSit(roomId, player)` is checked by PokerEscrow on buy-in.
+- `TableRegistry` — on-chain private room leasing. Anyone pays a weekly CHIPS fee to lease a room. Rooms can be NFT-gated (ERC-721 ownership required to sit). Lease fee split: 15% burn / 45% staking / 10% King of Spades Pool / 30% treasury. `canSit(roomId, player)` is checked by PokerEscrow on buy-in.
 - `PokerHandle` — ERC-721 NFT for on-chain usernames. Players burn CHIPS to mint a unique 3–20 char handle (alphanumeric + underscore, case-insensitive uniqueness). Fully on-chain SVG tokenURI. One handle per wallet, but handles are transferable. Contract address stored in `NEXT_PUBLIC_POKER_HANDLE`.
+- `KingOfSpadesPool` — on-chain operating-expense fund. Seeded with 100M CHIPS at deploy + receives 10% of all rake continuously. Owner withdraws with annotated reason for auditability.
+- `PromotionsPool` — 100M CHIPS community allocation for contests, airdrops, rake-free promos. Owner withdraws with note.
+- `StablecoinPool` — on-network USDC reserve. Funded by USDC proceeds from chip purchases. ChipsLiquidityPool is authorized to call `notifyDeposit()` and `authorizedPayout()`.
+- `ChipsLiquidityPool` — 500M CHIPS CHIPS↔USDC swap pool at a fixed owner-set peg. Player USDC flows directly to StablecoinPool; player receives CHIPS from this pool. `rateUsdcPerChip` = USDC-wei per 1e18 CHIPS (default 1000 = $0.001/CHIP).
+- `MockUSDC` — testnet USDC stand-in (6 decimals). Mainnet uses `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`.
 
 Post-deploy wiring (done in `scripts/deploy.js`):
 - `token.transfer(stakingAddr, 200M_CHIPS)` then `staking.initYieldPool()`
@@ -60,6 +65,12 @@ Post-deploy wiring (done in `scripts/deploy.js`):
 - `referral.setAuthorized(escrowAddr, true)` and `setAuthorized(tournAddr, true)`
 - `escrow.setTableRegistry(registryAddr)`
 - `token.setEscrowFactory(escrowAddr)`
+- `token.transfer(kingsPoolAddr, 100M_CHIPS)` — seed ops reserve
+- `token.transfer(promotionsPoolAddr, 100M_CHIPS)` — seed community allocation
+- `token.transfer(liqPoolAddr, 500M_CHIPS)` — seed liquidity float
+- `kingsPool.setAuthorized(escrowAddr/tournAddr/registryAddr, true)` — allow rake contracts to call `receiveOps()`
+- `stablecoinPool.setAuthorized(liqPoolAddr, true)` — allow swap pool to call `notifyDeposit()`/`authorizedPayout()`
+- `escrow/tourn/registry.setKingsPool(kingsPoolAddr)` — wire rake distribution
 
 **2. WebSocket game server** (`server/index.js`) — Node.js using ES module syntax (`import`). Manages game state in memory (`Map<id, PokerTable>`). Key responsibilities:
 - Authenticates players via wallet signature (`PVP-AUTH:<nonce>`)
@@ -98,22 +109,40 @@ Frontend pages (`src/app/`):
 **Supply: 1,000,000,000 CHIPS**
 | Allocation | Amount | Destination |
 |---|---|---|
-| 10% Dev | 100M | Vested linearly in-contract over 24 months; dev calls `claimDevVest()` — personal equity |
+| 10% Dev | 100M | 25M released at deploy + 2M/month (2%/mo) vested thereafter; dev calls `claimDevVest()` |
 | 20% Staking | 200M | Seeded to ChipsStaking yield pool at deploy |
-| 10% Ops Reserve | 100M | Ops wallet — devops budget: servers, staff, marketing |
-| 10% Community | 100M | Community wallet (tournaments, airdrops, grants) |
-| 50% Liquidity | 500M | Liquidity wallet (DEX pools) |
+| 10% Ops Reserve | 100M | `KingOfSpadesPool` contract — devops budget: servers, staff, equipment |
+| 10% Community | 100M | `PromotionsPool` contract — tournaments, airdrops, grants, rake-free promos |
+| 50% Liquidity | 500M | `ChipsLiquidityPool` contract — players buy/sell CHIPS at fixed peg |
+
+**On-chain pool architecture:**
+| Pool | Contract | Seeded | Purpose |
+|---|---|---|---|
+| King of Spades Pool | `KingOfSpadesPool` | 100M CHIPS + 10% rake | Business operating expenses |
+| Promotions Pool | `PromotionsPool` | 100M CHIPS | Contests, tournaments, airdrops |
+| Stablecoin Pool | `StablecoinPool` | USDC from chip purchases | On-network USDC reserve |
+| Chips Liquidity Pool | `ChipsLiquidityPool` | 500M CHIPS | Player CHIPS↔USDC swaps |
 
 **Owner income streams:**
-- `RAKE_WALLET`: 20% of all rake per hand + 100% of seat fees + 30% of tournament rake — ongoing personal income
-- `DEV_WALLET`: 100M CHIPS vested linearly over 24 months — personal equity stake
-- `OPS_WALLET`: 100M CHIPS one-time — operational budget (separate from personal earnings)
+- `RAKE_WALLET` (EOA): 20% of cash-game rake + 30% of tournament/lease rake + 100% of seat fees — ongoing personal income
+- `DEV_WALLET`: 25M CHIPS at deploy + 2M/month from remaining 75M vest — personal equity stake
 
-**Rake split per hand (of total rake):**
-- 35% burned → deflationary supply reduction
-- 35% → ChipsStaking yield pool → stakers earn passively
-- 20% → treasury (rake wallet)
+**Rake split per hand — PokerEscrow (of total rake):**
+- 15% burned → deflationary supply reduction
+- 45% → ChipsStaking yield pool → stakers earn passively
+- 10% → King of Spades Pool → operating expenses
+- 20% → treasury (owner's personal rake wallet EOA)
 - 10% → referrer (if player has one)
+
+**Rake split — TournamentManager + TableRegistry (of total rake):**
+- 15% burned
+- 45% → ChipsStaking yield pool
+- 10% → King of Spades Pool
+- 30% → treasury (owner's personal rake wallet EOA)
+
+**CHIPS↔USDC swap flow:**
+- Buy: player USDC → StablecoinPool (direct transfer) + `notifyDeposit()` → player receives CHIPS from ChipsLiquidityPool
+- Redeem: player CHIPS → ChipsLiquidityPool (held) + StablecoinPool `authorizedPayout()` → player receives USDC
 
 **VIP staking tiers:**
 | Tier | Stake | Rake | APR |
@@ -140,7 +169,7 @@ See `.env.example` for all required variables. Key groups:
 - **Wallet keys**: `DEPLOYER_KEY`, `OPERATOR_PRIVATE_KEY`, `OPERATOR_SIGNER`, `RAKE_WALLET`, `ANTIBOT_ORACLE`
 - **RPC**: `ARB_SEPOLIA_RPC`, `ARB_RPC` (Alchemy endpoints)
 - **APIs**: `ALCHEMY_API_KEY`, `GITCOIN_PASSPORT_API`, `GITCOIN_SCORER_ID`, `ARBISCAN_API_KEY`
-- **Frontend** (`NEXT_PUBLIC_*`): `WC_PROJECT_ID`, `CHAIN_ID`, `WS_URL`, and all seven contract addresses (`NEXT_PUBLIC_CHIPS_TOKEN`, `NEXT_PUBLIC_ESCROW`, `NEXT_PUBLIC_STAKING`, `NEXT_PUBLIC_REFERRAL`, `NEXT_PUBLIC_TOURNAMENT`, `NEXT_PUBLIC_TABLE_REGISTRY`, `NEXT_PUBLIC_POKER_HANDLE`) — auto-written by `deploy:testnet` and re-synced by `setup:env`
+- **Frontend** (`NEXT_PUBLIC_*`): `WC_PROJECT_ID`, `CHAIN_ID`, `WS_URL`, and all contract addresses (`NEXT_PUBLIC_CHIPS_TOKEN`, `NEXT_PUBLIC_ESCROW`, `NEXT_PUBLIC_STAKING`, `NEXT_PUBLIC_REFERRAL`, `NEXT_PUBLIC_TOURNAMENT`, `NEXT_PUBLIC_TABLE_REGISTRY`, `NEXT_PUBLIC_POKER_HANDLE`, `NEXT_PUBLIC_KINGS_POOL`, `NEXT_PUBLIC_PROMOTIONS_POOL`, `NEXT_PUBLIC_STABLECOIN_POOL`, `NEXT_PUBLIC_LIQUIDITY_POOL`, `NEXT_PUBLIC_MOCK_USDC`) — auto-written by `deploy:testnet` and re-synced by `setup:env`
 - **Testnet**: set `TESTNET_SKIP_HUMAN_CHECK=true` to bypass Gitcoin Passport; server calls `markHuman()` directly for any connecting wallet
 
 ## Security notes

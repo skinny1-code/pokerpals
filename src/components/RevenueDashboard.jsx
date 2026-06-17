@@ -5,10 +5,15 @@ import { useState, useEffect } from "react";
 import { useReadContract, useReadContracts } from "wagmi";
 import { formatUnits } from "viem";
 
-const ESCROW_ADDR   = process.env.NEXT_PUBLIC_ESCROW;
-const TOURN_ADDR    = process.env.NEXT_PUBLIC_TOURNAMENT;
-const STAKING_ADDR  = process.env.NEXT_PUBLIC_STAKING;
-const REFERRAL_ADDR = process.env.NEXT_PUBLIC_REFERRAL;
+const ESCROW_ADDR     = process.env.NEXT_PUBLIC_ESCROW;
+const TOURN_ADDR      = process.env.NEXT_PUBLIC_TOURNAMENT;
+const STAKING_ADDR    = process.env.NEXT_PUBLIC_STAKING;
+const REFERRAL_ADDR   = process.env.NEXT_PUBLIC_REFERRAL;
+const KINGS_POOL_ADDR = process.env.NEXT_PUBLIC_KINGS_POOL;
+const PROMO_POOL_ADDR = process.env.NEXT_PUBLIC_PROMOTIONS_POOL;
+const STABLE_POOL_ADDR = process.env.NEXT_PUBLIC_STABLECOIN_POOL;
+const LIQ_POOL_ADDR   = process.env.NEXT_PUBLIC_LIQUIDITY_POOL;
+const CHIPS_ADDR      = process.env.NEXT_PUBLIC_CHIPS_TOKEN;
 
 const ESCROW_ABI = [
   { name:"getRevenueSummary", type:"function", stateMutability:"view",
@@ -34,6 +39,18 @@ const STAKING_ABI = [
 const REFERRAL_ABI = [
   { name:"getLeaderboard", type:"function", stateMutability:"view", inputs:[],
     outputs:[{type:"address[10]"},{type:"uint256[10]"},{type:"uint256[10]"}] },
+];
+
+const BALANCE_ABI = [
+  { name:"balanceOf", type:"function", stateMutability:"view",
+    inputs:[{name:"account",type:"address"}], outputs:[{type:"uint256"}] },
+];
+const USDC_BALANCE_ABI = [
+  { name:"balanceOf", type:"function", stateMutability:"view",
+    inputs:[{name:"account",type:"address"}], outputs:[{type:"uint256"}] },
+];
+const STAKING_YIELD_ABI = [
+  { name:"yieldPool", type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
 ];
 
 const fmt   = n  => typeof n === 'bigint' ? Number(formatUnits(n, 18)).toLocaleString(undefined,{maximumFractionDigits:1}) : n;
@@ -103,15 +120,39 @@ export default function RevenueDashboard({ address: ownerAddr }) {
     address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'seatFeeCHIPS',
   });
 
+  // Pool balances
+  const { data: kingsBalance }  = useReadContracts({ contracts: [
+    { address: CHIPS_ADDR, abi: BALANCE_ABI, functionName: 'balanceOf', args: [KINGS_POOL_ADDR] },
+  ], query: { refetchInterval: 30000 } });
+  const { data: promoBalance }  = useReadContracts({ contracts: [
+    { address: CHIPS_ADDR, abi: BALANCE_ABI, functionName: 'balanceOf', args: [PROMO_POOL_ADDR] },
+  ], query: { refetchInterval: 30000 } });
+  const { data: liqBalance }    = useReadContracts({ contracts: [
+    { address: CHIPS_ADDR, abi: BALANCE_ABI, functionName: 'balanceOf', args: [LIQ_POOL_ADDR] },
+  ], query: { refetchInterval: 30000 } });
+  const { data: stableBalance } = useReadContracts({ contracts: [
+    { address: STABLE_POOL_ADDR, abi: USDC_BALANCE_ABI, functionName: 'balanceOf', args: [STABLE_POOL_ADDR] },
+  ], query: { refetchInterval: 30000 } });
+  const { data: stakingYield } = useReadContract({
+    address: STAKING_ADDR, abi: STAKING_YIELD_ABI, functionName: 'yieldPool',
+    query: { refetchInterval: 30000 },
+  });
+
   const rake      = escrowSummary?.[0] || 0n;
   const seats     = escrowSummary?.[3] || 0n;
   const refs      = escrowSummary?.[4] || 0n;
   const cashTotal = rake + seats + (tournRevenue || 0n);
 
+  const kingsChips  = kingsBalance?.[0]?.result  || 0n;
+  const promoChips  = promoBalance?.[0]?.result  || 0n;
+  const liqChips    = liqBalance?.[0]?.result    || 0n;
+  const stableUsdc  = stableBalance?.[0]?.result || 0n;
+  const stakingPool = stakingYield || 0n;
+
   const TIERS = ['Standard','Bronze','Silver','Gold','Whale'];
   const TIER_COLORS = ['#4a7a4a','#cd7f32','#aaa','#ffd700','#00e5ff'];
 
-  const TABS = ['overview','streams','staking','referrals'];
+  const TABS = ['overview','streams','pools','staking','referrals'];
 
   return (
     <div style={{
@@ -250,6 +291,33 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                 ))}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ── POOLS ── */}
+        {tab==='pools' && (
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+              <StatCard icon="♠" label="KING OF SPADES POOL" value={chips(kingsChips)}
+                sub="Ops expenses (100M seeded + 10% rake)" color='#d4af37'/>
+              <StatCard icon="🎯" label="PROMOTIONS POOL" value={chips(promoChips)}
+                sub="Contests, airdrops, tournaments" color='#ab47bc'/>
+              <StatCard icon="💎" label="CHIPS LIQUIDITY POOL" value={chips(liqChips)}
+                sub="500M CHIPS for buy/sell at $0.001/CHIP" color='#4caf50'/>
+              <StatCard icon="💵" label="STABLECOIN POOL" value={`$${fmt(stableUsdc * 10n**12n)}`}
+                sub="USDC reserve for on-network payouts" color='#29b6f6'/>
+              <StatCard icon="⛏" label="STAKING YIELD POOL" value={chips(stakingPool)}
+                sub="200M seeded + 45% rake — earns APR for stakers" color='#ab47bc'/>
+            </div>
+            <div style={{background:'#08140888',border:'1px solid #162a16',borderRadius:10,
+              padding:'16px 18px',marginTop:4}}>
+              <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:2,marginBottom:12}}>RAKE FLOW</div>
+              <Bar label="Burn (15%)"              value={escrowSummary?.[1]||0n} max={rake||1n} color='#ef5350'/>
+              <Bar label="Staking yield (45%)"     value={escrowSummary?.[2]||0n} max={rake||1n} color='#ab47bc'/>
+              <Bar label="King of Spades (10%)"    value={(rake * 1000n / 10000n)} max={rake||1n} color='#d4af37'/>
+              <Bar label="Treasury — owner (20%)"  value={(rake * 2000n / 10000n)} max={rake||1n} color='#4caf50'/>
+              <Bar label="Referrals (10%)"         value={escrowSummary?.[4]||0n} max={rake||1n} color='#29b6f6'/>
+            </div>
           </div>
         )}
 

@@ -37,13 +37,18 @@ const c = depl.contracts;
 let env = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, "utf8") : "";
 
 const keys = {
-  NEXT_PUBLIC_CHIPS_TOKEN:    c.PvPToken       || c.ChipsToken       || "",
-  NEXT_PUBLIC_ESCROW:         c.PokerEscrow    || "",
-  NEXT_PUBLIC_STAKING:        c.PvPStaking     || c.ChipsStaking     || "",
-  NEXT_PUBLIC_REFERRAL:       c.ReferralRegistry || "",
-  NEXT_PUBLIC_TOURNAMENT:     c.TournamentManager || "",
-  NEXT_PUBLIC_TABLE_REGISTRY: c.TableRegistry  || "",
-  NEXT_PUBLIC_POKER_HANDLE:   c.PokerHandle    || "",
+  NEXT_PUBLIC_CHIPS_TOKEN:    c.PvPToken          || c.ChipsToken          || "",
+  NEXT_PUBLIC_ESCROW:         c.PokerEscrow        || "",
+  NEXT_PUBLIC_STAKING:        c.PvPStaking         || c.ChipsStaking        || "",
+  NEXT_PUBLIC_REFERRAL:       c.ReferralRegistry   || "",
+  NEXT_PUBLIC_TOURNAMENT:     c.TournamentManager  || "",
+  NEXT_PUBLIC_TABLE_REGISTRY: c.TableRegistry      || "",
+  NEXT_PUBLIC_POKER_HANDLE:   c.PokerHandle        || "",
+  NEXT_PUBLIC_KINGS_POOL:     c.KingOfSpadesPool   || "",
+  NEXT_PUBLIC_PROMOTIONS_POOL: c.PromotionsPool    || "",
+  NEXT_PUBLIC_STABLECOIN_POOL: c.StablecoinPool    || "",
+  NEXT_PUBLIC_LIQUIDITY_POOL: c.ChipsLiquidityPool || "",
+  NEXT_PUBLIC_MOCK_USDC:      c.MockUSDC           || "",
 };
 
 for (const [key, value] of Object.entries(keys)) {

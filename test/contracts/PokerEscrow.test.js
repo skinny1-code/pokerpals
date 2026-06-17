@@ -38,7 +38,7 @@ async function expectNotReverted(promise) {
 
 describe("PokerEscrow", () => {
   let ethers;
-  let token, staking, referral, escrow;
+  let token, staking, referral, escrow, kingsPool;
   let owner, player1, player2, operator;
   const BUY_IN = parseUnits("1000", 18);
   const BB     = parseUnits("10",   18);
@@ -57,6 +57,9 @@ describe("PokerEscrow", () => {
     const Referral = await ethers.getContractFactory("ReferralRegistry");
     referral = await Referral.deploy(await token.getAddress());
 
+    const KingsPool = await ethers.getContractFactory("KingOfSpadesPool");
+    kingsPool = await KingsPool.deploy(await token.getAddress());
+
     const Escrow = await ethers.getContractFactory("PokerEscrow");
     escrow = await Escrow.deploy(
       await token.getAddress(),
@@ -67,8 +70,10 @@ describe("PokerEscrow", () => {
       await referral.getAddress()
     );
 
-    // Authorize escrow as a yield source so settle() can call receiveYield()
+    // Authorize escrow as a yield source and kings pool rake source
     await staking.setYieldSource(await escrow.getAddress(), true);
+    await kingsPool.setAuthorized(await escrow.getAddress(), true);
+    await escrow.setKingsPool(await kingsPool.getAddress());
 
     // Fund test players from owner balance (faucet would exceed MAX_SUPPLY)
     await token.transfer(player1.address, parseUnits("10000", 18));
@@ -146,9 +151,10 @@ describe("PokerEscrow", () => {
   // (ABI-encoded, not 20-byte natural size). Use "address[]" type in solidityPackedKeccak256
   // to match the contract's on-chain hash computation.
 
-  it("settle: distributes rake correctly (35% burn / 35% staking / 20% treasury)", async () => {
+  it("settle: distributes rake correctly (15% burn / 45% staking / 10% kings / 20% treasury)", async () => {
     const escrowAddr  = await escrow.getAddress();
     const stakingAddr = await staking.getAddress();
+    const kingsAddr   = await kingsPool.getAddress();
 
     await escrow.createTable(BUY_IN, BB, 2, 0, 0);
     await token.connect(player1).approve(escrowAddr, BUY_IN + FEE);
@@ -163,6 +169,7 @@ describe("PokerEscrow", () => {
 
     const burnBefore  = await token.totalSupply();
     const stakBefore  = await token.balanceOf(stakingAddr);
+    const kingsBefore = await token.balanceOf(kingsAddr);
     const rakeBefore  = await token.balanceOf(owner.address);
 
     const tableId  = 1n;
@@ -179,15 +186,18 @@ describe("PokerEscrow", () => {
 
     const burnAfter  = await token.totalSupply();
     const stakAfter  = await token.balanceOf(stakingAddr);
+    const kingsAfter = await token.balanceOf(kingsAddr);
     const rakeAfter  = await token.balanceOf(owner.address);
 
-    const expectedBurn    = (totalRake * 3500n) / 10000n;
-    const expectedStaking = (totalRake * 3500n) / 10000n;
-    const expectedTreasury = totalRake - expectedBurn - expectedStaking;
+    const expectedBurn    = (totalRake * 1500n) / 10000n;
+    const expectedStaking = (totalRake * 4500n) / 10000n;
+    const expectedKings   = (totalRake * 1000n) / 10000n;
+    const expectedTreasury = totalRake - expectedBurn - expectedStaking - expectedKings;
 
     expect(burnBefore - burnAfter).to.equal(expectedBurn);
     expect(stakAfter  - stakBefore).to.equal(expectedStaking);
-    expect(rakeAfter - rakeBefore >= expectedTreasury - 1n).to.equal(true);
+    expect(kingsAfter - kingsBefore).to.equal(expectedKings);
+    expect(rakeAfter  - rakeBefore >= expectedTreasury - 1n).to.equal(true);
   });
 
   it("settle: pays winner correct net amount after rake", async () => {

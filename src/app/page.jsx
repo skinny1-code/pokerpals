@@ -592,7 +592,7 @@ export default function LobbyPage() {
               33,500 CHIPS/week · 100,000 CHIPS/month · NFT-gate for your community
             </div>
           </div>
-          <Link href="/stake" style={{
+          <Link href="/rooms" style={{
             background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
             border:'1px solid rgba(212,175,55,.35)', borderRadius:8,
             padding:'10px 22px', textDecoration:'none',

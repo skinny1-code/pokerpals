@@ -9,7 +9,7 @@ import { waitForTransactionReceipt } from "wagmi/actions";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
-import { parseUnits, formatUnits, parseAbiItem } from "viem";
+import { parseUnits, formatUnits, parseAbiItem, isAddress } from "viem";
 
 // ─── WS URL HELPER ─────────────────────────────────────────────────────────────
 // Upgrades ws:// → wss:// when the page is served over https (avoids mixed-content block).
@@ -185,11 +185,74 @@ export const TOURNAMENT_ABI = [
     inputs:[{name:"",type:"uint256"},{name:"",type:"address"}], outputs:[{type:"bool"}] },
 ];
 
-const CHIPS      = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
-const ESCROW     = process.env.NEXT_PUBLIC_ESCROW;
-const STAKING    = process.env.NEXT_PUBLIC_STAKING;
-const HANDLE     = process.env.NEXT_PUBLIC_POKER_HANDLE;
-const TOURNAMENT = process.env.NEXT_PUBLIC_TOURNAMENT;
+const ROOM_TUPLE_OUTPUTS = [
+  {name:"id",type:"uint256"},{name:"lessee",type:"address"},{name:"name",type:"string"},
+  {name:"nftGate",type:"address"},{name:"minBuyIn",type:"uint256"},{name:"maxBuyIn",type:"uint256"},
+  {name:"maxPlayers",type:"uint8"},{name:"gameType",type:"uint8"},{name:"isPublic",type:"bool"},
+  {name:"leaseExpiry",type:"uint256"},{name:"dailyRate",type:"uint256"},{name:"heldFunds",type:"uint256"},
+];
+
+export const REGISTRY_ABI = [
+  { name:"weeklyFee",  type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"monthlyFee", type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"minWeeks",   type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"maxWeeks",   type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"minMonths",  type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"maxMonths",  type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"roomCount",  type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"leaseRoom", type:"function", stateMutability:"nonpayable",
+    inputs:[
+      {name:"weeks_",type:"uint256"},{name:"nftGate",type:"address"},
+      {name:"minBuyIn",type:"uint256"},{name:"maxBuyIn",type:"uint256"},
+      {name:"maxPlayers",type:"uint8"},{name:"gameType",type:"uint8"},
+      {name:"isPublic",type:"bool"},{name:"name",type:"string"},
+    ], outputs:[{name:"roomId",type:"uint256"}] },
+  { name:"leaseRoomMonths", type:"function", stateMutability:"nonpayable",
+    inputs:[
+      {name:"months_",type:"uint256"},{name:"nftGate",type:"address"},
+      {name:"minBuyIn",type:"uint256"},{name:"maxBuyIn",type:"uint256"},
+      {name:"maxPlayers",type:"uint8"},{name:"gameType",type:"uint8"},
+      {name:"isPublic",type:"bool"},{name:"name",type:"string"},
+    ], outputs:[{name:"roomId",type:"uint256"}] },
+  { name:"getRoom", type:"function", stateMutability:"view",
+    inputs:[{name:"roomId",type:"uint256"}], outputs:[{type:"tuple", components: ROOM_TUPLE_OUTPUTS}] },
+  { name:"getPublicRooms", type:"function", stateMutability:"view",
+    inputs:[], outputs:[{type:"tuple[]", components: ROOM_TUPLE_OUTPUTS}] },
+  { name:"RoomLeased", type:"event",
+    inputs:[
+      {name:"roomId",type:"uint256",indexed:true},{name:"lessee",type:"address",indexed:true},
+      {name:"name",type:"string",indexed:false},{name:"nftGate",type:"address",indexed:false},
+      {name:"leaseExpiry",type:"uint256",indexed:false},{name:"feePaid",type:"uint256",indexed:false},
+    ]},
+];
+
+const CHIPS          = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
+const ESCROW         = process.env.NEXT_PUBLIC_ESCROW;
+const STAKING        = process.env.NEXT_PUBLIC_STAKING;
+const HANDLE         = process.env.NEXT_PUBLIC_POKER_HANDLE;
+const TOURNAMENT     = process.env.NEXT_PUBLIC_TOURNAMENT;
+const TABLE_REGISTRY = process.env.NEXT_PUBLIC_TABLE_REGISTRY;
+const KINGS_POOL     = process.env.NEXT_PUBLIC_KINGS_POOL;
+const PROMOTIONS_POOL = process.env.NEXT_PUBLIC_PROMOTIONS_POOL;
+const STABLECOIN_POOL = process.env.NEXT_PUBLIC_STABLECOIN_POOL;
+const LIQUIDITY_POOL  = process.env.NEXT_PUBLIC_LIQUIDITY_POOL;
+const MOCK_USDC      = process.env.NEXT_PUBLIC_MOCK_USDC;
+const USDC_ADDR      = MOCK_USDC || process.env.NEXT_PUBLIC_USDC;
+
+// ─── CONTRACT ADDRESSES (exported for dashboard and other consumers) ──────────
+export const CONTRACT_ADDRESSES = {
+  chipsToken:      CHIPS,
+  escrow:          ESCROW,
+  staking:         STAKING,
+  handle:          HANDLE,
+  tournament:      TOURNAMENT,
+  tableRegistry:   TABLE_REGISTRY,
+  kingsPool:       KINGS_POOL,
+  promotionsPool:  PROMOTIONS_POOL,
+  stablecoinPool:  STABLECOIN_POOL,
+  liquidityPool:   LIQUIDITY_POOL,
+  usdc:            USDC_ADDR,
+};
 
 // Safe fee estimation — returns {} if blocked (sandbox) so MetaMask estimates instead.
 // IMPORTANT: always return BOTH 1559 fields together (never leave one undefined).
@@ -1123,6 +1186,92 @@ export function useRegisterTournament() {
   }, [address, writeContractAsync, publicClient]);
 
   return { register, status, txHash, confirmed };
+}
+
+// ─── HOOK: TABLE REGISTRY (private room leasing) ──────────────────────────────
+export function useTableRegistry() {
+  const { address }            = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient           = usePublicClient();
+  const [txHash, setTxHash]     = useState(null);
+  const [status, setStatus]     = useState('idle');
+  const [errorMsg, setErrorMsg] = useState(null);
+
+  const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const { data: weeklyFeeRaw } = useReadContract({
+    address: TABLE_REGISTRY, abi: REGISTRY_ABI, functionName: 'weeklyFee',
+    query: { enabled: !!TABLE_REGISTRY },
+  });
+  const { data: monthlyFeeRaw } = useReadContract({
+    address: TABLE_REGISTRY, abi: REGISTRY_ABI, functionName: 'monthlyFee',
+    query: { enabled: !!TABLE_REGISTRY },
+  });
+  const { data: roomsRaw, refetch: refetchRooms } = useReadContract({
+    address: TABLE_REGISTRY, abi: REGISTRY_ABI, functionName: 'getPublicRooms',
+    query: { enabled: !!TABLE_REGISTRY, refetchInterval: 15000 },
+  });
+
+  const weeklyFee  = weeklyFeeRaw  ? Number(formatUnits(weeklyFeeRaw, 18))  : 33500;
+  const monthlyFee = monthlyFeeRaw ? Number(formatUnits(monthlyFeeRaw, 18)) : 100000;
+
+  const publicRooms = useMemo(() => (roomsRaw || []).map(r => ({
+    id:          Number(r.id),
+    lessee:      r.lessee,
+    name:        r.name,
+    nftGate:     r.nftGate,
+    minBuyIn:    Number(formatUnits(r.minBuyIn, 18)),
+    maxBuyIn:    Number(formatUnits(r.maxBuyIn, 18)),
+    maxPlayers:  Number(r.maxPlayers),
+    gameType:    Number(r.gameType),
+    isPublic:    r.isPublic,
+    leaseExpiry: Number(r.leaseExpiry),
+    dailyRate:   Number(formatUnits(r.dailyRate, 18)),
+  })), [roomsRaw]);
+
+  const leaseRoom = useCallback(async ({ name, weeks, months, nftGate, minBuyIn, maxBuyIn, maxPlayers, gameType, isPublic }) => {
+    setErrorMsg(null);
+    if (!address) { setErrorMsg('Connect your wallet first.'); return null; }
+    if (!TABLE_REGISTRY || !CHIPS) { setErrorMsg('Contract not configured — run npm run setup:env and restart.'); return null; }
+    if (nftGate && !isAddress(nftGate)) { setErrorMsg('NFT gate must be a valid contract address.'); return null; }
+    try {
+      const useMonths = !!months;
+      const count   = BigInt(useMonths ? months : weeks);
+      const feeRate = useMonths ? (monthlyFeeRaw ?? 0n) : (weeklyFeeRaw ?? 0n);
+      const feeBN   = feeRate * count;
+      const nftGateAddr = nftGate ? nftGate : '0x0000000000000000000000000000000000000000';
+      const minBuyInBN  = parseUnits(String(minBuyIn || 0), 18);
+      const maxBuyInBN  = parseUnits(String(maxBuyIn || 0), 18);
+      const feeOverrides = await safeFeeOverrides(publicClient);
+      if (!(await hasAllowance(publicClient, address, TABLE_REGISTRY, feeBN))) {
+        setStatus('approving');
+        const approveTx = await writeContractAsync({
+          address: CHIPS, abi: CHIPS_ABI, functionName: 'approve',
+          args: [TABLE_REGISTRY, feeBN], ...feeOverrides,
+        });
+        await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      }
+      setStatus('leasing');
+      const tx = await writeContractAsync({
+        address: TABLE_REGISTRY, abi: REGISTRY_ABI,
+        functionName: useMonths ? 'leaseRoomMonths' : 'leaseRoom',
+        args: [count, nftGateAddr, minBuyInBN, maxBuyInBN, maxPlayers, gameType, isPublic, name],
+        ...feeOverrides,
+      });
+      setTxHash(tx);
+      setStatus('idle');
+      return tx;
+    } catch (e) {
+      const msg = e?.shortMessage || e?.message || String(e);
+      setErrorMsg(msg);
+      setStatus('error');
+      return null;
+    }
+  }, [address, writeContractAsync, publicClient, weeklyFeeRaw, monthlyFeeRaw]);
+
+  useEffect(() => { if (confirmed) refetchRooms(); }, [confirmed, refetchRooms]);
+
+  return { weeklyFee, monthlyFee, publicRooms, leaseRoom, status, txHash, confirmed, errorMsg, refetchRooms };
 }
 
 // Legacy hook kept for backwards compatibility

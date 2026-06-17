@@ -12,6 +12,9 @@ interface IChipsTokenBurn is IERC20 {
 interface IChipsStakingYield {
     function receiveYield(uint256 amount) external;
 }
+interface IKingsPoolForRegistry {
+    function receiveOps(uint256 amount) external;
+}
 interface IERC721Minimal {
     function balanceOf(address owner) external view returns (uint256);
 }
@@ -24,7 +27,13 @@ interface IERC721Minimal {
 ///   - NFT-gated (only holders of a specified ERC-721 can sit)
 ///   - Public or invite-only (enforced server-side; on-chain flag for UX)
 ///
-/// Lease fee split: 35% burned | 35% staking yield | 30% treasury
+/// Lease fee split: 15% burned | 45% staking yield | 10% King of Spades Pool | 30% treasury
+///
+/// Collected fees are held in escrow per-room (Room.heldFunds) rather than
+/// distributed immediately, so an early terminateLease() can always pay the
+/// pro-rata refund. Funds are released to burn/staking/kingsPool/treasury
+/// once a lease's fate is resolved — via terminateLease() (early end) or
+/// settleLease() (anyone may call once a lease has run its full course).
 ///
 /// PokerEscrow calls canSit(roomId, player) before allowing buy-in when a
 /// table is linked to a room.
@@ -43,11 +52,13 @@ contract TableRegistry is Ownable, ReentrancyGuard {
         bool    isPublic;      // false = NFT/lessee-invite only (UI hint; NFT gate enforced on-chain)
         uint256 leaseExpiry;   // unix timestamp; 0 = expired/not leased
         uint256 dailyRate;     // CHIPS per day paid; used for pro-rata refunds on terminate
+        uint256 heldFunds;     // CHIPS collected but not yet distributed; backs the refund
     }
 
-    IChipsTokenBurn    public immutable chipsToken;
-    IChipsStakingYield public stakingContract;
-    address            public rakeRecipient;
+    IChipsTokenBurn      public immutable chipsToken;
+    IChipsStakingYield   public stakingContract;
+    IKingsPoolForRegistry public kingsPool;
+    address              public rakeRecipient;
 
     uint256 public weeklyFee   = 33_500  * 10**18;  // 33,500 CHIPS per week
     uint256 public monthlyFee  = 100_000 * 10**18;  // 100,000 CHIPS per month (~30 days)
@@ -57,9 +68,10 @@ contract TableRegistry is Ownable, ReentrancyGuard {
     uint256 public maxMonths   = 12;
 
     // Lease fee split (bps / 10000)
-    uint256 public leaseBurnBps    = 3500; // 35%
-    uint256 public leaseStakingBps = 3500; // 35%
-    // treasury = 10000 - leaseBurnBps - leaseStakingBps = 30%
+    uint256 public leaseBurnBps    = 1500; // 15%
+    uint256 public leaseStakingBps = 4500; // 45%
+    uint256 public leaseKingsBps   = 1000; // 10% → King of Spades Pool
+    // treasury = 10000 - leaseBurnBps - leaseStakingBps - leaseKingsBps = 30%
 
     uint256 public roomCount;
     mapping(uint256 => Room) public rooms;
@@ -75,6 +87,7 @@ contract TableRegistry is Ownable, ReentrancyGuard {
     );
     event LeaseRenewed(uint256 indexed roomId, uint256 newExpiry, uint256 feePaid);
     event RoomUpdated(uint256 indexed roomId);
+    event LeaseSettled(uint256 indexed roomId, uint256 distributed, uint256 refunded);
 
     error RoomNotFound(uint256 id);
     error NotLessee(uint256 id);
@@ -234,7 +247,7 @@ contract TableRegistry is Ownable, ReentrancyGuard {
         bool    isPublic,
         string calldata name
     ) internal returns (uint256 roomId) {
-        _collectAndSplitFee(fee);
+        _collectFee(fee);
         roomId = ++roomCount;
         rooms[roomId] = Room({
             id:          roomId,
@@ -247,30 +260,48 @@ contract TableRegistry is Ownable, ReentrancyGuard {
             gameType:    gameType,
             isPublic:    isPublic,
             leaseExpiry: block.timestamp + durationSecs,
-            dailyRate:   fee * 1 days / durationSecs
+            dailyRate:   fee * 1 days / durationSecs,
+            heldFunds:   fee
         });
     }
 
     /// @dev Extend lease and recompute a blended dailyRate so terminateLease
     ///      refunds the correct proportion regardless of weekly/monthly mix.
+    ///      If the prior period already ran out without being settled, those
+    ///      held funds are fully earned (no longer refundable) and are
+    ///      distributed now, before the new period's funds start accruing.
     function _extendLease(Room storage r, uint256 fee, uint256 durationSecs) internal {
+        if (r.leaseExpiry <= block.timestamp && r.heldFunds > 0) {
+            _distributeFee(r.heldFunds);
+            r.heldFunds = 0;
+        }
         // Value of the remaining time under the old rate (0 if expired)
         uint256 remVal = r.leaseExpiry > block.timestamp
             ? r.dailyRate * (r.leaseExpiry - block.timestamp) / 1 days
             : 0;
-        _collectAndSplitFee(fee);
+        _collectFee(fee);
         uint256 base  = r.leaseExpiry > block.timestamp ? r.leaseExpiry : block.timestamp;
         r.leaseExpiry = base + durationSecs;
         // Blended rate: total remaining value ÷ total remaining seconds
         r.dailyRate   = (remVal + fee) * 1 days / (r.leaseExpiry - block.timestamp);
+        r.heldFunds  += fee;
     }
 
-    function _collectAndSplitFee(uint256 fee) internal {
+    /// @dev Pulls `fee` CHIPS from the lessee into escrow. Distribution is
+    ///      deferred until the lease's fate is resolved (see _distributeFee).
+    function _collectFee(uint256 fee) internal {
         chipsToken.safeTransferFrom(msg.sender, address(this), fee);
+        totalLeaseFeesCollected += fee;
+    }
 
+    /// @dev Splits an already-held (fully earned) amount across
+    ///      burn/staking/kingsPool/treasury. Caller must have already
+    ///      zeroed out the corresponding Room.heldFunds.
+    function _distributeFee(uint256 fee) internal {
         uint256 burnAmt    = (fee * leaseBurnBps)    / 10000;
         uint256 stakingAmt = (fee * leaseStakingBps) / 10000;
-        uint256 treasury   = fee - burnAmt - stakingAmt;
+        uint256 kingsAmt   = (fee * leaseKingsBps)   / 10000;
+        uint256 treasury   = fee - burnAmt - stakingAmt - kingsAmt;
 
         if (burnAmt > 0) chipsToken.burn(burnAmt);
 
@@ -283,9 +314,17 @@ contract TableRegistry is Ownable, ReentrancyGuard {
             }
         }
 
+        if (kingsAmt > 0 && address(kingsPool) != address(0)) {
+            chipsToken.safeTransfer(address(kingsPool), kingsAmt);
+            // Notification only — funds already moved, so a revert here (e.g. pool not
+            // yet authorized) must not roll back lease settlement.
+            try kingsPool.receiveOps(kingsAmt) {} catch {}
+        } else if (kingsAmt > 0) {
+            chipsToken.safeTransfer(rakeRecipient, kingsAmt);
+        }
+
         if (treasury > 0) chipsToken.safeTransfer(rakeRecipient, treasury);
 
-        totalLeaseFeesCollected += fee;
         totalLeaseFeesBurned    += burnAmt;
         totalLeaseFeesToStaking += stakingAmt;
     }
@@ -294,11 +333,14 @@ contract TableRegistry is Ownable, ReentrancyGuard {
 
     function setWeeklyFee(uint256 fee) external onlyOwner { weeklyFee = fee; }
 
-    function setLeaseSplit(uint256 burnBps, uint256 stakingBps) external onlyOwner {
-        require(burnBps + stakingBps <= 10000, "Exceeds 100%");
+    function setLeaseSplit(uint256 burnBps, uint256 stakingBps, uint256 kingsBps) external onlyOwner {
+        require(burnBps + stakingBps + kingsBps <= 10000, "Exceeds 100%");
         leaseBurnBps    = burnBps;
         leaseStakingBps = stakingBps;
+        leaseKingsBps   = kingsBps;
     }
+
+    function setKingsPool(address pool) external onlyOwner { kingsPool = IKingsPoolForRegistry(pool); }
 
     function setWeekLimits(uint256 min_, uint256 max_) external onlyOwner {
         require(min_ >= 1 && max_ >= min_, "Bad limits");
@@ -309,16 +351,42 @@ contract TableRegistry is Ownable, ReentrancyGuard {
     function setRakeRecipient(address r) external onlyOwner { rakeRecipient = r; }
 
     /// @notice Owner can terminate an active lease and refund the lessee pro-rata.
-    function terminateLease(uint256 roomId) external onlyOwner {
+    ///         The refund is paid from this room's held funds (escrowed at lease/
+    ///         renewal time), then anything left over is distributed as earned
+    ///         revenue — so this can never revert for lack of balance.
+    function terminateLease(uint256 roomId) external nonReentrant onlyOwner {
         Room storage r = rooms[roomId];
         require(r.lessee != address(0), "Not found");
+        require(r.leaseExpiry > 0, "Already terminated");
+        uint256 held = r.heldFunds;
+        r.heldFunds = 0;
+        uint256 refund;
         if (block.timestamp < r.leaseExpiry && r.dailyRate > 0) {
             uint256 remaining = r.leaseExpiry - block.timestamp;
-            uint256 refund    = (r.dailyRate * remaining) / 1 days;
+            refund = (r.dailyRate * remaining) / 1 days;
+            if (refund > held) refund = held;
             if (refund > 0) chipsToken.safeTransfer(r.lessee, refund);
         }
+        uint256 toDistribute = held - refund;
+        if (toDistribute > 0) _distributeFee(toDistribute);
         r.leaseExpiry = 0;
+        r.dailyRate   = 0;
+        emit LeaseSettled(roomId, toDistribute, refund);
         emit RoomUpdated(roomId);
+    }
+
+    /// @notice Anyone may call this once a lease has fully run its course to
+    ///         release its held funds to burn/staking/kingsPool/treasury. No
+    ///         refund is due since the lessee used the full period they paid for.
+    function settleLease(uint256 roomId) external nonReentrant {
+        Room storage r = rooms[roomId];
+        require(r.lessee != address(0), "Not found");
+        require(block.timestamp >= r.leaseExpiry, "Lease still active");
+        uint256 held = r.heldFunds;
+        require(held > 0, "Nothing to settle");
+        r.heldFunds = 0;
+        _distributeFee(held);
+        emit LeaseSettled(roomId, held, 0);
     }
 
     function setMonthlyFee(uint256 fee) external onlyOwner { monthlyFee = fee; }
