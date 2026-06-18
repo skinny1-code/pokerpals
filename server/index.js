@@ -936,4 +936,4 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-server.listen(PORT, () => console.log(`PokerVsPlayer WS server on :${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`PokerVsPlayer WS server on :${PORT}`));
