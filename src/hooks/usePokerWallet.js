@@ -567,11 +567,19 @@ export function useEscrow(tableId) {
     if (!ESCROW) return;
     try {
       setStatus('cashout');
+      const args = [BigInt(tableId), player, BigInt(amount), BigInt(nonce), sig];
+      try {
+        await publicClient.simulateContract({
+          address: ESCROW, abi: ESCROW_ABI, functionName: "cashOut", args, account: player,
+        });
+      } catch (simErr) {
+        console.error("cashOut simulate failed:", simErr.shortMessage || simErr.message);
+        setStatus('error');
+        return;
+      }
       const feeOverrides = await safeFeeOverrides(publicClient);
       const tx = await writeContractAsync({
-        address: ESCROW, abi: ESCROW_ABI, functionName: "cashOut",
-        args: [BigInt(tableId), player, BigInt(amount), BigInt(nonce), sig],
-        ...feeOverrides,
+        address: ESCROW, abi: ESCROW_ABI, functionName: "cashOut", args, ...feeOverrides,
       });
       setTxHash(tx);
       setStatus('idle');
@@ -641,6 +649,7 @@ export function useTableSocket(tableId, tableConfig) {
   const [tableLocked,     setTableLocked]     = useState(false);
   const [refundAvailable, setRefundAvailable] = useState(false);
   const [seatPickerData,  setSeatPickerData]  = useState(null); // { maxPlayers, takenSeats }
+  const [needsRebuy,      setNeedsRebuy]      = useState(null); // { busted: [addr,...] } — set when hero busts out
   const [reconnectKey,    setReconnectKey]    = useState(0);
   const [botStatus,       setBotStatus]       = useState(null); // null | 'spawning' | 'seated' | 'already_seated' | 'error'
   const wsRef           = useRef(null);
@@ -715,6 +724,7 @@ export function useTableSocket(tableId, tableConfig) {
               if (hero) {
                 const locked = (hero.cashoutLockedUntil ?? 0) > (msg.state.handNonce ?? 0);
                 setCashoutLocked(locked ? { handsRemaining: (hero.cashoutLockedUntil ?? 0) - (msg.state.handNonce ?? 0) } : null);
+                setNeedsRebuy(null); // hero is seated again — clear any pending busted-rebuy prompt
               }
               if (!msg.state.anyLocked) setTableLocked(false);
             }
@@ -740,6 +750,9 @@ export function useTableSocket(tableId, tableConfig) {
               minBuyIn: msg.minBuyIn, maxBuyIn: msg.maxBuyIn });
             break;
           case 'REBUY_OK':
+            break;
+          case 'NEEDS_REBUY':
+            setNeedsRebuy({ busted: msg.busted || [] });
             break;
           case 'TABLE_LIST':
             setTableList(msg.tables || []);
@@ -808,7 +821,7 @@ export function useTableSocket(tableId, tableConfig) {
     gameState, handOver, tableList, wsStatus, wsError,
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
-    seatPickerData,
+    seatPickerData, needsRebuy,
     sendAction, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat, spawnBot, botStatus,
   };
 }

@@ -16,7 +16,7 @@ primary_region = 'iad'
   app = 'node server/index.js'
 
 [http_service]
-  internal_port = 8080
+  internal_port = 4000
   force_https = true
   auto_stop_machines = 'off'
   auto_start_machines = true
@@ -25,8 +25,8 @@ primary_region = 'iad'
 
   [[http_service.checks]]
     interval = '30s'
-    timeout = '5s'
-    grace_period = '10s'
+    timeout = '10s'
+    grace_period = '30s'
     method = 'GET'
     path = '/tables'
 

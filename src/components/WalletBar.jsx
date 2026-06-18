@@ -77,7 +77,7 @@ export default function WalletBar() {
     }}>
 
       {/* Logo */}
-      <Link href="/" style={{ textDecoration:'none', display:'flex', alignItems:'center', flexShrink:0 }}>
+      <Link href="/" style={{ textDecoration:'none', display:'flex', alignItems:'center', flexShrink:0, color:'var(--cream)' }}>
         <img src="/logo.png" alt="Poker Vs Player" style={{ height:30, width:'auto', display:'block' }} />
       </Link>
 

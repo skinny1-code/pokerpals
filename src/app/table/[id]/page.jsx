@@ -159,14 +159,14 @@ function ChatPanel({ messages }) {
 
 // ── hand-over overlay ─────────────────────────────────────────────────────────
 function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
-  const [secs, setSecs] = useState(7);
+  const [secs, setSecs] = useState(6);
   const identity = handOver?.handNonce ?? 0;
 
   useEffect(() => {
     if (!handOver) return;
-    setSecs(7);
+    setSecs(6);
     const iv = setInterval(() => setSecs(s => s - 1), 1000);
-    const t  = setTimeout(() => { clearInterval(iv); onDismiss(); }, 7000);
+    const t  = setTimeout(() => { clearInterval(iv); onDismiss(); }, 6000);
     return () => { clearInterval(iv); clearTimeout(t); };
   }, [identity]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -465,7 +465,7 @@ function TablePageInner() {
     gameState, handOver, wsStatus, wsError,
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
-    seatPickerData,
+    seatPickerData, needsRebuy,
     sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot, botStatus,
   } = useTableSocket(id, tableConfig);
 
@@ -531,6 +531,8 @@ function TablePageInner() {
   );
   const isHeroTurn = heroPlayer && !heroPlayer.folded &&
     gameState?.activeAddr?.toLowerCase() === address?.toLowerCase();
+  const heroBustedOut = !heroPlayer && !!address &&
+    needsRebuy?.busted?.some(a => a?.toLowerCase() === address.toLowerCase());
 
   const callAmount = isHeroTurn
     ? Math.max(0, (gameState?.maxBet || 0) - (heroPlayer?.bet || 0))
@@ -873,9 +875,14 @@ function TablePageInner() {
             </div>
           )}
 
-          {/* Rebuy section */}
-          {mounted && gameState && heroPlayer && heroPlayer.chips < gameState.config?.buyIn && (
+          {/* Rebuy section — shown when low on chips, or fully busted out of the table */}
+          {mounted && gameState && (heroBustedOut || (heroPlayer && heroPlayer.chips < gameState.config?.buyIn)) && (
             <div>
+              {heroBustedOut && (
+                <div style={{ fontSize:10, color:'#e67e22', marginBottom:6 }}>
+                  You're out of chips — rebuy to keep playing.
+                </div>
+              )}
               {!showRebuy ? (
                 <button onClick={() => setShowRebuy(true)} style={{
                   width:'100%', background:'transparent', border:'1px solid #1a5a1a',
