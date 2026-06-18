@@ -317,8 +317,8 @@ function CreateTableModal({ onClose }) {
 }
 
 const SEED_TABLES = [
-  { id:9001, name:'Micro Stakes — NLH', config:{ gameType:0, maxPlayers:6, buyIn:1000,  bigBlind:20  }, phase:'waiting', seated:0 },
-  { id:9002, name:'High Stakes — NLH',  config:{ gameType:0, maxPlayers:6, buyIn:10000, bigBlind:200 }, phase:'waiting', seated:0 },
+  { id:9001, name:'Micro Stakes — NLH', config:{ gameType:0, maxPlayers:9, buyIn:1000,  bigBlind:20  }, phase:'waiting', seated:0 },
+  { id:9002, name:'High Stakes — NLH',  config:{ gameType:0, maxPlayers:9, buyIn:10000, bigBlind:200 }, phase:'waiting', seated:0 },
 ];
 
 export default function LobbyPage() {

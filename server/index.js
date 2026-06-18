@@ -209,6 +209,7 @@ class PokerTable {
 
   start() {
     if (this.players.length < 2) return;
+    this.dealerIdx       = this.dealerIdx % this.players.length;
     this.deck            = shuffle(makeDeck());
     this.community       = [];
     this.pot             = 0;
@@ -427,8 +428,8 @@ const clients = new Map(); // ws => { addr, tableId }
 
 // Pre-seeded permanent tables — always available, reset (not deleted) when empty
 const SEED_TABLES = [
-  { id: 9001n, name: 'Micro — NLH 2-Max',      buyIn: 1000, minBuyIn: 1000, maxBuyIn: 10000, bigBlind: 20, maxPlayers: 2, gameType: 0 },
-  { id: 9002n, name: 'High Stakes — NLH 2-Max', buyIn: 5000, minBuyIn: 5000, maxBuyIn: 50000, bigBlind: 50, maxPlayers: 2, gameType: 0 },
+  { id: 9001n, name: 'Micro — NLH 9-Max',      buyIn: 1000, minBuyIn: 1000, maxBuyIn: 10000, bigBlind: 20, maxPlayers: 9, gameType: 0 },
+  { id: 9002n, name: 'High Stakes — NLH 9-Max', buyIn: 5000, minBuyIn: 5000, maxBuyIn: 50000, bigBlind: 50, maxPlayers: 9, gameType: 0 },
 ];
 for (const { id, name, ...config } of SEED_TABLES) {
   const t = new PokerTable(id, config);
@@ -527,7 +528,11 @@ function broadcastToTable(t, msg) {
 function maybeAutoStart(t) {
   if (t.players.length < 2 || t.phase !== 'waiting') return;
   t.isActive = true;
-  setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
+  setTimeout(() => {
+    try { t.start(); }
+    catch (e) { console.error(`[Server] t.start() error in maybeAutoStart:`, e.message); t.phase = 'waiting'; }
+    broadcastTable(t);
+  }, 3000);
 }
 
 // Sign and send cashout to a player, removing them from the table.
