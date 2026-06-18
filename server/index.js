@@ -181,6 +181,7 @@ class PokerTable {
     this.sideLog      = [];
     this.cashOutNonces   = new Map(); // addr => nonce
     this.pendingCashouts = new Map(); // addr => { amount, sig, nonce, tableId }
+    this.bustedSeats     = new Map(); // addr => { seatIndex, ws }
     this.creator      = null;   // first player to sit
     this.isActive     = false;  // mirrors on-chain TableStatus.Active
   }
@@ -497,10 +498,7 @@ function spawnBot(t, buyIn) {
   if (!seated) return { ok: false, error: 'could not seat bot' };
   console.log(`[Bot] In-process bot spawned at table ${t.id} with ${chips} chips`);
   broadcastTable(t);
-  if (t.players.length >= 2 && t.phase === 'waiting') {
-    t.isActive = true;
-    setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
-  }
+  maybeAutoStart(t);
   return { ok: true, chips };
 }
 
@@ -523,6 +521,13 @@ function maybeBotAct(t) {
 }
 function broadcastToTable(t, msg) {
   t.players.forEach(p => send(p.ws, msg));
+}
+
+// Kick off the next hand once at least 2 players are seated and the table is idle.
+function maybeAutoStart(t) {
+  if (t.players.length < 2 || t.phase !== 'waiting') return;
+  t.isActive = true;
+  setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
 }
 
 // Sign and send cashout to a player, removing them from the table.
@@ -660,11 +665,14 @@ async function handleHandOver(t, result) {
   }
 
   setTimeout(() => {
-    // Remove bust players (0 chips) before the next hand
+    // Remove bust players (0 chips) before the next hand, but keep their seat
+    // reserved in bustedSeats so a REBUY_CONFIRMED can re-seat them.
     const busted = t.players.filter(p => p.chips <= 0);
     t.players = t.players.filter(p => p.chips > 0);
     for (const p of busted) {
       console.log(`[Server] Player ${p.addr?.slice(0,10)} busted — removed from table ${t.id}`);
+      t.bustedSeats.set(p.addr, { seatIndex: p.seatIndex, ws: p.ws });
+      send(p.ws, { type: 'NEEDS_REBUY', tableId: String(t.id), busted: busted.map(b => b.addr) });
     }
     if (t.players.length < 2) { t.phase = 'waiting'; broadcastTable(t); return; }
     t.handNonce++;
@@ -826,13 +834,7 @@ wss.on('connection', (ws, req) => {
         clients.set(ws, { ...client, tableId: tidKey });
         console.log(`[WS] Seated ${addr.slice(0,10)} at table ${tidKey} (${t.players.length}/${t.config.maxPlayers})`);
         broadcastTable(t);
-
-        if (t.players.length >= 2) {
-          t.isActive = true;
-          if (t.phase === 'waiting') {
-            setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
-          }
-        }
+        maybeAutoStart(t);
         break;
       }
 
@@ -862,7 +864,28 @@ wss.on('connection', (ws, req) => {
         const addr = client.addr;
         if (!addr) return;
         const p = t.players.find(x => x.addr === addr);
-        if (!p) return send(ws, { type: 'ERROR', error: 'Not seated at table' });
+
+        if (!p) {
+          // Player busted out of a previous hand — re-seat them in their old spot
+          // instead of rejecting, so a rebuy actually gets them back into play.
+          const bustedInfo = t.bustedSeats.get(addr);
+          if (!bustedInfo) return send(ws, { type: 'ERROR', error: 'Not seated at table' });
+          try {
+            const onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+            if (onChainDeposit <= 0) {
+              return send(ws, { type: 'ERROR', error: 'Rebuy not detected on-chain yet' });
+            }
+            t.bustedSeats.delete(addr);
+            t.seat({ addr, ws, onChainDeposit }, bustedInfo.seatIndex);
+            broadcastTable(t);
+            maybeAutoStart(t);
+            send(ws, { type: 'REBUY_OK', amount: onChainDeposit, newStack: onChainDeposit });
+          } catch (e) {
+            console.error(`[Server] REBUY_CONFIRMED (busted) error:`, e.message);
+            send(ws, { type: 'ERROR', error: 'Could not verify rebuy on-chain' });
+          }
+          return;
+        }
 
         try {
           const newDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
