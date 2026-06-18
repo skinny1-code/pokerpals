@@ -47,6 +47,7 @@ const ESCROW_ABI = [
   "function settle(uint256,uint256,address[],uint256[],bytes) external",
   "function getTableInfo(uint256 id) external view returns (uint256 tableId, uint256 buyInAmount, uint256 bigBlind, uint8 maxPlayers, uint8 gameType, uint8 status, uint256 potTotal, uint256 handNonce, uint8 playerCount)",
   "function getPlayerDeposit(uint256 tableId, address player) external view returns (uint256)",
+  "function cashOutNonce(uint256,address) external view returns (uint256)",
   "function markHuman(address,bool) external",
   "function closeTable(uint256) external",
 ];
@@ -179,7 +180,6 @@ class PokerTable {
     this.actionIdx    = 0;
     this.handNonce    = 0;
     this.sideLog      = [];
-    this.cashOutNonces   = new Map(); // addr => nonce
     this.pendingCashouts = new Map(); // addr => { amount, sig, nonce, tableId }
     this.bustedSeats     = new Map(); // addr => { seatIndex, ws }
     this.creator      = null;   // first player to sit
@@ -595,10 +595,9 @@ async function signAndRemovePlayer(t, addr, ws) {
 
   // Sign a cashout if player has chips
   if (amount > 0) {
-    const nonce = t.cashOutNonces.get(addr) ?? 0;
     try {
+      const nonce = Number(await escrow.cashOutNonce(BigInt(t.id), addr));
       const sig = await t.signCashOut(addr, amount, nonce);
-      t.cashOutNonces.set(addr, nonce + 1);
       const msg = { type: 'CASHOUT_SIG', amount, sig, nonce, tableId: String(t.id) };
       if (ws && ws.readyState === WebSocket.OPEN) {
         send(ws, msg);

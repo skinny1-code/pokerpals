@@ -567,11 +567,19 @@ export function useEscrow(tableId) {
     if (!ESCROW) return;
     try {
       setStatus('cashout');
+      const args = [BigInt(tableId), player, BigInt(amount), BigInt(nonce), sig];
+      try {
+        await publicClient.simulateContract({
+          address: ESCROW, abi: ESCROW_ABI, functionName: "cashOut", args, account: player,
+        });
+      } catch (simErr) {
+        console.error("cashOut simulate failed:", simErr.shortMessage || simErr.message);
+        setStatus('error');
+        return;
+      }
       const feeOverrides = await safeFeeOverrides(publicClient);
       const tx = await writeContractAsync({
-        address: ESCROW, abi: ESCROW_ABI, functionName: "cashOut",
-        args: [BigInt(tableId), player, BigInt(amount), BigInt(nonce), sig],
-        ...feeOverrides,
+        address: ESCROW, abi: ESCROW_ABI, functionName: "cashOut", args, ...feeOverrides,
       });
       setTxHash(tx);
       setStatus('idle');
