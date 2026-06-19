@@ -401,7 +401,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     }
 
     function getTableInfo(uint256 id) external view returns (
-        uint256 tableId, uint256 buyIn, uint256 bigBlind,
+        uint256 tableId, uint256 buyInAmount, uint256 bigBlind,
         uint8 maxPlayers, uint8 gameType, TableStatus status,
         uint256 potTotal, uint256 handNonce, uint8 seated
     ) {

@@ -92,7 +92,7 @@ describe("PokerEscrow", () => {
     const count = await escrow.tableCount();
     expect(count).to.equal(1n);
     const info = await escrow.getTableInfo(1);
-    expect(info.buyIn).to.equal(BUY_IN);
+    expect(info.buyInAmount).to.equal(BUY_IN);
     expect(info.bigBlind).to.equal(BB);
     expect(info.maxPlayers).to.equal(2n);
   });
