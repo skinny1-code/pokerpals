@@ -525,10 +525,16 @@ function broadcastToTable(t, msg) {
 }
 
 // Kick off the next hand once at least 2 players are seated and the table is idle.
+// `autoStartPending` guards against scheduling one timer per JOIN_TABLE call: at
+// higher maxPlayers, several players can join while the table is still 'waiting'
+// (phase only flips once start() actually runs), and each would otherwise queue
+// its own redundant t.start() — re-dealing and re-deducting blinds every time.
 function maybeAutoStart(t) {
-  if (t.players.length < 2 || t.phase !== 'waiting') return;
+  if (t.players.length < 2 || t.phase !== 'waiting' || t.autoStartPending) return;
   t.isActive = true;
+  t.autoStartPending = true;
   setTimeout(() => {
+    t.autoStartPending = false;
     try { t.start(); }
     catch (e) { console.error(`[Server] t.start() error in maybeAutoStart:`, e.message); t.phase = 'waiting'; }
     broadcastTable(t);
