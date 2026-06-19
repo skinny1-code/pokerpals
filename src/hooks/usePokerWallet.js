@@ -261,23 +261,31 @@ export const CONTRACT_ADDRESSES = {
 // bug) which can also stall the confirm popup. Sending an explicit 0n priority + headroom
 // on maxFeePerGas keeps the fee sane, cheap, and unstuck.
 // Floor at 0.1 gwei so MetaMask shows a visible non-zero "site suggested" fee instead
-// of "$0 / 0 ETH", which triggers MetaMask's "Review alerts" warning on mobile.
-const MIN_MAX_FEE_PER_GAS = 100_000_000n; // 0.1 gwei floor
+// of "$0 / 0 ETH". A non-zero PRIORITY floor matters too: MetaMask mobile flags a
+// maxPriorityFeePerGas of exactly 0 as "Network fee Unavailable / Review alerts".
+// And a CEILING is critical — without it, if the RPC returns a garbage-huge estimate
+// (the root of the "network suggested = thousands of ETH" bug), doubling it makes OUR
+// own "site suggested" value just as insane. Arbitrum fees are tiny, so 2 gwei is a
+// safe cap that still confirms instantly.
+const MIN_MAX_FEE_PER_GAS = 100_000_000n;   // 0.1 gwei floor
+const MAX_MAX_FEE_PER_GAS = 2_000_000_000n; // 2 gwei ceiling — caps RPC garbage
+const MIN_PRIORITY_FEE    = 10_000_000n;    // 0.01 gwei — non-zero so MM doesn't flag it
+const clampFee = (v) =>
+  v < MIN_MAX_FEE_PER_GAS ? MIN_MAX_FEE_PER_GAS : v > MAX_MAX_FEE_PER_GAS ? MAX_MAX_FEE_PER_GAS : v;
 // Hardcoded safe fallback pair — never return {} here. An empty object lets the wallet
 // fall back to its own 1559 estimate, which is the exact "thousands of ETH" bug above.
-const SAFE_FALLBACK_FEES = { maxFeePerGas: MIN_MAX_FEE_PER_GAS, maxPriorityFeePerGas: 0n };
+const SAFE_FALLBACK_FEES = { maxFeePerGas: MIN_MAX_FEE_PER_GAS, maxPriorityFeePerGas: MIN_PRIORITY_FEE };
 async function safeFeeOverrides(publicClient) {
   try {
     const fees = await publicClient.estimateFeesPerGas();
     if (!fees.maxFeePerGas) return SAFE_FALLBACK_FEES; // no data — use safe hardcoded pair
-    const maxPriorityFeePerGas = (fees.maxPriorityFeePerGas ?? 0n) * 120n / 100n;
-    const doubled = fees.maxFeePerGas * 2n;
-    // Ensure the fee is high enough to show as non-zero in MetaMask mobile
-    const maxFeePerGas = doubled < MIN_MAX_FEE_PER_GAS ? MIN_MAX_FEE_PER_GAS : doubled;
-    return {
-      maxFeePerGas: maxFeePerGas > maxPriorityFeePerGas ? maxFeePerGas : maxPriorityFeePerGas,
-      maxPriorityFeePerGas,
-    };
+    let maxPriorityFeePerGas = (fees.maxPriorityFeePerGas ?? 0n) * 120n / 100n;
+    if (maxPriorityFeePerGas < MIN_PRIORITY_FEE) maxPriorityFeePerGas = MIN_PRIORITY_FEE;
+    if (maxPriorityFeePerGas > MAX_MAX_FEE_PER_GAS) maxPriorityFeePerGas = MAX_MAX_FEE_PER_GAS;
+    // Clamp to [0.1 gwei, 2 gwei] so neither a too-low nor a garbage-huge RPC estimate leaks through.
+    let maxFeePerGas = clampFee(fees.maxFeePerGas * 2n);
+    if (maxFeePerGas < maxPriorityFeePerGas) maxFeePerGas = maxPriorityFeePerGas; // 1559 invariant
+    return { maxFeePerGas, maxPriorityFeePerGas };
   } catch {
     return SAFE_FALLBACK_FEES; // estimate failed — use safe hardcoded pair, never {}
   }
