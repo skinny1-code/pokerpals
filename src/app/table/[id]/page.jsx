@@ -437,6 +437,7 @@ function TablePageInner() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const address = mounted ? rawAddress : undefined;
+  const [botCount, setBotCount] = useState(1);
 
   const { buyIn, rebuy, cashOut, refund, status: escrowStatus, tableInfo } = useEscrow(id);
   const { isHuman, refetchIsHuman } = useWallet();
@@ -673,8 +674,24 @@ function TablePageInner() {
                 >
                   COPY & SHARE TABLE LINK
                 </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={Math.max(1, (gameState?.config?.maxPlayers || tableConfig?.maxPlayers || 6) - 1)}
+                  value={botCount}
+                  onChange={e => setBotCount(Math.max(1, Math.min(
+                    Math.max(1, (gameState?.config?.maxPlayers || tableConfig?.maxPlayers || 6) - 1),
+                    Number(e.target.value) || 1,
+                  )))}
+                  disabled={botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated'}
+                  style={{
+                    width:44, background:'#0c1e2e', border:'1px solid #4a7aaa66', borderRadius:8,
+                    padding:'10px 6px', color:'#7ab4e0', fontSize:11, fontFamily:'inherit',
+                    fontWeight:700, textAlign:'center',
+                  }}
+                />
                 <button
-                  onClick={() => spawnBot()}
+                  onClick={() => spawnBot(undefined, botCount)}
                   disabled={botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated'}
                   style={{
                     background: botStatus === 'seated' || botStatus === 'already_seated'
@@ -695,7 +712,7 @@ function TablePageInner() {
                    : botStatus === 'seated'     ? '✓ Bot Seated'
                    : botStatus === 'already_seated' ? '✓ Bot Ready'
                    : botStatus === 'error'      ? '✗ Failed'
-                   : '+ Spawn Bot'}
+                   : '+ Spawn Bots'}
                 </button>
               </div>
               <div style={{ fontSize:9, color:'#3a6a3a', marginTop:10, letterSpacing:1 }}>
