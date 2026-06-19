@@ -263,10 +263,13 @@ export const CONTRACT_ADDRESSES = {
 // Floor at 0.1 gwei so MetaMask shows a visible non-zero "site suggested" fee instead
 // of "$0 / 0 ETH", which triggers MetaMask's "Review alerts" warning on mobile.
 const MIN_MAX_FEE_PER_GAS = 100_000_000n; // 0.1 gwei floor
+// Hardcoded safe fallback pair — never return {} here. An empty object lets the wallet
+// fall back to its own 1559 estimate, which is the exact "thousands of ETH" bug above.
+const SAFE_FALLBACK_FEES = { maxFeePerGas: MIN_MAX_FEE_PER_GAS, maxPriorityFeePerGas: 0n };
 async function safeFeeOverrides(publicClient) {
   try {
     const fees = await publicClient.estimateFeesPerGas();
-    if (!fees.maxFeePerGas) return {}; // no data — let the wallet estimate
+    if (!fees.maxFeePerGas) return SAFE_FALLBACK_FEES; // no data — use safe hardcoded pair
     const maxPriorityFeePerGas = (fees.maxPriorityFeePerGas ?? 0n) * 120n / 100n;
     const doubled = fees.maxFeePerGas * 2n;
     // Ensure the fee is high enough to show as non-zero in MetaMask mobile
@@ -276,7 +279,7 @@ async function safeFeeOverrides(publicClient) {
       maxPriorityFeePerGas,
     };
   } catch {
-    return {}; // let wallet estimate fees
+    return SAFE_FALLBACK_FEES; // estimate failed — use safe hardcoded pair, never {}
   }
 }
 
@@ -816,10 +819,10 @@ export function useTableSocket(tableId, tableConfig) {
       wsRef.current.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, seatIndex, buyInAmount: buyInAmount || undefined, config: tableConfig || undefined } }));
   }, [tableId, tableConfig]);
 
-  const spawnBot = useCallback((buyInAmount) => {
+  const spawnBot = useCallback((buyInAmount, count) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       setBotStatus('spawning');
-      wsRef.current.send(JSON.stringify({ type: 'SPAWN_BOT', payload: { tableId, buyIn: buyInAmount } }));
+      wsRef.current.send(JSON.stringify({ type: 'SPAWN_BOT', payload: { tableId, buyIn: buyInAmount, count } }));
     }
   }, [tableId]);
 
@@ -1021,7 +1024,7 @@ export function useHandleAvatars(addresses) {
       address: HANDLE, abi: HANDLE_ABI,
       functionName: 'ownerTokenId', args: [addr],
     })),
-    query: { enabled: !!HANDLE && cleaned.length > 0 },
+    query: { enabled: !!HANDLE && cleaned.length > 0, refetchInterval: 5000 },
   });
 
   const validEntries = useMemo(() => {
@@ -1037,7 +1040,7 @@ export function useHandleAvatars(addresses) {
       address: HANDLE, abi: HANDLE_ABI,
       functionName: 'tokenURI', args: [tokenId],
     })),
-    query: { enabled: validEntries.length > 0 },
+    query: { enabled: validEntries.length > 0, refetchInterval: 5000 },
   });
 
   return useMemo(() => {

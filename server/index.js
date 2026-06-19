@@ -461,14 +461,15 @@ const server = createServer((req, res) => {
     const url    = new URL(req.url, 'http://x');
     const tidKey = url.searchParams.get('tableId') || '9001';
     const buyIn  = Number(url.searchParams.get('buyIn') || 1000);
+    const count  = Math.max(1, Math.min(8, Number(url.searchParams.get('count') || 1)));
     const t = tables.get(tidKey);
     if (!t) { res.writeHead(404); return res.end('{"error":"table not found"}'); }
-    const result = spawnBot(t, buyIn);
+    const result = spawnBot(t, buyIn, count);
     if (!result.ok) {
       const code = result.error.includes('configured') ? 503 : 400;
       res.writeHead(code); return res.end(JSON.stringify({ error: result.error }));
     }
-    res.end(JSON.stringify({ status: 'ok', addr: BOT_ADDR, chips: result.chips }));
+    res.end(JSON.stringify({ status: 'ok', addrs: result.addrs, chips: result.chips }));
   } else {
     res.writeHead(200);
     res.end(JSON.stringify({ service: 'PokerVsPlayer WS', tables: tables.size }));
@@ -489,33 +490,36 @@ function broadcastTable(t) {
   maybeBotAct(t);
 }
 
-function spawnBot(t, buyIn) {
+function spawnBot(t, buyIn, count = 1) {
   if (!BOT_ADDR) return { ok: false, error: 'OPS_WALLET_KEY not configured' };
-  if (t.players.find(p => p.isBot)) return { ok: false, error: 'bot already seated' };
   const min = t.config.minBuyIn ?? t.config.buyIn;
   const max = t.config.maxBuyIn ?? t.config.buyIn;
   const chips = Math.max(min, Math.min(max, buyIn || min));
-  const seated = t.seat({ addr: BOT_ADDR, ws: null, isBot: true, onChainDeposit: chips }, null);
-  if (!seated) return { ok: false, error: 'could not seat bot' };
-  console.log(`[Bot] In-process bot spawned at table ${t.id} with ${chips} chips`);
+  const seatedAddrs = [];
+  for (let i = 0; i < count; i++) {
+    const addr = new ethers.Wallet(ethers.keccak256(ethers.toUtf8Bytes(`${BOT_KEY}:${i}`))).address.toLowerCase();
+    const seated = t.seat({ addr, ws: null, isBot: true, onChainDeposit: chips }, null);
+    if (!seated) break;
+    seatedAddrs.push(addr);
+  }
+  if (seatedAddrs.length === 0) return { ok: false, error: 'could not seat bot' };
+  console.log(`[Bot] ${seatedAddrs.length} in-process bot(s) spawned at table ${t.id} with ${chips} chips each`);
   broadcastTable(t);
   maybeAutoStart(t);
-  return { ok: true, chips };
+  return { ok: true, chips, addrs: seatedAddrs };
 }
 
 function maybeBotAct(t) {
-  if (!BOT_ADDR || t.botActPending) return;
-  const bot = t.players.find(p => p.isBot);
-  if (!bot || bot.folded) return;
+  if (t.botActPending) return;
   const active = t.phase !== 'waiting' && t.phase !== 'showdown' ? t.players[t.actionIdx] : null;
-  if (!active || active.addr?.toLowerCase() !== BOT_ADDR) return;
+  if (!active?.isBot || active.folded) return;
   t.botActPending = true;
   setTimeout(async () => {
     t.botActPending = false;
-    const callAmt = Math.max(0, (t.maxBet || 0) - (bot.bet || 0));
+    const callAmt = Math.max(0, (t.maxBet || 0) - (active.bet || 0));
     const action  = callAmt === 0 ? 'check' : 'call';
     console.log(`[Bot] ${action}${callAmt > 0 ? ` ${callAmt}` : ''} at table ${t.id}`);
-    const result = t.applyAction(BOT_ADDR, action, callAmt);
+    const result = t.applyAction(active.addr, action, callAmt);
     broadcastTable(t);
     if (result?.winners) await handleHandOver(t, result);
   }, 800);
@@ -684,7 +688,7 @@ async function handleHandOver(t, result) {
       t.bustedSeats.set(p.addr, { seatIndex: p.seatIndex, ws: p.ws });
       send(p.ws, { type: 'NEEDS_REBUY', tableId: String(t.id), busted: busted.map(b => b.addr) });
     }
-    if (t.players.length < 2) { t.phase = 'waiting'; broadcastTable(t); return; }
+    if (t.players.length < 2) { t.phase = 'waiting'; broadcastTable(t); maybeAutoStart(t); return; }
     t.handNonce++;
     t.dealerIdx = (t.dealerIdx + 1) % t.players.length;
     try {
@@ -692,6 +696,7 @@ async function handleHandOver(t, result) {
     } catch (e) {
       console.error(`[Server] t.start() error in hand restart:`, e.message);
       t.phase = 'waiting';
+      maybeAutoStart(t);
     }
     broadcastTable(t);
   }, 6000);
@@ -938,11 +943,12 @@ wss.on('connection', (ws, req) => {
         const tidKey = String(payload?.tableId || client.tableId || '9001');
         const t = tables.get(tidKey);
         if (!t) { send(ws, { type: 'ERROR', error: 'Table not found' }); break; }
-        const result = spawnBot(t, Number(payload?.buyIn) || undefined);
+        const count = Math.max(1, Math.min(8, Number(payload?.count) || 1));
+        const result = spawnBot(t, Number(payload?.buyIn) || undefined, count);
         if (!result.ok) {
           send(ws, { type: 'ERROR', error: result.error }); break;
         }
-        send(ws, { type: 'BOT_STATUS', status: 'seated', chips: result.chips });
+        send(ws, { type: 'BOT_STATUS', status: 'seated', chips: result.chips, addrs: result.addrs });
         break;
       }
 
