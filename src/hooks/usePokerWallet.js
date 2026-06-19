@@ -434,34 +434,40 @@ export function useStaking() {
     if (!address || !STAKING) return;
     try {
       setStatus('claiming');
+      const feeOverrides = await safeFeeOverrides(publicClient);
       const tx = await writeContractAsync({
         address: STAKING, abi: STAKING_ABI, functionName: "claimYield", args: [],
+        ...feeOverrides,
       });
       setTxHash(tx); setStatus('idle'); return tx;
     } catch { setStatus('error'); }
-  }, [address, writeContractAsync]);
+  }, [address, writeContractAsync, publicClient]);
 
   const claimRakeback = useCallback(async () => {
     if (!address || !ESCROW) return;
     try {
       setStatus('claiming');
+      const feeOverrides = await safeFeeOverrides(publicClient);
       const tx = await writeContractAsync({
         address: ESCROW, abi: ESCROW_ABI, functionName: "claimRakeback", args: [],
+        ...feeOverrides,
       });
       setTxHash(tx); setStatus('idle'); return tx;
     } catch { setStatus('error'); }
-  }, [address, writeContractAsync]);
+  }, [address, writeContractAsync, publicClient]);
 
   const compound = useCallback(async () => {
     if (!address || !STAKING) return;
     try {
       setStatus('compounding');
+      const feeOverrides = await safeFeeOverrides(publicClient);
       const tx = await writeContractAsync({
         address: STAKING, abi: STAKING_ABI, functionName: "compound", args: [],
+        ...feeOverrides,
       });
       setTxHash(tx); setStatus('idle'); return tx;
     } catch { setStatus('error'); }
-  }, [address, writeContractAsync]);
+  }, [address, writeContractAsync, publicClient]);
 
   return {
     stakedAmount, currentTier, lockedUntil, pendingYield, rakebackOwed,

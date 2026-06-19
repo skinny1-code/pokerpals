@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import WalletBar from '../../components/WalletBar';
 import { useHandle } from '../../hooks/usePokerWallet';
 import { useWallet } from '../../hooks/usePokerWallet';
+import { useHandleAvatars } from '../../hooks/usePokerWallet';
 import Link from 'next/link';
 
 function HandlePreview({ handle }) {
@@ -55,6 +56,9 @@ export default function HandlePage() {
     tierCostsCHIPS, TIER_LABELS, TIER_BOUNDS,
     totalMinted, mint, status, confirmed, errorMsg,
   } = useHandle();
+
+  const avatarMap = useHandleAvatars(address ? [address] : []);
+  const myAvatar  = address ? avatarMap[address.toLowerCase()] : null;
 
   useEffect(() => setMounted(true), []);
 
@@ -170,7 +174,20 @@ export default function HandlePage() {
             <div style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 3, marginBottom: 16 }}>
               YOUR HANDLE
             </div>
-            <HandlePreview handle={myHandle} />
+            {myAvatar ? (
+              <img
+                src={myAvatar}
+                alt={`@${myHandle}`}
+                width={200}
+                height={200}
+                style={{
+                  width: 200, height: 200, margin: '0 auto', display: 'block',
+                  borderRadius: 16, boxShadow: '0 0 30px rgba(212,175,55,.2)',
+                }}
+              />
+            ) : (
+              <HandlePreview handle={myHandle} />
+            )}
             <div style={{ marginTop: 20, fontSize: 22, fontWeight: 900,
               color: '#d4af37', fontFamily: "'JetBrains Mono',monospace", letterSpacing: 2 }}>
               @{myHandle}
