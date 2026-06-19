@@ -480,7 +480,11 @@ const wss = new WebSocketServer({ server, maxPayload: 65536 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function send(ws, data) {
-  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+  // Null-safe: bots (and busted/disconnected players) have ws === null. Callers
+  // like broadcastToTable() pass p.ws unguarded, so without the optional chain a
+  // single bot at the table throws here mid-HAND_OVER and aborts handleHandOver
+  // before it can schedule the next-hand restart — freezing the table at showdown.
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
 }
 function broadcastTable(t) {
   t.players.forEach(p => {

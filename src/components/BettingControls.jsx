@@ -106,7 +106,7 @@ function BetSlider({ min, max, value, onChange, bigBlind }) {
 
       {/* value display */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 9, color: '#3a6a3a', fontFamily: "'JetBrains Mono', monospace" }}>
+        <span style={{ fontSize: 9, color: '#8aaa8a', fontFamily: "'JetBrains Mono', monospace" }}>
           MIN {fmt(min)}
         </span>
         <div style={{
@@ -117,7 +117,7 @@ function BetSlider({ min, max, value, onChange, bigBlind }) {
         }}>
           ◈ {fmt(value)}
         </div>
-        <span style={{ fontSize: 9, color: '#3a6a3a', fontFamily: "'JetBrains Mono', monospace" }}>
+        <span style={{ fontSize: 9, color: '#8aaa8a', fontFamily: "'JetBrains Mono', monospace" }}>
           MAX {fmt(max)}
         </span>
       </div>
@@ -198,7 +198,7 @@ export default function BettingControls({
       {/* pot odds hint */}
       {potOdds && (
         <div style={{ textAlign: 'center', marginBottom: 8 }}>
-          <span style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 1,
+          <span style={{ fontSize: 9, color: '#8aaa8a', letterSpacing: 1,
             fontFamily: "'JetBrains Mono', monospace" }}>
             POT ODDS  {potOdds}  •  TO CALL  ◈ {callAmount.toLocaleString()}  •  POT  ◈ {pot.toLocaleString()}
           </span>
