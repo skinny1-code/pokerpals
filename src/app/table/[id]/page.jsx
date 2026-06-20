@@ -8,60 +8,9 @@ import BettingControls from '../../../components/BettingControls';
 import Card from '../../../components/Card';
 import { useTableSocket, useEscrow, useHandleMap, useHandleAvatars, useWallet } from '../../../hooks/usePokerWallet';
 import { useIsMobile } from '../../../hooks/useIsMobile';
+import VerifyHumanBanner from '../../../components/VerifyHumanBanner';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
-
-// ── Testnet human-verification banner ────────────────────────────────────────
-function VerifyBanner({ address, onVerified }) {
-  const [status, setStatus] = useState('idle'); // idle | verifying | done | error
-  const [err, setErr]       = useState(null);
-
-  const requestVerify = async () => {
-    setStatus('verifying');
-    setErr(null);
-    try {
-      const res  = await fetch('/api/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Verification failed');
-      setStatus('done');
-      onVerified?.();
-    } catch (e) {
-      setErr(e.message);
-      setStatus('error');
-    }
-  };
-
-  return (
-    <div style={{
-      background: status === 'done' ? '#0a1f0a' : '#1a0c04',
-      borderBottom: `1px solid ${status === 'done' ? '#27ae6055' : '#c8793055'}`,
-      padding: '8px 16px',
-      display: 'flex', alignItems: 'center', gap: 10, fontSize: 11,
-    }}>
-      <span style={{ color: status === 'done' ? '#27ae60' : '#e07030' }}>
-        {status === 'done' ? '✓ Verified — you can now buy in!' : '⚠ Your wallet needs testnet verification to sit at this table.'}
-      </span>
-      {status !== 'done' && (
-        <button
-          onClick={requestVerify}
-          disabled={status === 'verifying'}
-          style={{
-            background: 'transparent', border: '1px solid #c8793088',
-            borderRadius: 6, padding: '3px 12px', cursor: status === 'verifying' ? 'not-allowed' : 'pointer',
-            color: '#e07030', fontSize: 10, fontWeight: 700,
-          }}
-        >
-          {status === 'verifying' ? 'Verifying…' : 'Request Verification'}
-        </button>
-      )}
-      {err && <span style={{ color: '#e74c3c', fontSize: 10 }}>{err}</span>}
-    </div>
-  );
-}
 
 // ── action label from server → badge key ─────────────────────────────────────
 function parseActionLabel(label) {
@@ -108,6 +57,30 @@ function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}) {
   return seats;
 }
 
+// ── hero hand panel — hero's own hole cards, shown bigger below the table ──────
+function HeroHandPanel({ cards = [], folded = false }) {
+  if (!cards.length) return null;
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+      margin: '20px auto 0', opacity: folded ? 0.45 : 1, transition: 'opacity .3s',
+    }}>
+      <div style={{ fontSize: 9, color: '#d4af3799', letterSpacing: 3 }}>YOUR HAND</div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        {cards.map((c, i) => {
+          const cardStr = typeof c === 'string' ? c : c?.card;
+          const fd = typeof c === 'object' ? !!c?.faceDown : false;
+          return (
+            <div key={`${i}-${cardStr || 'fd'}`} className="card-deal" style={{ animationDelay: `${i * 0.12}s` }}>
+              <Card card={cardStr} faceDown={fd} width={84} height={118} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── status badge ──────────────────────────────────────────────────────────────
 function StatusDot({ status }) {
   const color = {
@@ -127,9 +100,18 @@ function StatusDot({ status }) {
 }
 
 // ── chat + hand history ────────────────────────────────────────────────────────
-function ChatPanel({ messages }) {
+function ChatPanel({ messages, onSend }) {
   const endRef = useRef(null);
+  const [draft, setDraft] = useState('');
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth' }); }, [messages]);
+
+  const submit = () => {
+    const text = draft.trim();
+    if (!text || !onSend) return;
+    onSend(text);
+    setDraft('');
+  };
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%',
       background:'#060e06', border:'1px solid #1a3a1a', borderRadius:8, overflow:'hidden' }}>
@@ -153,6 +135,34 @@ function ChatPanel({ messages }) {
         ))}
         <div ref={endRef} />
       </div>
+      {onSend && (
+        <div style={{ display:'flex', gap:6, padding:8, borderTop:'1px solid #1a3a1a' }}>
+          <input
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+            maxLength={200}
+            placeholder="Say something…"
+            style={{
+              flex:1, background:'#0a160a', border:'1px solid #1a3a1a', borderRadius:6,
+              padding:'6px 10px', color:'#cfe8cf', fontSize:11,
+              fontFamily:"'JetBrains Mono',monospace", outline:'none',
+            }}
+          />
+          <button
+            onClick={submit}
+            disabled={!draft.trim()}
+            style={{
+              background: draft.trim() ? '#0c1e0c' : '#0a0f0a',
+              border:'1px solid #1a3a1a', borderRadius:6, padding:'6px 12px',
+              color: draft.trim() ? '#6a9a6a' : '#2a3a2a',
+              fontSize:9, fontWeight:700, letterSpacing:1,
+              cursor: draft.trim() ? 'pointer' : 'not-allowed',
+              fontFamily:"'JetBrains Mono',monospace",
+            }}
+          >SEND</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -468,6 +478,8 @@ function TablePageInner() {
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData, needsRebuy,
     sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot, botStatus,
+    chatMessages, sendChat,
+    verifyStatus, verifyFailures, sendVerifyHuman,
   } = useTableSocket(id, tableConfig);
 
   const isMobile = useIsMobile();
@@ -525,6 +537,19 @@ function TablePageInner() {
     if (wsError) setLog(prev => [...prev, { type:'system', text:`⚠ ${wsError}` }]);
   }, [wsError]);
 
+  // Merge incoming chat into the log so it interleaves with action/winner entries
+  const seenChatRef = useRef(0);
+  useEffect(() => {
+    if (chatMessages.length <= seenChatRef.current) return;
+    const fresh = chatMessages.slice(seenChatRef.current);
+    seenChatRef.current = chatMessages.length;
+    setLog(prev => [...prev.slice(-60), ...fresh.map(c => ({
+      type: 'chat',
+      handle: handleMap[c.addr?.toLowerCase()] || `${c.addr.slice(0,6)}…`,
+      text: c.text,
+    }))]);
+  }, [chatMessages, handleMap]);
+
   // Derive hero state
   const heroPlayer = useMemo(() =>
     gameState?.players?.find(p => p.addr?.toLowerCase() === address?.toLowerCase()),
@@ -534,6 +559,10 @@ function TablePageInner() {
     gameState?.activeAddr?.toLowerCase() === address?.toLowerCase();
   const heroBustedOut = !heroPlayer && !!address &&
     needsRebuy?.busted?.some(a => a?.toLowerCase() === address.toLowerCase());
+  const heroCards = useMemo(() =>
+    (heroPlayer?.hand || []).map(c => c === '??' ? { faceDown: true } : c),
+    [heroPlayer]
+  );
 
   const callAmount = isHeroTurn
     ? Math.max(0, (gameState?.maxBet || 0) - (heroPlayer?.bet || 0))
@@ -595,7 +624,12 @@ function TablePageInner() {
 
       {/* Human verification banner — shown when wallet connected but not yet verified */}
       {mounted && address && isHuman === false && (
-        <VerifyBanner address={address} onVerified={refetchIsHuman} />
+        <VerifyHumanBanner
+          status={verifyStatus}
+          failures={verifyFailures}
+          onVerify={sendVerifyHuman}
+          onVerified={refetchIsHuman}
+        />
       )}
 
       {/* Breadcrumb + status */}
@@ -627,6 +661,7 @@ function TablePageInner() {
         {/* Table area */}
         <div style={{
           display:'flex', flexDirection:'column',
+          justifyContent: isMobile ? 'center' : 'flex-start',
           padding:'24px 16px 100px',
           overflowY:'auto', position:'relative',
         }}>
@@ -775,6 +810,8 @@ function TablePageInner() {
             } : null}
           />
 
+          <HeroHandPanel cards={heroCards} folded={!!heroPlayer?.folded} />
+
           <BettingControls
             isActive={!!isHeroTurn}
             inGame={!!gameState && gameState.phase !== 'waiting' && !!heroPlayer && !heroPlayer.folded}
@@ -877,7 +914,7 @@ function TablePageInner() {
 
           {/* Table log */}
           <div style={{ flex:1, minHeight:180 }}>
-            <ChatPanel messages={log} />
+            <ChatPanel messages={log} onSend={sendChat} />
           </div>
 
           {/* Phase indicator */}

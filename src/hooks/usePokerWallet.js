@@ -669,6 +669,9 @@ export function useTableSocket(tableId, tableConfig) {
   const [needsRebuy,      setNeedsRebuy]      = useState(null); // { busted: [addr,...] } — set when hero busts out
   const [reconnectKey,    setReconnectKey]    = useState(0);
   const [botStatus,       setBotStatus]       = useState(null); // null | 'spawning' | 'seated' | 'already_seated' | 'error'
+  const [chatMessages,    setChatMessages]    = useState([]); // [{ addr, text, ts }]
+  const [verifyStatus,    setVerifyStatus]    = useState('idle'); // idle | pending | done | error
+  const [verifyFailures,  setVerifyFailures]  = useState([]);
   const wsRef           = useRef(null);
   const authCacheRef    = useRef(null);
   const authFailedRef   = useRef(false); // set true on sign dismiss — breaks infinite reconnect loop
@@ -777,6 +780,16 @@ export function useTableSocket(tableId, tableConfig) {
           case 'BOT_STATUS':
             setBotStatus(msg.status); // 'seated' | 'already_seated'
             break;
+          case 'CHAT':
+            setChatMessages(prev => [...prev.slice(-100), { addr: msg.addr, text: msg.text, ts: msg.ts }]);
+            break;
+          case 'VERIFY_PENDING':
+            setVerifyStatus('pending');
+            break;
+          case 'VERIFY_RESULT':
+            setVerifyStatus(msg.pass ? 'done' : 'error');
+            setVerifyFailures(msg.failures || []);
+            break;
           case 'ERROR':
             setWsError(msg.error);
             if (msg.error?.toLowerCase().includes('bot') || msg.error?.toLowerCase().includes('seat')) {
@@ -834,12 +847,25 @@ export function useTableSocket(tableId, tableConfig) {
     }
   }, [tableId]);
 
+  const sendChat = useCallback((text) => {
+    const t = String(text || '').trim();
+    if (t && wsRef.current?.readyState === WebSocket.OPEN)
+      wsRef.current.send(JSON.stringify({ type: 'CHAT', payload: { tableId, text: t.slice(0, 200) } }));
+  }, [tableId]);
+
+  const sendVerifyHuman = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN)
+      wsRef.current.send(JSON.stringify({ type: 'VERIFY_HUMAN' }));
+  }, []);
+
   return {
     gameState, handOver, tableList, wsStatus, wsError,
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData, needsRebuy,
     sendAction, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat, spawnBot, botStatus,
+    chatMessages, sendChat,
+    verifyStatus, verifyFailures, sendVerifyHuman,
   };
 }
 
@@ -973,6 +999,9 @@ export function useHandle() {
         args: [handle], gas: 400_000n, ...feeOverrides,
       });
       setTxHash(mintTx);
+      await waitForTransactionReceipt(wagmiConfig, { hash: mintTx, timeout: 60_000 });
+      await refetchHandle();
+      await refetchTotalMinted();
       setStatus('idle');
       return mintTx;
     } catch (e) {
@@ -980,7 +1009,7 @@ export function useHandle() {
       setErrorMsg(msg);
       setStatus('error');
     }
-  }, [address, mintCostRaw, writeContractAsync, publicClient]);
+  }, [address, mintCostRaw, writeContractAsync, publicClient, refetchHandle, refetchTotalMinted]);
 
   useEffect(() => {
     if (confirmed) {

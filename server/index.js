@@ -874,6 +874,25 @@ wss.on('connection', (ws, req) => {
         break;
       }
 
+      case 'CHAT': {
+        if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+        const now = Date.now();
+        if (client.lastChat && now - client.lastChat < 500)
+          return send(ws, { type: 'ERROR', error: 'Too fast' });
+        const { tableId, text } = payload;
+        const t = tables.get(String(tableId));
+        if (!t) return;
+        if (!t.players.find(p => p.addr === client.addr)) {
+          return send(ws, { type: 'ERROR', error: 'Not seated at this table' });
+        }
+        // Strip control chars (terminal/log injection) but keep normal unicode (emoji etc.) for chat text.
+        const safeText = String(text || '').replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 200);
+        if (!safeText) return;
+        client.lastChat = now;
+        broadcastToTable(t, { type: 'CHAT', tableId: String(t.id), addr: client.addr, text: safeText, ts: now });
+        break;
+      }
+
       case 'REBUY_CONFIRMED': {
         // Client sends this after their on-chain rebuy transaction confirms.
         // Server verifies by reading the updated deposit from chain.

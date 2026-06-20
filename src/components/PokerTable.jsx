@@ -300,6 +300,7 @@ export default function PokerTable({
           seatIndex={i}
           player={seat?.player || null}
           cards={seat?.cards || []}
+          hideCards={!!seat?.player?.isHero}
           isActive={seat?.isActive || false}
           timerPct={seat?.timerPct ?? 1}
           lastAction={seat?.lastAction || null}
