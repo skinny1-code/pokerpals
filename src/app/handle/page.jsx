@@ -4,6 +4,8 @@ import WalletBar from '../../components/WalletBar';
 import { useHandle } from '../../hooks/usePokerWallet';
 import { useWallet } from '../../hooks/usePokerWallet';
 import { useHandleAvatars } from '../../hooks/usePokerWallet';
+import { useTableSocket } from '../../hooks/usePokerWallet';
+import VerifyHumanBanner from '../../components/VerifyHumanBanner';
 import Link from 'next/link';
 
 function HandlePreview({ handle }) {
@@ -50,19 +52,20 @@ function isValidHandle(h) {
 export default function HandlePage() {
   const [mounted, setMounted]     = useState(false);
   const [inputVal, setInputVal]   = useState('');
-  const { address, chipsBalance } = useWallet();
+  const { address, chipsBalance, isHuman, refetchIsHuman } = useWallet();
   const {
     myHandle, hasHandle, mintCost, currentTier,
     tierCostsCHIPS, TIER_LABELS, TIER_BOUNDS,
     totalMinted, mint, status, confirmed, errorMsg,
   } = useHandle();
+  const { verifyStatus, verifyFailures, sendVerifyHuman } = useTableSocket();
 
   const avatarMap = useHandleAvatars(address ? [address] : []);
   const myAvatar  = address ? avatarMap[address.toLowerCase()] : null;
 
   useEffect(() => setMounted(true), []);
 
-  const canMint = mounted && !hasHandle && isValidHandle(inputVal) && chipsBalance >= mintCost && status === 'idle';
+  const canMint = mounted && !hasHandle && isHuman && isValidHandle(inputVal) && chipsBalance >= mintCost && status === 'idle';
 
   const handleMint = async () => {
     if (!canMint) return;
@@ -203,6 +206,22 @@ export default function HandlePage() {
             }}>
               ← Back to Lobby
             </Link>
+          </div>
+        ) : mounted && address && isHuman === false ? (
+          /* Not yet human-verified — block minting until VERIFY_HUMAN passes */
+          <div style={{
+            background: '#060e06', border: '1px solid #1a3a1a',
+            borderRadius: 16, overflow: 'hidden',
+          }}>
+            <VerifyHumanBanner
+              status={verifyStatus}
+              failures={verifyFailures}
+              onVerify={sendVerifyHuman}
+              onVerified={refetchIsHuman}
+            />
+            <div style={{ padding: '20px 24px', fontSize: 11, color: '#5a8a5a', textAlign: 'center' }}>
+              Human verification is required before minting a handle.
+            </div>
           </div>
         ) : (
           /* Mint form */

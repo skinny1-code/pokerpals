@@ -8,60 +8,9 @@ import BettingControls from '../../../components/BettingControls';
 import Card from '../../../components/Card';
 import { useTableSocket, useEscrow, useHandleMap, useHandleAvatars, useWallet } from '../../../hooks/usePokerWallet';
 import { useIsMobile } from '../../../hooks/useIsMobile';
+import VerifyHumanBanner from '../../../components/VerifyHumanBanner';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
-
-// ── Testnet human-verification banner ────────────────────────────────────────
-function VerifyBanner({ address, onVerified }) {
-  const [status, setStatus] = useState('idle'); // idle | verifying | done | error
-  const [err, setErr]       = useState(null);
-
-  const requestVerify = async () => {
-    setStatus('verifying');
-    setErr(null);
-    try {
-      const res  = await fetch('/api/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Verification failed');
-      setStatus('done');
-      onVerified?.();
-    } catch (e) {
-      setErr(e.message);
-      setStatus('error');
-    }
-  };
-
-  return (
-    <div style={{
-      background: status === 'done' ? '#0a1f0a' : '#1a0c04',
-      borderBottom: `1px solid ${status === 'done' ? '#27ae6055' : '#c8793055'}`,
-      padding: '8px 16px',
-      display: 'flex', alignItems: 'center', gap: 10, fontSize: 11,
-    }}>
-      <span style={{ color: status === 'done' ? '#27ae60' : '#e07030' }}>
-        {status === 'done' ? '✓ Verified — you can now buy in!' : '⚠ Your wallet needs testnet verification to sit at this table.'}
-      </span>
-      {status !== 'done' && (
-        <button
-          onClick={requestVerify}
-          disabled={status === 'verifying'}
-          style={{
-            background: 'transparent', border: '1px solid #c8793088',
-            borderRadius: 6, padding: '3px 12px', cursor: status === 'verifying' ? 'not-allowed' : 'pointer',
-            color: '#e07030', fontSize: 10, fontWeight: 700,
-          }}
-        >
-          {status === 'verifying' ? 'Verifying…' : 'Request Verification'}
-        </button>
-      )}
-      {err && <span style={{ color: '#e74c3c', fontSize: 10 }}>{err}</span>}
-    </div>
-  );
-}
 
 // ── action label from server → badge key ─────────────────────────────────────
 function parseActionLabel(label) {
@@ -530,6 +479,7 @@ function TablePageInner() {
     seatPickerData, needsRebuy,
     sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot, botStatus,
     chatMessages, sendChat,
+    verifyStatus, verifyFailures, sendVerifyHuman,
   } = useTableSocket(id, tableConfig);
 
   const isMobile = useIsMobile();
@@ -674,7 +624,12 @@ function TablePageInner() {
 
       {/* Human verification banner — shown when wallet connected but not yet verified */}
       {mounted && address && isHuman === false && (
-        <VerifyBanner address={address} onVerified={refetchIsHuman} />
+        <VerifyHumanBanner
+          status={verifyStatus}
+          failures={verifyFailures}
+          onVerify={sendVerifyHuman}
+          onVerified={refetchIsHuman}
+        />
       )}
 
       {/* Breadcrumb + status */}
