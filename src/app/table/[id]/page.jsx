@@ -151,9 +151,18 @@ function StatusDot({ status }) {
 }
 
 // ── chat + hand history ────────────────────────────────────────────────────────
-function ChatPanel({ messages }) {
+function ChatPanel({ messages, onSend }) {
   const endRef = useRef(null);
+  const [draft, setDraft] = useState('');
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth' }); }, [messages]);
+
+  const submit = () => {
+    const text = draft.trim();
+    if (!text || !onSend) return;
+    onSend(text);
+    setDraft('');
+  };
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%',
       background:'#060e06', border:'1px solid #1a3a1a', borderRadius:8, overflow:'hidden' }}>
@@ -177,6 +186,34 @@ function ChatPanel({ messages }) {
         ))}
         <div ref={endRef} />
       </div>
+      {onSend && (
+        <div style={{ display:'flex', gap:6, padding:8, borderTop:'1px solid #1a3a1a' }}>
+          <input
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+            maxLength={200}
+            placeholder="Say something…"
+            style={{
+              flex:1, background:'#0a160a', border:'1px solid #1a3a1a', borderRadius:6,
+              padding:'6px 10px', color:'#cfe8cf', fontSize:11,
+              fontFamily:"'JetBrains Mono',monospace", outline:'none',
+            }}
+          />
+          <button
+            onClick={submit}
+            disabled={!draft.trim()}
+            style={{
+              background: draft.trim() ? '#0c1e0c' : '#0a0f0a',
+              border:'1px solid #1a3a1a', borderRadius:6, padding:'6px 12px',
+              color: draft.trim() ? '#6a9a6a' : '#2a3a2a',
+              fontSize:9, fontWeight:700, letterSpacing:1,
+              cursor: draft.trim() ? 'pointer' : 'not-allowed',
+              fontFamily:"'JetBrains Mono',monospace",
+            }}
+          >SEND</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -492,6 +529,7 @@ function TablePageInner() {
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData, needsRebuy,
     sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot, botStatus,
+    chatMessages, sendChat,
   } = useTableSocket(id, tableConfig);
 
   const isMobile = useIsMobile();
@@ -548,6 +586,19 @@ function TablePageInner() {
   useEffect(() => {
     if (wsError) setLog(prev => [...prev, { type:'system', text:`⚠ ${wsError}` }]);
   }, [wsError]);
+
+  // Merge incoming chat into the log so it interleaves with action/winner entries
+  const seenChatRef = useRef(0);
+  useEffect(() => {
+    if (chatMessages.length <= seenChatRef.current) return;
+    const fresh = chatMessages.slice(seenChatRef.current);
+    seenChatRef.current = chatMessages.length;
+    setLog(prev => [...prev.slice(-60), ...fresh.map(c => ({
+      type: 'chat',
+      handle: handleMap[c.addr?.toLowerCase()] || `${c.addr.slice(0,6)}…`,
+      text: c.text,
+    }))]);
+  }, [chatMessages, handleMap]);
 
   // Derive hero state
   const heroPlayer = useMemo(() =>
@@ -908,7 +959,7 @@ function TablePageInner() {
 
           {/* Table log */}
           <div style={{ flex:1, minHeight:180 }}>
-            <ChatPanel messages={log} />
+            <ChatPanel messages={log} onSend={sendChat} />
           </div>
 
           {/* Phase indicator */}

@@ -669,6 +669,7 @@ export function useTableSocket(tableId, tableConfig) {
   const [needsRebuy,      setNeedsRebuy]      = useState(null); // { busted: [addr,...] } — set when hero busts out
   const [reconnectKey,    setReconnectKey]    = useState(0);
   const [botStatus,       setBotStatus]       = useState(null); // null | 'spawning' | 'seated' | 'already_seated' | 'error'
+  const [chatMessages,    setChatMessages]    = useState([]); // [{ addr, text, ts }]
   const wsRef           = useRef(null);
   const authCacheRef    = useRef(null);
   const authFailedRef   = useRef(false); // set true on sign dismiss — breaks infinite reconnect loop
@@ -777,6 +778,9 @@ export function useTableSocket(tableId, tableConfig) {
           case 'BOT_STATUS':
             setBotStatus(msg.status); // 'seated' | 'already_seated'
             break;
+          case 'CHAT':
+            setChatMessages(prev => [...prev.slice(-100), { addr: msg.addr, text: msg.text, ts: msg.ts }]);
+            break;
           case 'ERROR':
             setWsError(msg.error);
             if (msg.error?.toLowerCase().includes('bot') || msg.error?.toLowerCase().includes('seat')) {
@@ -834,12 +838,19 @@ export function useTableSocket(tableId, tableConfig) {
     }
   }, [tableId]);
 
+  const sendChat = useCallback((text) => {
+    const t = String(text || '').trim();
+    if (t && wsRef.current?.readyState === WebSocket.OPEN)
+      wsRef.current.send(JSON.stringify({ type: 'CHAT', payload: { tableId, text: t.slice(0, 200) } }));
+  }, [tableId]);
+
   return {
     gameState, handOver, tableList, wsStatus, wsError,
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData, needsRebuy,
     sendAction, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat, spawnBot, botStatus,
+    chatMessages, sendChat,
   };
 }
 
