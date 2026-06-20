@@ -108,6 +108,30 @@ function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}) {
   return seats;
 }
 
+// ── hero hand panel — hero's own hole cards, shown bigger below the table ──────
+function HeroHandPanel({ cards = [], folded = false }) {
+  if (!cards.length) return null;
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+      margin: '20px auto 0', opacity: folded ? 0.45 : 1, transition: 'opacity .3s',
+    }}>
+      <div style={{ fontSize: 9, color: '#d4af3799', letterSpacing: 3 }}>YOUR HAND</div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        {cards.map((c, i) => {
+          const cardStr = typeof c === 'string' ? c : c?.card;
+          const fd = typeof c === 'object' ? !!c?.faceDown : false;
+          return (
+            <div key={`${i}-${cardStr || 'fd'}`} className="card-deal" style={{ animationDelay: `${i * 0.12}s` }}>
+              <Card card={cardStr} faceDown={fd} width={84} height={118} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── status badge ──────────────────────────────────────────────────────────────
 function StatusDot({ status }) {
   const color = {
@@ -534,6 +558,10 @@ function TablePageInner() {
     gameState?.activeAddr?.toLowerCase() === address?.toLowerCase();
   const heroBustedOut = !heroPlayer && !!address &&
     needsRebuy?.busted?.some(a => a?.toLowerCase() === address.toLowerCase());
+  const heroCards = useMemo(() =>
+    (heroPlayer?.hand || []).map(c => c === '??' ? { faceDown: true } : c),
+    [heroPlayer]
+  );
 
   const callAmount = isHeroTurn
     ? Math.max(0, (gameState?.maxBet || 0) - (heroPlayer?.bet || 0))
@@ -627,6 +655,7 @@ function TablePageInner() {
         {/* Table area */}
         <div style={{
           display:'flex', flexDirection:'column',
+          justifyContent: isMobile ? 'center' : 'flex-start',
           padding:'24px 16px 100px',
           overflowY:'auto', position:'relative',
         }}>
@@ -774,6 +803,8 @@ function TablePageInner() {
               gameType: gameState.config.gameType,
             } : null}
           />
+
+          <HeroHandPanel cards={heroCards} folded={!!heroPlayer?.folded} />
 
           <BettingControls
             isActive={!!isHeroTurn}

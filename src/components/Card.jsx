@@ -37,13 +37,14 @@ const PIP_LAYOUTS = {
 };
 const FACE_RANKS = new Set(['J', 'Q', 'K']);
 
-// Parse "AH", "TS", "2d" → { rank, suit }
+// Parse "AH", "TS", "2d" → { rank, suit }. Server notation uses 'T' for Ten;
+// display always shows '10' (PIP_LAYOUTS is keyed by '10', not 'T').
 function parseCard(str) {
   if (!str || str.length < 2) return null;
   const raw  = str.toUpperCase();
   const rank = raw.slice(0, -1);
   const suit = raw.slice(-1).toLowerCase();
-  return { rank, suit };
+  return { rank: rank === 'T' ? '10' : rank, suit };
 }
 
 function CardBack({ width = 72, height = 100 }) {

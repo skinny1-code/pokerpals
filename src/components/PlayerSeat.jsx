@@ -151,6 +151,7 @@ export default function PlayerSeat({
   seatIndex = 0,
   player = null,       // { address, handle, avatarUrl, chips, isHero, isFolded, isAllIn }
   cards = [],          // ['AH','KS'] or [{card, faceDown}]
+  hideCards = false,   // suppress in-seat hole cards (hero's are shown in a bigger panel below the table)
   isActive = false,    // it's this player's turn
   timerPct = 1,        // 0→1 countdown
   lastAction = null,   // 'fold','check','call','raise','bet','all-in'
@@ -220,7 +221,7 @@ export default function PlayerSeat({
     }}>
 
       {/* hole cards above/below seat depending on position */}
-      {cards.length > 0 && (
+      {!hideCards && cards.length > 0 && (
         <div style={{
           display: 'flex', gap: 3,
           order: pos.label === 'bottom' ? -1 : 1,
