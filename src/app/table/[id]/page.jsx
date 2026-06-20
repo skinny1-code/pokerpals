@@ -586,6 +586,9 @@ function TablePageInner() {
     joinWithSeat(seatIndex, amount);
   }, [buyIn, joinWithSeat, selectedBuyIn, tableConfig, tableInfo]);
 
+  const maxBots = Math.max(1, (gameState?.config?.maxPlayers || tableConfig?.maxPlayers || 6) - 1);
+  const botControlsDisabled = botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated';
+
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg-deep)', display:'flex', flexDirection:'column' }}>
       <WalletBar />
@@ -674,16 +677,24 @@ function TablePageInner() {
                 >
                   COPY & SHARE TABLE LINK
                 </button>
+                <button
+                  onClick={() => setBotCount(c => Math.max(1, c - 1))}
+                  disabled={botControlsDisabled}
+                  style={{
+                    width:28, background:'#0c1e2e', border:'1px solid #4a7aaa66', borderRadius:8,
+                    padding:'10px 0', color:'#7ab4e0', fontSize:13, fontFamily:'inherit',
+                    fontWeight:700, cursor: botControlsDisabled ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  −
+                </button>
                 <input
                   type="number"
                   min={1}
-                  max={Math.max(1, (gameState?.config?.maxPlayers || tableConfig?.maxPlayers || 6) - 1)}
+                  max={maxBots}
                   value={botCount}
-                  onChange={e => setBotCount(Math.max(1, Math.min(
-                    Math.max(1, (gameState?.config?.maxPlayers || tableConfig?.maxPlayers || 6) - 1),
-                    Number(e.target.value) || 1,
-                  )))}
-                  disabled={botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated'}
+                  onChange={e => setBotCount(Math.max(1, Math.min(maxBots, Number(e.target.value) || 1)))}
+                  disabled={botControlsDisabled}
                   style={{
                     width:44, background:'#0c1e2e', border:'1px solid #4a7aaa66', borderRadius:8,
                     padding:'10px 6px', color:'#7ab4e0', fontSize:11, fontFamily:'inherit',
@@ -691,8 +702,19 @@ function TablePageInner() {
                   }}
                 />
                 <button
+                  onClick={() => setBotCount(c => Math.min(maxBots, c + 1))}
+                  disabled={botControlsDisabled}
+                  style={{
+                    width:28, background:'#0c1e2e', border:'1px solid #4a7aaa66', borderRadius:8,
+                    padding:'10px 0', color:'#7ab4e0', fontSize:13, fontFamily:'inherit',
+                    fontWeight:700, cursor: botControlsDisabled ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  +
+                </button>
+                <button
                   onClick={() => spawnBot(undefined, botCount)}
-                  disabled={botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated'}
+                  disabled={botControlsDisabled}
                   style={{
                     background: botStatus === 'seated' || botStatus === 'already_seated'
                       ? 'linear-gradient(135deg,#0a2a1a,#060e06)'
