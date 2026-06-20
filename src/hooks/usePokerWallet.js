@@ -973,6 +973,9 @@ export function useHandle() {
         args: [handle], gas: 400_000n, ...feeOverrides,
       });
       setTxHash(mintTx);
+      await waitForTransactionReceipt(wagmiConfig, { hash: mintTx, timeout: 60_000 });
+      await refetchHandle();
+      await refetchTotalMinted();
       setStatus('idle');
       return mintTx;
     } catch (e) {
@@ -980,7 +983,7 @@ export function useHandle() {
       setErrorMsg(msg);
       setStatus('error');
     }
-  }, [address, mintCostRaw, writeContractAsync, publicClient]);
+  }, [address, mintCostRaw, writeContractAsync, publicClient, refetchHandle, refetchTotalMinted]);
 
   useEffect(() => {
     if (confirmed) {
