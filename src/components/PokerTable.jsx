@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useRef, useState } from 'react';
 import Card, { EmptyCardSlot } from './Card';
 import PlayerSeat from './PlayerSeat';
 
@@ -180,13 +181,36 @@ export default function PokerTable({
   const tableH = 420;
   const bigBlind = tableInfo?.bigBlind || 100;
 
+  // The table is designed at a fixed 720×420px, but its outer box is responsive
+  // (width:100%, capped at 720). Scale the design-size content as a unit to match
+  // the rendered size, instead of every seat/card/avatar pixel value separately —
+  // otherwise fixed-size hole cards collide with the community cards once the
+  // table shrinks below its design width (e.g. on mobile, 9-max top-row seats).
+  const outerRef = useRef(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setScale(entry.contentRect.width / tableW));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
-    <div style={{
+    <div ref={outerRef} style={{
       position: 'relative',
       width: '100%', maxWidth: tableW,
       aspectRatio: `${tableW} / ${tableH}`,
       margin: '0 auto',
+      overflow: 'hidden',
     }}>
+      <div style={{
+        position: 'absolute', top: 0, left: 0,
+        width: tableW, height: tableH,
+        transform: `scale(${scale})`,
+        transformOrigin: 'top left',
+      }}>
 
       {/* ── Outer rail ── */}
       <div style={{
@@ -287,6 +311,7 @@ export default function PokerTable({
           onClick={!seat?.player && onSeatClick ? () => onSeatClick(i) : null}
         />
       ))}
+      </div>
     </div>
   );
 }
