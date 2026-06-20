@@ -9,6 +9,7 @@ import crypto from "crypto";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
+import { fullVerify, BehaviorMonitor } from "./antiBotOracle.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -128,41 +129,27 @@ function bestOmaha(hole, comm) {
 }
 
 // ─── ANTI-BOT VERIFICATION ───────────────────────────────────────────────────
+// Real verification delegates to antiBotOracle.js's fullVerify() (2-of-3 checks).
+// Testnet bypass marks human directly without touching the external APIs.
 async function verifyHuman(address) {
   if (process.env.TESTNET_SKIP_HUMAN_CHECK === 'true') {
     try {
       const tx = await escrow.markHuman(address, true);
       await tx.wait();
       console.log(`[AntiBot] Testnet bypass: marked ${address} as human`);
-      return { ok: true };
+      return { pass: true, failures: [] };
     } catch (e) {
       console.error("markHuman (testnet bypass) error:", e.message);
-      return { ok: false, reason: e.message };
+      return { pass: false, failures: [e.message] };
     }
   }
-
-  try {
-    const txCount = await provider.getTransactionCount(address);
-    if (txCount < 50) return { ok: false, reason: "Less than 50 on-chain transactions" };
-
-    if (PASSPORT_API && SCORER_ID) {
-      const res = await fetch(
-        `${PASSPORT_URL}/registry/score/${SCORER_ID}/${address}`,
-        { headers: { "X-API-KEY": PASSPORT_API } }
-      );
-      const data = await res.json();
-      const score = parseFloat(data?.score || 0);
-      if (score < 15) return { ok: false, reason: `Passport score ${score} < 15` };
-    }
-
-    const tx = await escrow.markHuman(address, true);
-    await tx.wait();
-    return { ok: true };
-  } catch (e) {
-    console.error("verifyHuman error:", e.message);
-    return { ok: false, reason: "Verification error" };
-  }
+  return fullVerify(address);
 }
+
+// Bot-timing detector — flags suspiciously fast/consistent action timing.
+// Separate process from server/antiBotOracle.js's own instance (see CLAUDE.md),
+// so a fresh BehaviorMonitor is created here for the live game server.
+const behaviorMonitor = new BehaviorMonitor();
 
 // ─── GAME STATE MACHINE ───────────────────────────────────────────────────────
 class PokerTable {
@@ -235,6 +222,7 @@ class PokerTable {
     this.maxBet = bb;
     // Preflop: in HU the SB/dealer acts first; multi-way starts left of BB
     this.actionIdx = n === 2 ? sbIdx : (bbIdx + 1) % n;
+    this.turnStartedAt = Date.now();
 
     const handHash = crypto.createHash('sha256')
       .update(JSON.stringify({ id: String(this.id), nonce: this.handNonce, deck: this.deck.slice(0,5).join(','), ts: Date.now() }))
@@ -251,6 +239,7 @@ class PokerTable {
       iters++;
     }
     this.actionIdx = next;
+    this.turnStartedAt = Date.now();
   }
 
   _resetActionIdxForStreet() {
@@ -262,6 +251,7 @@ class PokerTable {
       iters++;
     }
     this.actionIdx = next;
+    this.turnStartedAt = Date.now();
   }
 
   // Fold a player without advancing action (used when removing a player mid-hand)
@@ -491,6 +481,12 @@ function broadcastTable(t) {
     if (p.ws?.readyState === WebSocket.OPEN)
       send(p.ws, { type: 'GAME_STATE', state: t.pubState(p.addr) });
   });
+  // Busted players are removed from t.players but still wait on a rebuy —
+  // keep their screen updating instead of freezing at the bust moment.
+  for (const [addr, info] of t.bustedSeats) {
+    if (info.ws?.readyState === WebSocket.OPEN)
+      send(info.ws, { type: 'GAME_STATE', state: t.pubState(addr) });
+  }
   maybeBotAct(t);
 }
 
@@ -847,6 +843,17 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
+        // Busted and waiting on a rebuy — update their ws reference instead of
+        // re-seating them (REBUY_CONFIRMED handles re-seating), so a page
+        // refresh while waiting doesn't lose the spectator connection.
+        const bustedExisting = t.bustedSeats.get(addr);
+        if (bustedExisting) {
+          bustedExisting.ws = ws;
+          clients.set(ws, { ...client, tableId: tidKey });
+          send(ws, { type: 'GAME_STATE', state: t.pubState(addr) });
+          return;
+        }
+
         const seated = t.seat({ addr, ws, onChainDeposit }, seatIndex ?? null);
         if (!seated) return send(ws, { type: 'ERROR', error: 'Cannot join table' });
 
@@ -867,8 +874,11 @@ wss.on('connection', (ws, req) => {
         const safeAmount = typeof amount === 'number' && isFinite(amount) && amount >= 0 ? amount : 0;
         const t = tables.get(String(tableId));
         if (!t) return;
+        const reactionMs = t.turnStartedAt ? Date.now() - t.turnStartedAt : null;
         const result = t.applyAction(client.addr, action, safeAmount);
         if (result?.error) return send(ws, { type: 'ERROR', error: result.error });
+        // recordAction() already console.warns internally on WARNING/FLAGGED — log-only, no enforcement.
+        behaviorMonitor.recordAction(client.addr, action, reactionMs);
         broadcastTable(t);
         if (result?.winners) await handleHandOver(t, result);
         break;

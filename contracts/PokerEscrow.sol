@@ -182,7 +182,10 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         t.potTotal            += t.buyInAmount;
         t.players.push(msg.sender);
         emit PlayerJoined(tableId, msg.sender, t.buyInAmount, fee);
-        if (t.players.length == t.maxPlayers) t.status = TableStatus.Active;
+        // Match the off-chain game server's auto-start threshold (server/index.js
+        // maybeAutoStart: players.length >= 2) so on-chain Active and off-chain
+        // "game running" stay in sync regardless of table size.
+        if (t.players.length >= 2) t.status = TableStatus.Active;
     }
 
     function rebuy(uint256 tableId, uint256 amount) external nonReentrant {
