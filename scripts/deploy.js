@@ -90,7 +90,7 @@ async function main() {
 
   // 7. PokerHandle — username NFT
   const Handle = await ethers.getContractFactory("PokerHandle");
-  const handle = await Handle.deploy(tokenAddr);
+  const handle = await Handle.deploy(tokenAddr, escrowAddr);
   await handle.waitForDeployment();
   const handleAddr = await handle.getAddress();
   console.log("✅ PokerHandle:", handleAddr);
