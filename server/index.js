@@ -497,7 +497,7 @@ function spawnBot(t, buyIn, count = 1) {
   const chips = Math.max(min, Math.min(max, buyIn || min));
   const seatedAddrs = [];
   for (let i = 0; i < count; i++) {
-    const addr = new ethers.Wallet(ethers.keccak256(ethers.toUtf8Bytes(`${BOT_KEY}:${i}`))).address.toLowerCase();
+    const addr = new ethers.Wallet(ethers.keccak256(ethers.toUtf8Bytes(`${BOT_KEY}:${t.id}:${i}`))).address.toLowerCase();
     const seated = t.seat({ addr, ws: null, isBot: true, onChainDeposit: chips }, null);
     if (!seated) break;
     seatedAddrs.push(addr);
