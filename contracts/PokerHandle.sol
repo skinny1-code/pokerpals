@@ -12,6 +12,10 @@ interface IChipsTokenMint is IERC20 {
     function burn(uint256 amount) external;
 }
 
+interface IPokerEscrow {
+    function humanVerified(address) external view returns (bool);
+}
+
 /// @title PokerHandle — on-chain poker username NFT
 ///
 /// Players burn CHIPS to mint a unique handle (e.g. "Shark_99").
@@ -32,6 +36,7 @@ contract PokerHandle is ERC721, Ownable {
     using Strings for uint256;
 
     IChipsTokenMint public immutable chipsToken;
+    IPokerEscrow    public immutable escrow;
 
     uint256[3] public tierBounds = [10_000, 110_000, 1_110_000];
     uint256[4] public tierCosts  = [
@@ -57,9 +62,11 @@ contract PokerHandle is ERC721, Ownable {
     error InvalidCharacter(bytes1 c);
     error HandleAlreadyTaken(string handle);
     error AlreadyHasHandle(address player);
+    error NotHumanVerified(address player);
 
-    constructor(address _chipsToken) ERC721("PokerVsPlayer Handle", "HANDLE") Ownable(msg.sender) {
+    constructor(address _chipsToken, address _escrow) ERC721("PokerVsPlayer Handle", "HANDLE") Ownable(msg.sender) {
         chipsToken = IChipsTokenMint(_chipsToken);
+        escrow = IPokerEscrow(_escrow);
     }
 
     // ─── VIEWS ────────────────────────────────────────────────────────────────
@@ -108,6 +115,7 @@ contract PokerHandle is ERC721, Ownable {
 
     function mintHandle(string calldata handle) external {
         if (ownerTokenId[msg.sender] != 0) revert AlreadyHasHandle(msg.sender);
+        if (!escrow.humanVerified(msg.sender)) revert NotHumanVerified(msg.sender);
 
         _validateHandle(handle);
 
