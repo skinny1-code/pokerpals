@@ -1,21 +1,21 @@
 {
   "network": "arbitrumSepolia",
   "chainId": "421614",
-  "deployedAt": "2026-06-21T06:19:07.759Z",
+  "deployedAt": "2026-06-21T21:48:31.872Z",
   "deployer": "0x0B58C02408E095F8f7527FF42184E3FC54e6Df86",
-  "deployBlock": 278805840,
+  "deployBlock": 279691683,
   "contracts": {
-    "ChipsToken": "0xF78Ac2214D9B55184A06d251FcA1e436Af3c3DB6",
-    "ChipsStaking": "0xE3F7224C46Bd7384F88BF9B6503450Bb2bB40d6C",
-    "ReferralRegistry": "0x94D28F4AA002c85394F758c9dCd5B98F97469f0e",
-    "PokerEscrow": "0x1dA647E1D51e70Be3efF84ea3c073d235Ff41E87",
-    "TournamentManager": "0xc4A7C7Df82934DBbCc99Ad5153644B8a84A376e8",
-    "TableRegistry": "0x65BC66C0832ccAf9CB7b5F27dE692DA2a612F07C",
-    "PokerHandle": "0xe8c171d27f565193c8dc02D9803EA2F503BFdeD8",
-    "KingOfSpadesPool": "0x8094DbDA04Db8D5Ab68297c87876d222feC4efcf",
-    "PromotionsPool": "0xA267328E48262F7803CB7d4CcD938eA417CB273E",
-    "StablecoinPool": "0xA15849d839f75d231fee1909f048f216323E4b70",
-    "ChipsLiquidityPool": "0xDb2eb220a896418Af3731e294Edde9b67cFcD0C4",
-    "MockUSDC": "0x7FA679dfd4242645ee57567B29520fBCf69Ad97B"
+    "ChipsToken": "0x1A22C15a822336Ba60A600812E374Cd54CF51a73",
+    "ChipsStaking": "0x979c6C961717f961ddAd3E5Fa57D7eE2b8211B80",
+    "ReferralRegistry": "0x87858fFbC2C02B6a400D2cb9d6d197e5dc529F44",
+    "PokerEscrow": "0x0BF5ADBa138c9Cd377e8480d622FfDb3B64A0637",
+    "TournamentManager": "0xe3ADfbDE308c899227d06eE1BA7a9fc734108D1E",
+    "TableRegistry": "0x08bD0bd8fc525a91D8280cFa73Bb45Fe0659Ed5a",
+    "PokerHandle": "0xac55D3A9799c9109877147f313A5741AaA1A1E53",
+    "KingOfSpadesPool": "0xb236463410170aD7A7Eacd3D28cdA9654Bee9602",
+    "PromotionsPool": "0x130104Ff3017a3410DD919d3AE5bE315FaC4ED6f",
+    "StablecoinPool": "0xbde970E1EE1EAC8D2D66b57705707B7b15A4F8A7",
+    "ChipsLiquidityPool": "0x73123C2f12e9Bb3E7e3d47277FA7AbF8B37999fD",
+    "MockUSDC": "0x5063D0c149EaFf5c02Cd688DFc213ab6f4e4b884"
   }
 }
