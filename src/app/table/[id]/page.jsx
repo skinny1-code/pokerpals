@@ -27,7 +27,7 @@ function parseActionLabel(label) {
 }
 
 // ── map server pubState → PokerTable seats array (uses seatIndex for position) ──
-function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}) {
+function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}, now = Date.now()) {
   if (!state) return Array(9).fill(null);
 
   const seats = Array(9).fill(null);
@@ -36,6 +36,10 @@ function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}) {
   players.forEach(p => {
     const idx = p.seatIndex ?? null;
     if (idx == null || idx < 0 || idx > 8) return;
+    const isActive = p.addr?.toLowerCase() === state.activeAddr?.toLowerCase();
+    const timerPct = isActive && state.turnStartedAt && state.turnTimeoutMs
+      ? Math.max(0, Math.min(1, 1 - (now - state.turnStartedAt) / state.turnTimeoutMs))
+      : 1;
     seats[idx] = {
       player: {
         address:   p.addr,
@@ -47,7 +51,8 @@ function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}) {
         isAllIn:   p.allIn,
       },
       cards:      (p.hand || []).map(c => c === '??' ? { faceDown: true } : c),
-      isActive:   p.addr?.toLowerCase() === state.activeAddr?.toLowerCase(),
+      isActive,
+      timerPct,
       lastAction: parseActionLabel(p.actionLabel),
       betAmount:  p.bet || 0,
       isDealer:   p.addr?.toLowerCase() === state.dealerAddr?.toLowerCase(),
@@ -571,7 +576,17 @@ function TablePageInner() {
   const bigBlind   = gameState?.config?.bigBlind || 100;
   const minRaise   = Math.max(bigBlind, gameState?.lastRaiseAmount || bigBlind);
 
-  const seats = useMemo(() => mapToSeats(gameState, address, handleMap, avatarMap), [gameState, address, handleMap, avatarMap]);
+  // Tick while a hand is live so the per-seat turn timer ring animates smoothly,
+  // independent of GAME_STATE updates (which only arrive when someone acts).
+  const turnInProgress = !!gameState?.activeAddr && gameState.phase !== 'waiting' && gameState.phase !== 'showdown';
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!turnInProgress) return;
+    const iv = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(iv);
+  }, [turnInProgress]);
+
+  const seats = useMemo(() => mapToSeats(gameState, address, handleMap, avatarMap, now), [gameState, address, handleMap, avatarMap, now]);
 
   const handleLeave = useCallback(() => {
     const isWaiting = gameState?.phase === 'waiting' || !gameState;

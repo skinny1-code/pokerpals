@@ -151,6 +151,10 @@ async function verifyHuman(address) {
 // so a fresh BehaviorMonitor is created here for the live game server.
 const behaviorMonitor = new BehaviorMonitor();
 
+// AFK guard: a player who doesn't act within this window is auto-checked
+// (if free) or auto-folded, so one stalled player can't hold up the table.
+const ACTION_TIMEOUT_MS = Number(process.env.TURN_TIMEOUT_MS) || 30_000;
+
 // ─── GAME STATE MACHINE ───────────────────────────────────────────────────────
 class PokerTable {
   constructor(id, config) {
@@ -390,6 +394,8 @@ class PokerTable {
       lastRaiseAmount: this.lastRaiseAmount,
       community:       this.community,
       activeAddr:      activePlayer?.addr || null,
+      turnStartedAt:   activePlayer ? this.turnStartedAt ?? null : null,
+      turnTimeoutMs:   ACTION_TIMEOUT_MS,
       dealerAddr:      this.players[this.dealerIdx]?.addr || null,
       config:          this.config,
       creator:         this.creator ?? null,
@@ -488,6 +494,32 @@ function broadcastTable(t) {
       send(info.ws, { type: 'GAME_STATE', state: t.pubState(addr) });
   }
   maybeBotAct(t);
+  scheduleActionTimer(t);
+}
+
+// AFK guard — (re)arms a single timeout for the current actor. Safe to call after
+// every broadcast: it clears any prior timer and recomputes the remaining time from
+// turnStartedAt, so repeated calls during the same turn don't reset the countdown.
+function scheduleActionTimer(t) {
+  if (t.actionTimer) { clearTimeout(t.actionTimer); t.actionTimer = null; }
+  if (t.phase === 'waiting' || t.phase === 'showdown') return;
+  const active = t.players[t.actionIdx];
+  if (!active || active.folded || active.allIn || active.isBot) return;
+  const remaining = Math.max(0, ACTION_TIMEOUT_MS - (Date.now() - (t.turnStartedAt || Date.now())));
+  t.actionTimer = setTimeout(() => onActionTimeout(t, active.addr), remaining);
+}
+
+async function onActionTimeout(t, addr) {
+  const idx = t.players.findIndex(p => p.addr === addr);
+  if (idx < 0 || idx !== t.actionIdx) return; // state already moved on
+  const p = t.players[idx];
+  if (p.folded || p.allIn) return;
+  const due    = Math.max(0, t.maxBet - p.bet);
+  const action = due === 0 ? 'check' : 'fold';
+  console.log(`[Server] Turn timeout — auto-${action} for ${addr.slice(0,10)} at table ${t.id}`);
+  const result = t.applyAction(addr, action, 0);
+  broadcastTable(t);
+  if (result?.winners) await handleHandOver(t, result);
 }
 
 function spawnBot(t, buyIn, count = 1) {
