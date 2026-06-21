@@ -14,6 +14,7 @@
     "compile": "npx hardhat compile",
     "deploy:testnet": "npx hardhat run scripts/deploy.js",
     "deploy:handle": "npx hardhat run scripts/deployHandle.js",
+    "deploy:escrow": "npx hardhat run scripts/redeploy-escrow.js",
     "deploy:mainnet": "DEPLOY_NETWORK=arbitrum npx hardhat run scripts/deploy.js",
     "test": "node test/holdem.test.mjs",
     "test:contracts": "npx hardhat test",
