@@ -19,6 +19,7 @@ interface IKingsPoolForTourn {
 }
 interface IPokerHandle {
     function isHandleEligible(address player) external view returns (bool);
+    function effectiveTokenId(address player) external view returns (uint256);
 }
 
 /// @title TournamentManager — scheduled tournaments with entry fees and operator-signed payouts
@@ -87,6 +88,7 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     error TournFull(uint256 id);
     error InvalidSig();
     error AlreadyUsed(bytes32 h);
+    error DuplicateIdentity(uint256 tokenId);
 
     constructor(address _token, address _signer, address _rake, address _staking)
         Ownable(msg.sender)
@@ -127,12 +129,23 @@ contract TournamentManager is Ownable, ReentrancyGuard {
         if (!pokerHandle.isHandleEligible(msg.sender)) revert NotHuman(msg.sender);
         if (registered[tournId][msg.sender])        revert AlreadyRegistered(msg.sender);
         if (t.entrants.length >= t.maxPlayers)      revert TournFull(tournId);
+        _checkNoDuplicateIdentity(t, msg.sender);
 
         chipsToken.safeTransferFrom(msg.sender, address(this), t.entryFee);
         t.prizePool += t.entryFee;
         t.entrants.push(msg.sender);
         registered[tournId][msg.sender] = true;
         emit PlayerRegistered(tournId, msg.sender, t.entryFee);
+    }
+
+    /// @notice Blocks one handle (owner + any of its linked alias wallets) from holding
+    ///         two entries in the same tournament — closes the collusion/double-entry
+    ///         path that wallet linking would otherwise open.
+    function _checkNoDuplicateIdentity(Tournament storage t, address player) internal view {
+        uint256 tokenId = pokerHandle.effectiveTokenId(player);
+        for (uint i; i < t.entrants.length; i++) {
+            if (pokerHandle.effectiveTokenId(t.entrants[i]) == tokenId) revert DuplicateIdentity(tokenId);
+        }
     }
 
     function startTournament(uint256 tournId) external {

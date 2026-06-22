@@ -166,6 +166,7 @@ contract PokerHandle is ERC721, Ownable {
         if (ownerTokenId[wallet] != 0) revert AlreadyHasHandle(wallet);
         if (linkedToToken[wallet] != 0) revert AlreadyLinked(wallet);
         if (_linkedWallets[tokenId].length >= MAX_LINKED_WALLETS) revert TooManyLinkedWallets(tokenId);
+        if (!escrow.humanVerified(wallet)) revert NotHumanVerified(wallet);
 
         bytes32 hash = keccak256(abi.encodePacked("PVP-LINK:", block.chainid, address(this), msg.sender, tokenId));
         if (hash.toEthSignedMessageHash().recover(signature) != wallet) revert InvalidLinkProof();

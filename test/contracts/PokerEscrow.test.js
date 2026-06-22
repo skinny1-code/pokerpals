@@ -377,4 +377,31 @@ describe("PokerEscrow", () => {
     await escrow.createTable(BUY_IN, BB, 9, 0, 0);
     await expectNotReverted(escrow.connect(owner).closeTable(1));
   });
+
+  // ─── duplicate-identity check (anti-collusion) ───────────────────────────────
+  // Closes the path wallet-linking would otherwise open: a handle owner and any
+  // of its linked alias wallets must not be able to hold two seats at once.
+
+  it("buyIn: reverts when a linked alias wallet tries to take a second seat at the same table", async () => {
+    const escrowAddr = await escrow.getAddress();
+    const handleAddr = await handle.getAddress();
+    const { chainId } = await ethers.provider.getNetwork();
+
+    await escrow.markHuman(operator.address, true);
+    const tokenId = await handle.ownerTokenId(player1.address);
+    const digest = ethers.solidityPackedKeccak256(
+      ["string", "uint256", "address", "address", "uint256"],
+      ["PVP-LINK:", chainId, handleAddr, player1.address, tokenId]
+    );
+    const sig = await operator.signMessage(ethers.getBytes(digest));
+    await handle.connect(player1).linkWallet(operator.address, sig);
+
+    await escrow.createTable(BUY_IN, BB, 9, 0, 0);
+    await token.connect(player1).approve(escrowAddr, BUY_IN + FEE);
+    await escrow.connect(player1).buyIn(1);
+
+    await token.transfer(operator.address, BUY_IN + FEE);
+    await token.connect(operator).approve(escrowAddr, BUY_IN + FEE);
+    await expectReverted(escrow.connect(operator).buyIn(1));
+  });
 });

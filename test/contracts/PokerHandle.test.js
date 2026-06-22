@@ -76,11 +76,12 @@ describe("PokerHandle", () => {
     return signer.signMessage(ethers.getBytes(digest));
   }
 
-  it("linkWallet: lets the handle owner link a consenting wallet as a functional alias", async () => {
+  it("linkWallet: lets the handle owner link a consenting, human-verified wallet as a functional alias", async () => {
     await escrow.markHuman(player1.address, true);
     await handle.connect(player1).mintHandle("Shark_99");
     const tokenId = await handle.ownerTokenId(player1.address);
 
+    await escrow.markHuman(operator.address, true);
     const sig = await linkProofSig(operator, player1.address, tokenId);
     await handle.connect(player1).linkWallet(operator.address, sig);
 
@@ -89,11 +90,22 @@ describe("PokerHandle", () => {
     expect(await handle.linkedToToken(operator.address)).to.equal(tokenId);
   });
 
+  it("linkWallet: reverts when the wallet being linked is not human-verified", async () => {
+    // Closes the bot/Sybil bypass: linking must not be a free pass around the anti-bot gate.
+    await escrow.markHuman(player1.address, true);
+    await handle.connect(player1).mintHandle("Shark_99");
+    const tokenId = await handle.ownerTokenId(player1.address);
+
+    const sig = await linkProofSig(operator, player1.address, tokenId);
+    await expectReverted(handle.connect(player1).linkWallet(operator.address, sig));
+  });
+
   it("linkWallet: reverts when the proof is not signed by the wallet being linked", async () => {
     await escrow.markHuman(player1.address, true);
     await handle.connect(player1).mintHandle("Shark_99");
     const tokenId = await handle.ownerTokenId(player1.address);
 
+    await escrow.markHuman(operator.address, true);
     const badSig = await linkProofSig(owner, player1.address, tokenId); // wrong signer
     await expectReverted(handle.connect(player1).linkWallet(operator.address, badSig));
   });
@@ -102,6 +114,7 @@ describe("PokerHandle", () => {
     await escrow.markHuman(player1.address, true);
     await handle.connect(player1).mintHandle("Shark_99");
     const tokenId = await handle.ownerTokenId(player1.address);
+    await escrow.markHuman(operator.address, true);
     const sig = await linkProofSig(operator, player1.address, tokenId);
     await handle.connect(player1).linkWallet(operator.address, sig);
 
@@ -119,6 +132,7 @@ describe("PokerHandle", () => {
     await escrow.markHuman(player1.address, true);
     await handle.connect(player1).mintHandle("Shark_99");
     const tokenId = await handle.ownerTokenId(player1.address);
+    await escrow.markHuman(operator.address, true);
     const sig = await linkProofSig(operator, player1.address, tokenId);
     await handle.connect(player1).linkWallet(operator.address, sig);
 
