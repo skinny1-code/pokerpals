@@ -136,6 +136,8 @@ export const ESCROW_ABI = [
 export const HANDLE_ABI = [
   { name:"mintHandle", type:"function", stateMutability:"nonpayable",
     inputs:[{name:"handle",type:"string"}], outputs:[] },
+  { name:"changeHandle", type:"function", stateMutability:"nonpayable",
+    inputs:[{name:"newHandle",type:"string"}], outputs:[] },
   { name:"getHandleByAddress", type:"function", stateMutability:"view",
     inputs:[{name:"player",type:"address"}], outputs:[{type:"string"}] },
   { name:"getHandle", type:"function", stateMutability:"view",
@@ -163,6 +165,14 @@ export const HANDLE_ABI = [
       {name:"player",type:"address",indexed:true},
       {name:"tokenId",type:"uint256",indexed:false},
       {name:"handle",type:"string",indexed:false},
+      {name:"burned",type:"uint256",indexed:false},
+    ]},
+  { name:"HandleChanged", type:"event",
+    inputs:[
+      {name:"player",type:"address",indexed:true},
+      {name:"tokenId",type:"uint256",indexed:true},
+      {name:"oldHandle",type:"string",indexed:false},
+      {name:"newHandle",type:"string",indexed:false},
       {name:"burned",type:"uint256",indexed:false},
     ]},
 ];
@@ -1011,6 +1021,38 @@ export function useHandle() {
     }
   }, [address, mintCostRaw, writeContractAsync, publicClient, refetchHandle, refetchTotalMinted]);
 
+  const changeHandle = useCallback(async (newHandle) => {
+    if (!address || !HANDLE || !CHIPS) return;
+    setErrorMsg(null);
+    if (!mintCostRaw) { setErrorMsg('Loading rename cost — please wait a moment and try again.'); setStatus('error'); return; }
+    try {
+      const costBN = mintCostRaw;
+      const feeOverrides = await safeFeeOverrides(publicClient);
+      if (!(await hasAllowance(publicClient, address, HANDLE, costBN))) {
+        setStatus('approving');
+        const approveTx = await writeContractAsync({
+          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          args: [HANDLE, costBN], ...feeOverrides,
+        });
+        await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      }
+      setStatus('changing');
+      const changeTx = await writeContractAsync({
+        address: HANDLE, abi: HANDLE_ABI, functionName: "changeHandle",
+        args: [newHandle], gas: 400_000n, ...feeOverrides,
+      });
+      setTxHash(changeTx);
+      await waitForTransactionReceipt(wagmiConfig, { hash: changeTx, timeout: 60_000 });
+      await refetchHandle();
+      setStatus('idle');
+      return changeTx;
+    } catch (e) {
+      const msg = e?.shortMessage || e?.message || String(e);
+      setErrorMsg(msg);
+      setStatus('error');
+    }
+  }, [address, mintCostRaw, writeContractAsync, publicClient, refetchHandle]);
+
   useEffect(() => {
     if (confirmed) {
       refetchHandle();
@@ -1027,7 +1069,7 @@ export function useHandle() {
     TIER_LABELS,
     TIER_BOUNDS,
     totalMinted: totalMinted ? Number(totalMinted) : 0,
-    mint, status, txHash, confirmed, errorMsg,
+    mint, changeHandle, status, txHash, confirmed, errorMsg,
     refetch: refetchHandle,
   };
 }

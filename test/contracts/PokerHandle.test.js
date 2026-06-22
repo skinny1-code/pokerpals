@@ -64,6 +64,51 @@ describe("PokerHandle", () => {
     expect(await handle.getHandleByAddress(player1.address)).to.equal("Genesis_Player");
   });
 
+  // ─── changeHandle (pay-to-rename) ────────────────────────────────────────────
+
+  it("changeHandle: replaces the handle, frees the old name, and burns CHIPS", async () => {
+    await escrow.markHuman(player1.address, true);
+    await handle.connect(player1).mintHandle("Shark_99");
+    const tokenId = await handle.ownerTokenId(player1.address);
+
+    const burnedBefore = await handle.totalBurned();
+    await token.connect(player1).approve(await handle.getAddress(), MINT_COST);
+    await handle.connect(player1).changeHandle("Wolf_42");
+
+    expect(await handle.getHandleByAddress(player1.address)).to.equal("Wolf_42");
+    expect(await handle.ownerTokenId(player1.address)).to.equal(tokenId); // same token, same tier/art/links
+    expect(await handle.handleTaken("shark_99")).to.equal(false); // old name freed
+    expect(await handle.handleTaken("wolf_42")).to.equal(true);
+    expect(await handle.totalBurned()).to.equal(burnedBefore + MINT_COST);
+  });
+
+  it("changeHandle: reverts if the caller has no handle", async () => {
+    await expectReverted(handle.connect(player1).changeHandle("Whatever"));
+  });
+
+  it("changeHandle: reverts if the new name is already taken", async () => {
+    await escrow.markHuman(player1.address, true);
+    await handle.connect(player1).mintHandle("Shark_99");
+    await handle.reserveHandle("Wolf_42", owner.address);
+
+    await token.connect(player1).approve(await handle.getAddress(), MINT_COST);
+    await expectReverted(handle.connect(player1).changeHandle("Wolf_42"));
+  });
+
+  it("changeHandle: a freed name can be claimed by someone else afterward", async () => {
+    await escrow.markHuman(player1.address, true);
+    await handle.connect(player1).mintHandle("Shark_99");
+    await token.connect(player1).approve(await handle.getAddress(), MINT_COST);
+    await handle.connect(player1).changeHandle("Wolf_42");
+
+    await escrow.markHuman(operator.address, true);
+    await token.transfer(operator.address, MINT_COST);
+    await token.connect(operator).approve(await handle.getAddress(), MINT_COST);
+    await handle.connect(operator).mintHandle("Shark_99");
+
+    expect(await handle.getHandleByAddress(operator.address)).to.equal("Shark_99");
+  });
+
   // ─── wallet linking (functional alias) ──────────────────────────────────────
 
   async function linkProofSig(signer, ownerAddr, tokenId) {

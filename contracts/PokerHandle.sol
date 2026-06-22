@@ -65,6 +65,7 @@ contract PokerHandle is ERC721, Ownable {
     mapping(address => uint256)   private _linkedIndex;      // wallet => index in _linkedWallets[tokenId]
 
     event HandleMinted(address indexed player, uint256 tokenId, string handle, uint256 burned);
+    event HandleChanged(address indexed player, uint256 indexed tokenId, string oldHandle, string newHandle, uint256 burned);
     event TierCostsUpdated(uint256[4] costs);
     event TierBoundsUpdated(uint256[3] bounds);
     event WalletLinked(uint256 indexed tokenId, address indexed owner, address indexed wallet);
@@ -153,6 +154,31 @@ contract PokerHandle is ERC721, Ownable {
 
         _safeMint(msg.sender, tokenId);
         emit HandleMinted(msg.sender, tokenId, handle, cost);
+    }
+
+    /// @notice Replace the caller's existing handle with a new one for the current
+    /// mint-tier cost (burned, same as a fresh mint). Keeps the same tokenId, so the
+    /// rarity tier, animal art, and any linked wallets are unaffected — only the
+    /// displayed name changes. Frees the old name for others to claim.
+    function changeHandle(string calldata newHandle) external {
+        uint256 tokenId = ownerTokenId[msg.sender];
+        if (tokenId == 0) revert NoHandle(msg.sender);
+
+        _validateHandle(newHandle);
+        string memory newLower = _toLower(newHandle);
+        if (handleTaken[newLower]) revert HandleAlreadyTaken(newHandle);
+
+        uint256 cost = getCurrentMintCost();
+        chipsToken.safeTransferFrom(msg.sender, address(this), cost);
+        chipsToken.burn(cost);
+        totalBurned += cost;
+
+        string memory oldHandle = _handles[tokenId];
+        handleTaken[_toLower(oldHandle)] = false;
+        handleTaken[newLower] = true;
+        _handles[tokenId] = newHandle;
+
+        emit HandleChanged(msg.sender, tokenId, oldHandle, newHandle, cost);
     }
 
     // ─── WALLET LINKING (functional alias) ─────────────────────────────────────
@@ -459,7 +485,7 @@ contract PokerHandle is ERC721, Ownable {
         }
     }
 
-    function _toLower(string calldata s) internal pure returns (string memory) {
+    function _toLower(string memory s) internal pure returns (string memory) {
         bytes memory b = bytes(s);
         bytes memory lower = new bytes(b.length);
         for (uint i; i < b.length; i++) {
