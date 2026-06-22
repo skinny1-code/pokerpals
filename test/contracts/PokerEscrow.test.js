@@ -38,7 +38,7 @@ async function expectNotReverted(promise) {
 
 describe("PokerEscrow", () => {
   let ethers;
-  let token, staking, referral, escrow, kingsPool;
+  let token, staking, referral, escrow, kingsPool, handle;
   let owner, player1, player2, operator;
   const BUY_IN = parseUnits("1000", 18);
   const BB     = parseUnits("10",   18);
@@ -74,6 +74,16 @@ describe("PokerEscrow", () => {
     await staking.setYieldSource(await escrow.getAddress(), true);
     await kingsPool.setAuthorized(await escrow.getAddress(), true);
     await escrow.setKingsPool(await kingsPool.getAddress());
+
+    // createTable()/buyIn() gate on PokerHandle.isHandleEligible — give the
+    // table-creating/buying-in signers a handle via the owner-only reserveHandle()
+    // (no CHIPS cost, no humanVerified requirement, mirrors the migration scripts).
+    const Handle = await ethers.getContractFactory("PokerHandle");
+    handle = await Handle.deploy(await token.getAddress(), await escrow.getAddress());
+    await escrow.setPokerHandle(await handle.getAddress());
+    await handle.reserveHandle("Owner_Handle", owner.address);
+    await handle.reserveHandle("Player1_Handle", player1.address);
+    await handle.reserveHandle("Player2_Handle", player2.address);
 
     // Fund test players from owner balance (faucet would exceed MAX_SUPPLY)
     await token.transfer(player1.address, parseUnits("10000", 18));
@@ -366,5 +376,32 @@ describe("PokerEscrow", () => {
   it("closeTable: succeeds when creator calls with empty pot", async () => {
     await escrow.createTable(BUY_IN, BB, 9, 0, 0);
     await expectNotReverted(escrow.connect(owner).closeTable(1));
+  });
+
+  // ─── duplicate-identity check (anti-collusion) ───────────────────────────────
+  // Closes the path wallet-linking would otherwise open: a handle owner and any
+  // of its linked alias wallets must not be able to hold two seats at once.
+
+  it("buyIn: reverts when a linked alias wallet tries to take a second seat at the same table", async () => {
+    const escrowAddr = await escrow.getAddress();
+    const handleAddr = await handle.getAddress();
+    const { chainId } = await ethers.provider.getNetwork();
+
+    await escrow.markHuman(operator.address, true);
+    const tokenId = await handle.ownerTokenId(player1.address);
+    const digest = ethers.solidityPackedKeccak256(
+      ["string", "uint256", "address", "address", "uint256"],
+      ["PVP-LINK:", chainId, handleAddr, player1.address, tokenId]
+    );
+    const sig = await operator.signMessage(ethers.getBytes(digest));
+    await handle.connect(player1).linkWallet(operator.address, sig);
+
+    await escrow.createTable(BUY_IN, BB, 9, 0, 0);
+    await token.connect(player1).approve(escrowAddr, BUY_IN + FEE);
+    await escrow.connect(player1).buyIn(1);
+
+    await token.transfer(operator.address, BUY_IN + FEE);
+    await token.connect(operator).approve(escrowAddr, BUY_IN + FEE);
+    await expectReverted(escrow.connect(operator).buyIn(1));
   });
 });

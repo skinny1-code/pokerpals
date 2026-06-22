@@ -52,11 +52,13 @@ function isValidHandle(h) {
 export default function HandlePage() {
   const [mounted, setMounted]     = useState(false);
   const [inputVal, setInputVal]   = useState('');
+  const [renaming, setRenaming]   = useState(false);
+  const [renameVal, setRenameVal] = useState('');
   const { address, chipsBalance, isHuman, refetchIsHuman } = useWallet();
   const {
     myHandle, hasHandle, mintCost, currentTier,
     tierCostsCHIPS, TIER_LABELS, TIER_BOUNDS,
-    totalMinted, mint, status, confirmed, errorMsg,
+    totalMinted, mint, changeHandle, status, confirmed, errorMsg,
   } = useHandle();
   const { verifyStatus, verifyFailures, sendVerifyHuman } = useTableSocket();
 
@@ -66,10 +68,17 @@ export default function HandlePage() {
   useEffect(() => setMounted(true), []);
 
   const canMint = mounted && !hasHandle && isHuman && isValidHandle(inputVal) && chipsBalance >= mintCost && status === 'idle';
+  const canRename = mounted && hasHandle && isValidHandle(renameVal) && chipsBalance >= mintCost && status === 'idle';
 
   const handleMint = async () => {
     if (!canMint) return;
     await mint(inputVal);
+  };
+
+  const handleRename = async () => {
+    if (!canRename) return;
+    const tx = await changeHandle(renameVal);
+    if (tx) { setRenaming(false); setRenameVal(''); }
   };
 
   return (
@@ -198,6 +207,110 @@ export default function HandlePage() {
             <div style={{ marginTop: 8, fontSize: 11, color: '#5a8a5a' }}>
               Your handle is an NFT — you can trade it on any ERC-721 marketplace.
             </div>
+
+            {!renaming ? (
+              <button
+                onClick={() => setRenaming(true)}
+                style={{
+                  display: 'inline-block', marginTop: 16,
+                  background: 'transparent', border: '1px solid #d4af3744',
+                  borderRadius: 8, padding: '8px 20px',
+                  color: '#d4af37', fontSize: 11, fontFamily: 'inherit', cursor: 'pointer',
+                }}
+              >
+                Change Handle
+              </button>
+            ) : (
+              <div style={{ marginTop: 20, textAlign: 'left' }}>
+                <label style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 2, display: 'block', marginBottom: 6 }}>
+                  NEW HANDLE
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 16, color: '#d4af3766' }}>@</span>
+                  <input
+                    type="text"
+                    value={renameVal}
+                    onChange={e => setRenameVal(e.target.value.slice(0, 20))}
+                    placeholder="e.g. PokerShark99"
+                    maxLength={20}
+                    style={{
+                      flex: 1, background: '#0a160a', border: '1px solid #1a3a1a',
+                      borderRadius: 8, padding: '10px 12px',
+                      color: '#d4af37', fontSize: 14, fontFamily: "'JetBrains Mono',monospace",
+                      outline: 'none', letterSpacing: 1,
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#d4af3766'}
+                    onBlur={e => e.currentTarget.style.borderColor = '#1a3a1a'}
+                  />
+                </div>
+                <ValidationBadge handle={renameVal} />
+
+                <div style={{
+                  background: '#0a160a', border: '1px solid #1a3a1a', borderRadius: 8,
+                  padding: '12px', marginTop: 12, marginBottom: 12,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 11, color: '#5a8a5a' }}>Rename cost (burned)</span>
+                    <span style={{ fontSize: 11, color: '#e74c3c', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>
+                      🔥 {mintCost.toLocaleString()} CHIPS
+                    </span>
+                  </div>
+                </div>
+
+                {address && chipsBalance < mintCost && (
+                  <div style={{
+                    background: '#1a0c0c', border: '1px solid #3a1a1a', borderRadius: 8,
+                    padding: '8px 12px', marginBottom: 12, fontSize: 11, color: '#e67e22',
+                  }}>
+                    You need {mintCost.toLocaleString()} CHIPS to rename. <Link href="/buy" style={{ color: '#d4af37' }}>Get CHIPS →</Link>
+                  </div>
+                )}
+
+                {errorMsg && (
+                  <div style={{
+                    background: '#1a0c0c', border: '1px solid #c0392b', borderRadius: 8,
+                    padding: '8px 12px', marginBottom: 12, fontSize: 10, color: '#e74c3c',
+                    wordBreak: 'break-word',
+                  }}>
+                    {errorMsg}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => { setRenaming(false); setRenameVal(''); }}
+                    disabled={status === 'approving' || status === 'changing'}
+                    style={{
+                      flex: 1, background: 'transparent', border: '1px solid #1a3a1a',
+                      borderRadius: 8, padding: '12px', color: '#6a9a6a',
+                      fontSize: 12, fontFamily: 'inherit', cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleRename}
+                    disabled={!canRename}
+                    style={{
+                      flex: 2,
+                      background: canRename
+                        ? 'linear-gradient(135deg,#1a4a1a,#0c2e0c)'
+                        : '#0a160a',
+                      border: `1px solid ${canRename ? '#d4af37' : '#1a3a1a'}`,
+                      borderRadius: 8, padding: '12px',
+                      color: canRename ? '#d4af37' : '#3a6a3a',
+                      fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+                      cursor: canRename ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    {status === 'approving' ? 'Approving CHIPS…'
+                     : status === 'changing'  ? 'Changing Handle…'
+                     : `Burn ${mintCost.toLocaleString()} CHIPS & Rename`}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <Link href="/" style={{
               display: 'inline-block', marginTop: 20,
               background: 'transparent', border: '1px solid #1a3a1a',

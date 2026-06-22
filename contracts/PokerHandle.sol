@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 interface IChipsTokenMint is IERC20 {
     function burn(uint256 amount) external;
@@ -34,6 +36,8 @@ interface IPokerEscrow {
 contract PokerHandle is ERC721, Ownable {
     using SafeERC20 for IChipsTokenMint;
     using Strings for uint256;
+    using ECDSA for bytes32;
+    using MessageHashUtils for bytes32;
 
     IChipsTokenMint public immutable chipsToken;
     IPokerEscrow    public immutable escrow;
@@ -53,9 +57,19 @@ contract PokerHandle is ERC721, Ownable {
     mapping(string  => bool)     public  handleTaken;
     mapping(address => uint256)  public  ownerTokenId;
 
+    /// @notice Wallet-linking ("functional alias") — a linked wallet plays under the
+    /// handle's identity without owning its own NFT, funding its own buy-ins.
+    uint256 public constant MAX_LINKED_WALLETS = 5;
+    mapping(uint256 => address[]) private _linkedWallets;   // tokenId => linked wallets
+    mapping(address => uint256)   public  linkedToToken;     // wallet => tokenId it's linked to (0 = none)
+    mapping(address => uint256)   private _linkedIndex;      // wallet => index in _linkedWallets[tokenId]
+
     event HandleMinted(address indexed player, uint256 tokenId, string handle, uint256 burned);
+    event HandleChanged(address indexed player, uint256 indexed tokenId, string oldHandle, string newHandle, uint256 burned);
     event TierCostsUpdated(uint256[4] costs);
     event TierBoundsUpdated(uint256[3] bounds);
+    event WalletLinked(uint256 indexed tokenId, address indexed owner, address indexed wallet);
+    event WalletUnlinked(uint256 indexed tokenId, address indexed owner, address indexed wallet);
 
     error HandleTooShort();
     error HandleTooLong();
@@ -63,6 +77,12 @@ contract PokerHandle is ERC721, Ownable {
     error HandleAlreadyTaken(string handle);
     error AlreadyHasHandle(address player);
     error NotHumanVerified(address player);
+    error NoHandle(address player);
+    error CannotLinkSelf();
+    error AlreadyLinked(address wallet);
+    error TooManyLinkedWallets(uint256 tokenId);
+    error InvalidLinkProof();
+    error NotLinked(address wallet);
 
     constructor(address _chipsToken, address _escrow) ERC721("PokerVsPlayer Handle", "HANDLE") Ownable(msg.sender) {
         chipsToken = IChipsTokenMint(_chipsToken);
@@ -134,6 +154,113 @@ contract PokerHandle is ERC721, Ownable {
 
         _safeMint(msg.sender, tokenId);
         emit HandleMinted(msg.sender, tokenId, handle, cost);
+    }
+
+    /// @notice Replace the caller's existing handle with a new one for the current
+    /// mint-tier cost (burned, same as a fresh mint). Keeps the same tokenId, so the
+    /// rarity tier, animal art, and any linked wallets are unaffected — only the
+    /// displayed name changes. Frees the old name for others to claim.
+    function changeHandle(string calldata newHandle) external {
+        uint256 tokenId = ownerTokenId[msg.sender];
+        if (tokenId == 0) revert NoHandle(msg.sender);
+
+        _validateHandle(newHandle);
+        string memory newLower = _toLower(newHandle);
+        if (handleTaken[newLower]) revert HandleAlreadyTaken(newHandle);
+
+        uint256 cost = getCurrentMintCost();
+        chipsToken.safeTransferFrom(msg.sender, address(this), cost);
+        chipsToken.burn(cost);
+        totalBurned += cost;
+
+        string memory oldHandle = _handles[tokenId];
+        handleTaken[_toLower(oldHandle)] = false;
+        handleTaken[newLower] = true;
+        _handles[tokenId] = newHandle;
+
+        emit HandleChanged(msg.sender, tokenId, oldHandle, newHandle, cost);
+    }
+
+    // ─── WALLET LINKING (functional alias) ─────────────────────────────────────
+
+    /// @notice Link `wallet` to the caller's handle so it can play under the same
+    /// identity without minting its own handle. `wallet` must sign a proof of consent.
+    function linkWallet(address wallet, bytes calldata signature) external {
+        uint256 tokenId = ownerTokenId[msg.sender];
+        if (tokenId == 0) revert NoHandle(msg.sender);
+        if (wallet == msg.sender) revert CannotLinkSelf();
+        if (ownerTokenId[wallet] != 0) revert AlreadyHasHandle(wallet);
+        if (linkedToToken[wallet] != 0) revert AlreadyLinked(wallet);
+        if (_linkedWallets[tokenId].length >= MAX_LINKED_WALLETS) revert TooManyLinkedWallets(tokenId);
+        if (!escrow.humanVerified(wallet)) revert NotHumanVerified(wallet);
+
+        bytes32 hash = keccak256(abi.encodePacked("PVP-LINK:", block.chainid, address(this), msg.sender, tokenId));
+        if (hash.toEthSignedMessageHash().recover(signature) != wallet) revert InvalidLinkProof();
+
+        linkedToToken[wallet] = tokenId;
+        _linkedIndex[wallet] = _linkedWallets[tokenId].length;
+        _linkedWallets[tokenId].push(wallet);
+
+        emit WalletLinked(tokenId, msg.sender, wallet);
+    }
+
+    /// @notice Remove a previously linked wallet from the caller's handle.
+    function unlinkWallet(address wallet) external {
+        uint256 tokenId = ownerTokenId[msg.sender];
+        if (tokenId == 0) revert NoHandle(msg.sender);
+        if (linkedToToken[wallet] != tokenId) revert NotLinked(wallet);
+
+        _removeLinkedWallet(tokenId, wallet);
+        emit WalletUnlinked(tokenId, msg.sender, wallet);
+    }
+
+    function _removeLinkedWallet(uint256 tokenId, address wallet) internal {
+        address[] storage arr = _linkedWallets[tokenId];
+        uint256 idx = _linkedIndex[wallet];
+        uint256 lastIdx = arr.length - 1;
+        if (idx != lastIdx) {
+            address lastWallet = arr[lastIdx];
+            arr[idx] = lastWallet;
+            _linkedIndex[lastWallet] = idx;
+        }
+        arr.pop();
+        delete linkedToToken[wallet];
+        delete _linkedIndex[wallet];
+    }
+
+    function _clearLinkedWallets(uint256 tokenId) internal {
+        address[] storage arr = _linkedWallets[tokenId];
+        uint256 len = arr.length;
+        for (uint256 i; i < len; i++) {
+            delete linkedToToken[arr[i]];
+            delete _linkedIndex[arr[i]];
+        }
+        delete _linkedWallets[tokenId];
+    }
+
+    /// @notice The tokenId `who` plays under — their own handle, or the handle
+    /// they're linked to as an alias wallet. 0 if neither.
+    function effectiveTokenId(address who) public view returns (uint256) {
+        uint256 own = ownerTokenId[who];
+        if (own != 0) return own;
+        return linkedToToken[who];
+    }
+
+    /// @notice True if `who` owns a handle or is linked as an alias wallet to one —
+    /// the single eligibility check for cash games, table creation, and tournaments.
+    function isHandleEligible(address who) external view returns (bool) {
+        return effectiveTokenId(who) != 0;
+    }
+
+    /// @notice The handle string `who` plays under, resolving through wallet links.
+    function getEffectiveHandle(address who) external view returns (string memory) {
+        uint256 tokenId = effectiveTokenId(who);
+        if (tokenId == 0) return "";
+        return _handles[tokenId];
+    }
+
+    function getLinkedWallets(uint256 tokenId) external view returns (address[] memory) {
+        return _linkedWallets[tokenId];
     }
 
     // ─── TOKEN URI (fully on-chain SVG with poker animal art) ─────────────────
@@ -335,8 +462,11 @@ contract PokerHandle is ERC721, Ownable {
     {
         require(to == address(0) || ownerTokenId[to] == 0, "Receiver already has a handle");
         from = super._update(to, tokenId, auth);
-        if (from != address(0)) ownerTokenId[from] = 0;
-        if (to   != address(0)) ownerTokenId[to]   = tokenId;
+        if (from != address(0)) {
+            ownerTokenId[from] = 0;
+            _clearLinkedWallets(tokenId);
+        }
+        if (to != address(0)) ownerTokenId[to] = tokenId;
     }
 
     // ─── INTERNAL ─────────────────────────────────────────────────────────────
@@ -355,7 +485,7 @@ contract PokerHandle is ERC721, Ownable {
         }
     }
 
-    function _toLower(string calldata s) internal pure returns (string memory) {
+    function _toLower(string memory s) internal pure returns (string memory) {
         bytes memory b = bytes(s);
         bytes memory lower = new bytes(b.length);
         for (uint i; i < b.length; i++) {

@@ -25,6 +25,10 @@ interface ITableRegistry {
 interface IKingsPool {
     function receiveOps(uint256 amount) external;
 }
+interface IPokerHandle {
+    function isHandleEligible(address player) external view returns (bool);
+    function effectiveTokenId(address player) external view returns (uint256);
+}
 
 /// @title PokerEscrow — seat fees + VIP rake tiers + referral splits + auto rake distribution
 ///
@@ -80,6 +84,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     IReferralRegistry public referralRegistry;
     ITableRegistry    public tableRegistry;
     IKingsPool        public kingsPool;
+    IPokerHandle      public pokerHandle;
     address public operatorSigner;
     address public rakeRecipient;
     address public antiBotOracle;
@@ -118,6 +123,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     error TableFull(uint256 id);
     error InvalidSig();
     error AlreadySettled(bytes32 h);
+    error DuplicateIdentity(uint256 tokenId);
 
     constructor(
         address _token, address _signer, address _rake,
@@ -145,6 +151,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     function createTable(uint256 buyInAmount, uint256 bigBlind, uint8 maxPlayers, uint8 gameType, uint256 roomId)
         external returns (uint256 id)
     {
+        if (!pokerHandle.isHandleEligible(msg.sender)) revert NotHuman(msg.sender);
         require(buyInAmount >= bigBlind * 10, "Buy-in too small");
         require(maxPlayers >= 2 && maxPlayers <= 9, "Bad seats");
         id = ++tableCount;
@@ -159,9 +166,10 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     function buyIn(uint256 tableId) external nonReentrant {
         Table storage t = tables[tableId];
         if (t.status != TableStatus.Open)    revert TableNotOpen(tableId);
-        if (!humanVerified[msg.sender])       revert NotHuman(msg.sender);
+        if (!pokerHandle.isHandleEligible(msg.sender)) revert NotHuman(msg.sender);
         if (t.deposits[msg.sender] > 0)       revert AlreadySeated(msg.sender);
         if (t.players.length >= t.maxPlayers) revert TableFull(tableId);
+        _checkNoDuplicateIdentity(t, msg.sender);
 
         // Room access check: if this table is linked to a leased room, verify the player
         uint256 roomId = tableRoom[tableId];
@@ -186,6 +194,16 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         // maybeAutoStart: players.length >= 2) so on-chain Active and off-chain
         // "game running" stay in sync regardless of table size.
         if (t.players.length >= 2) t.status = TableStatus.Active;
+    }
+
+    /// @notice Blocks one handle (owner + any of its linked alias wallets) from holding
+    ///         two seats at the same table — closes the collusion path that wallet linking
+    ///         would otherwise open.
+    function _checkNoDuplicateIdentity(Table storage t, address player) internal view {
+        uint256 tokenId = pokerHandle.effectiveTokenId(player);
+        for (uint i; i < t.players.length; i++) {
+            if (pokerHandle.effectiveTokenId(t.players[i]) == tokenId) revert DuplicateIdentity(tokenId);
+        }
     }
 
     function rebuy(uint256 tableId, uint256 amount) external nonReentrant {
@@ -439,4 +457,5 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     function setTableRegistry(address reg) external onlyOwner { tableRegistry = ITableRegistry(reg); }
     function setRakebackBps(uint256 bps)   external onlyOwner { require(bps <= 1000, "Max 10%"); rakebackBps = bps; }
     function setKingsPool(address pool)    external onlyOwner { kingsPool = IKingsPool(pool); }
+    function setPokerHandle(address h)     external onlyOwner { pokerHandle = IPokerHandle(h); }
 }

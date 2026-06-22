@@ -33,6 +33,7 @@ async function main() {
     ReferralRegistry: referralAddr,
     TableRegistry:    registryAddr,
     KingOfSpadesPool: kingsPoolAddr,
+    PokerHandle:      handleAddr,
   } = existing.contracts;
   if (!tokenAddr || !stakingAddr || !referralAddr) {
     throw new Error("Missing required dependency address(es) in deployment JSON — run deploy.js first.");
@@ -78,6 +79,13 @@ async function main() {
 
   await (await token.setEscrowFactory(escrowAddr)).wait();
   console.log("✅ ChipsToken wired to new escrow");
+
+  if (handleAddr) {
+    await (await escrow.setPokerHandle(handleAddr)).wait();
+    console.log("✅ PokerHandle wired to new escrow (isHandleEligible gate)");
+  } else {
+    console.log("ℹ️  PokerHandle not deployed on this network — skipping (createTable/buyIn will revert until set)");
+  }
 
   // Update deployment JSON — keep all other contracts, replace only PokerEscrow.
   // The old escrow address is simply abandoned (testnet, nothing of value stranded).

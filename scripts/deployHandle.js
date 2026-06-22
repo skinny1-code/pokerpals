@@ -29,6 +29,8 @@ async function main() {
   const escrowAddr = existing.contracts.PokerEscrow;
   if (!escrowAddr) throw new Error("PokerEscrow address not found in deployment JSON");
   console.log("Using PokerEscrow:", escrowAddr);
+  const tournAddr = existing.contracts.TournamentManager;
+  console.log("Using TournamentManager:", tournAddr || "(not deployed)");
 
   const Handle = await ethers.getContractFactory("PokerHandle");
 
@@ -61,6 +63,19 @@ async function main() {
     console.log(`  ↳ migrated "${handleStr}" → ${owner}`);
   }
   if (migrated.length) console.log(`✅ Migrated ${migrated.length} handle(s) to new contract`);
+
+  // Wire the new PokerHandle into the isHandleEligible gate on Escrow + Tournament
+  const escrow = await ethers.getContractAt("PokerEscrow", escrowAddr);
+  await (await escrow.setPokerHandle(handleAddr)).wait();
+  console.log("✅ PokerHandle wired into PokerEscrow (isHandleEligible gate)");
+
+  if (tournAddr) {
+    const tourn = await ethers.getContractAt("TournamentManager", tournAddr);
+    await (await tourn.setPokerHandle(handleAddr)).wait();
+    console.log("✅ PokerHandle wired into TournamentManager (isHandleEligible gate)");
+  } else {
+    console.log("ℹ️  TournamentManager not deployed on this network — skipping");
+  }
 
   // Update deployment JSON — keep all other contracts, replace only PokerHandle
   existing.contracts.PokerHandle = handleAddr;
