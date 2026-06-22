@@ -38,7 +38,7 @@ async function expectNotReverted(promise) {
 
 describe("PokerEscrow", () => {
   let ethers;
-  let token, staking, referral, escrow, kingsPool;
+  let token, staking, referral, escrow, kingsPool, handle;
   let owner, player1, player2, operator;
   const BUY_IN = parseUnits("1000", 18);
   const BB     = parseUnits("10",   18);
@@ -74,6 +74,16 @@ describe("PokerEscrow", () => {
     await staking.setYieldSource(await escrow.getAddress(), true);
     await kingsPool.setAuthorized(await escrow.getAddress(), true);
     await escrow.setKingsPool(await kingsPool.getAddress());
+
+    // createTable()/buyIn() gate on PokerHandle.isHandleEligible — give the
+    // table-creating/buying-in signers a handle via the owner-only reserveHandle()
+    // (no CHIPS cost, no humanVerified requirement, mirrors the migration scripts).
+    const Handle = await ethers.getContractFactory("PokerHandle");
+    handle = await Handle.deploy(await token.getAddress(), await escrow.getAddress());
+    await escrow.setPokerHandle(await handle.getAddress());
+    await handle.reserveHandle("Owner_Handle", owner.address);
+    await handle.reserveHandle("Player1_Handle", player1.address);
+    await handle.reserveHandle("Player2_Handle", player2.address);
 
     // Fund test players from owner balance (faucet would exceed MAX_SUPPLY)
     await token.transfer(player1.address, parseUnits("10000", 18));

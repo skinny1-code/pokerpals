@@ -17,6 +17,9 @@ interface IChipsStakingForTourn {
 interface IKingsPoolForTourn {
     function receiveOps(uint256 amount) external;
 }
+interface IPokerHandle {
+    function isHandleEligible(address player) external view returns (bool);
+}
 
 /// @title TournamentManager — scheduled tournaments with entry fees and operator-signed payouts
 ///
@@ -49,9 +52,9 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     IChipsTokenBurnable public immutable chipsToken;
     IChipsStakingForTourn public stakingContract;
     IKingsPoolForTourn    public kingsPool;
+    IPokerHandle          public pokerHandle;
     address public operatorSigner;
     address public rakeRecipient;
-    address public antiBotOracle;
 
     // Tournament rake: 10% default (num/den)
     uint256 public tournamentRake  = 100;
@@ -66,7 +69,6 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     uint256 public tournamentCount;
     mapping(uint256 => Tournament)              public tournaments;
     mapping(uint256 => mapping(address => bool)) public registered;
-    mapping(address => bool)                    public humanVerified;
     mapping(bytes32 => bool)                    public usedPayoutHashes;
 
     uint256 public totalTournamentRake;
@@ -78,7 +80,6 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     event TournamentStarted(uint256 indexed id, uint256 prizePool, uint256 rake, uint256 burned, uint256 toStaking);
     event TournamentPaid(uint256 indexed id, address[] winners, uint256[] payouts);
     event TournamentCancelled(uint256 indexed id);
-    event HumanVerified(address indexed player, bool status);
 
     error NotHuman(address p);
     error TournNotOpen(uint256 id);
@@ -87,20 +88,13 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     error InvalidSig();
     error AlreadyUsed(bytes32 h);
 
-    constructor(address _token, address _signer, address _rake, address _oracle, address _staking)
+    constructor(address _token, address _signer, address _rake, address _staking)
         Ownable(msg.sender)
     {
         chipsToken      = IChipsTokenBurnable(_token);
         operatorSigner  = _signer;
         rakeRecipient   = _rake;
-        antiBotOracle   = _oracle;
         stakingContract = IChipsStakingForTourn(_staking);
-    }
-
-    function markHuman(address player, bool status) external {
-        require(msg.sender == antiBotOracle || msg.sender == owner());
-        humanVerified[player] = status;
-        emit HumanVerified(player, status);
     }
 
     // ─── TOURNAMENT LIFECYCLE ─────────────────────────────────────────────────
@@ -130,7 +124,7 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     function register(uint256 tournId) external nonReentrant {
         Tournament storage t = tournaments[tournId];
         if (t.status != TournStatus.Registration)  revert TournNotOpen(tournId);
-        if (!humanVerified[msg.sender])             revert NotHuman(msg.sender);
+        if (!pokerHandle.isHandleEligible(msg.sender)) revert NotHuman(msg.sender);
         if (registered[tournId][msg.sender])        revert AlreadyRegistered(msg.sender);
         if (t.entrants.length >= t.maxPlayers)      revert TournFull(tournId);
 
@@ -266,6 +260,6 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     function setOperatorSigner(address s)  external onlyOwner { operatorSigner = s; }
     function setRakeRecipient(address r)   external onlyOwner { rakeRecipient = r; }
     function setStaking(address s)         external onlyOwner { stakingContract = IChipsStakingForTourn(s); }
-    function setAntiBotOracle(address o)   external onlyOwner { antiBotOracle = o; }
     function setKingsPool(address pool)    external onlyOwner { kingsPool = IKingsPoolForTourn(pool); }
+    function setPokerHandle(address h)     external onlyOwner { pokerHandle = IPokerHandle(h); }
 }

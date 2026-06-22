@@ -25,6 +25,9 @@ interface ITableRegistry {
 interface IKingsPool {
     function receiveOps(uint256 amount) external;
 }
+interface IPokerHandle {
+    function isHandleEligible(address player) external view returns (bool);
+}
 
 /// @title PokerEscrow — seat fees + VIP rake tiers + referral splits + auto rake distribution
 ///
@@ -80,6 +83,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     IReferralRegistry public referralRegistry;
     ITableRegistry    public tableRegistry;
     IKingsPool        public kingsPool;
+    IPokerHandle      public pokerHandle;
     address public operatorSigner;
     address public rakeRecipient;
     address public antiBotOracle;
@@ -145,6 +149,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     function createTable(uint256 buyInAmount, uint256 bigBlind, uint8 maxPlayers, uint8 gameType, uint256 roomId)
         external returns (uint256 id)
     {
+        if (!pokerHandle.isHandleEligible(msg.sender)) revert NotHuman(msg.sender);
         require(buyInAmount >= bigBlind * 10, "Buy-in too small");
         require(maxPlayers >= 2 && maxPlayers <= 9, "Bad seats");
         id = ++tableCount;
@@ -159,7 +164,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     function buyIn(uint256 tableId) external nonReentrant {
         Table storage t = tables[tableId];
         if (t.status != TableStatus.Open)    revert TableNotOpen(tableId);
-        if (!humanVerified[msg.sender])       revert NotHuman(msg.sender);
+        if (!pokerHandle.isHandleEligible(msg.sender)) revert NotHuman(msg.sender);
         if (t.deposits[msg.sender] > 0)       revert AlreadySeated(msg.sender);
         if (t.players.length >= t.maxPlayers) revert TableFull(tableId);
 
@@ -439,4 +444,5 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     function setTableRegistry(address reg) external onlyOwner { tableRegistry = ITableRegistry(reg); }
     function setRakebackBps(uint256 bps)   external onlyOwner { require(bps <= 1000, "Max 10%"); rakebackBps = bps; }
     function setKingsPool(address pool)    external onlyOwner { kingsPool = IKingsPool(pool); }
+    function setPokerHandle(address h)     external onlyOwner { pokerHandle = IPokerHandle(h); }
 }

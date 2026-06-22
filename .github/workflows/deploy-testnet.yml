@@ -16,6 +16,12 @@ on:
         default: "false"
         type: choice
         options: ["true", "false"]
+      tournament_only:
+        description: "Redeploy only TournamentManager (skip full redeploy of all contracts)?"
+        required: false
+        default: "false"
+        type: choice
+        options: ["true", "false"]
       run_faucet:
         description: "Send 10 000 CHIPS to deployer after deploy?"
         required: false
@@ -56,7 +62,7 @@ jobs:
           HARDHAT_NETWORK: hardhat
 
       - name: Deploy to Arbitrum Sepolia (full)
-        if: github.event.inputs.handle_only != 'true' && github.event.inputs.escrow_only != 'true'
+        if: github.event.inputs.handle_only != 'true' && github.event.inputs.escrow_only != 'true' && github.event.inputs.tournament_only != 'true'
         run: npm run deploy:testnet
         env:
           DEPLOYER_KEY:       ${{ secrets.DEPLOYER_KEY }}
@@ -70,13 +76,6 @@ jobs:
           COMMUNITY_WALLET:   ${{ secrets.COMMUNITY_WALLET }}
           LIQUIDITY_WALLET:   ${{ secrets.LIQUIDITY_WALLET }}
 
-      - name: Deploy PokerHandle only
-        if: github.event.inputs.handle_only == 'true'
-        run: npm run deploy:handle
-        env:
-          DEPLOYER_KEY:    ${{ secrets.DEPLOYER_KEY }}
-          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC }}
-
       - name: Redeploy PokerEscrow only
         if: github.event.inputs.escrow_only == 'true'
         run: npm run deploy:escrow
@@ -86,6 +85,22 @@ jobs:
           OPERATOR_SIGNER: ${{ secrets.OPERATOR_SIGNER }}
           RAKE_WALLET:     ${{ secrets.RAKE_WALLET }}
           ANTIBOT_ORACLE:  ${{ secrets.ANTIBOT_ORACLE }}
+
+      - name: Redeploy TournamentManager only
+        if: github.event.inputs.tournament_only == 'true'
+        run: npm run deploy:tournament
+        env:
+          DEPLOYER_KEY:    ${{ secrets.DEPLOYER_KEY }}
+          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC }}
+          OPERATOR_SIGNER: ${{ secrets.OPERATOR_SIGNER }}
+          RAKE_WALLET:     ${{ secrets.RAKE_WALLET }}
+
+      - name: Deploy PokerHandle only
+        if: github.event.inputs.handle_only == 'true'
+        run: npm run deploy:handle
+        env:
+          DEPLOYER_KEY:    ${{ secrets.DEPLOYER_KEY }}
+          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC }}
 
       - name: Re-encrypt .env and commit deployment manifest
         env:

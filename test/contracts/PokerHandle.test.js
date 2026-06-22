@@ -63,4 +63,68 @@ describe("PokerHandle", () => {
     await handle.reserveHandle("Genesis_Player", player1.address);
     expect(await handle.getHandleByAddress(player1.address)).to.equal("Genesis_Player");
   });
+
+  // ─── wallet linking (functional alias) ──────────────────────────────────────
+
+  async function linkProofSig(signer, ownerAddr, tokenId) {
+    const handleAddr = await handle.getAddress();
+    const { chainId } = await ethers.provider.getNetwork();
+    const digest = ethers.solidityPackedKeccak256(
+      ["string", "uint256", "address", "address", "uint256"],
+      ["PVP-LINK:", chainId, handleAddr, ownerAddr, tokenId]
+    );
+    return signer.signMessage(ethers.getBytes(digest));
+  }
+
+  it("linkWallet: lets the handle owner link a consenting wallet as a functional alias", async () => {
+    await escrow.markHuman(player1.address, true);
+    await handle.connect(player1).mintHandle("Shark_99");
+    const tokenId = await handle.ownerTokenId(player1.address);
+
+    const sig = await linkProofSig(operator, player1.address, tokenId);
+    await handle.connect(player1).linkWallet(operator.address, sig);
+
+    expect(await handle.isHandleEligible(operator.address)).to.equal(true);
+    expect(await handle.getEffectiveHandle(operator.address)).to.equal("Shark_99");
+    expect(await handle.linkedToToken(operator.address)).to.equal(tokenId);
+  });
+
+  it("linkWallet: reverts when the proof is not signed by the wallet being linked", async () => {
+    await escrow.markHuman(player1.address, true);
+    await handle.connect(player1).mintHandle("Shark_99");
+    const tokenId = await handle.ownerTokenId(player1.address);
+
+    const badSig = await linkProofSig(owner, player1.address, tokenId); // wrong signer
+    await expectReverted(handle.connect(player1).linkWallet(operator.address, badSig));
+  });
+
+  it("unlinkWallet: removes the alias so isHandleEligible reverts to false", async () => {
+    await escrow.markHuman(player1.address, true);
+    await handle.connect(player1).mintHandle("Shark_99");
+    const tokenId = await handle.ownerTokenId(player1.address);
+    const sig = await linkProofSig(operator, player1.address, tokenId);
+    await handle.connect(player1).linkWallet(operator.address, sig);
+
+    await handle.connect(player1).unlinkWallet(operator.address);
+
+    expect(await handle.isHandleEligible(operator.address)).to.equal(false);
+    expect(await handle.linkedToToken(operator.address)).to.equal(0n);
+  });
+
+  it("isHandleEligible: false for a wallet with neither a handle nor a link", async () => {
+    expect(await handle.isHandleEligible(operator.address)).to.equal(false);
+  });
+
+  it("transferring the handle NFT clears any linked wallets", async () => {
+    await escrow.markHuman(player1.address, true);
+    await handle.connect(player1).mintHandle("Shark_99");
+    const tokenId = await handle.ownerTokenId(player1.address);
+    const sig = await linkProofSig(operator, player1.address, tokenId);
+    await handle.connect(player1).linkWallet(operator.address, sig);
+
+    await handle.connect(player1).transferFrom(player1.address, owner.address, tokenId);
+
+    expect(await handle.isHandleEligible(operator.address)).to.equal(false);
+    expect(await handle.getLinkedWallets(tokenId)).to.deep.equal([]);
+  });
 });
