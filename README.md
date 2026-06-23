@@ -157,6 +157,21 @@ See `.env.example` for the full list. Key groups:
 
 ---
 
+## Known Issues
+
+- **`next build` aborts on `/_global-error` prerender (local only).** In some
+  local environments the production Turbopack prerender of Next's internal
+  `/_global-error` shell crashes with
+  `Cannot read properties of null (reading 'useContext')`. It reproduces with
+  Next's *default* error page (not app code), across react 19.2.0/19.2.7, and on
+  both Next 16.2.9 and the 16.3.0 canary — so it's a framework/environment bug,
+  not ours. It does **not** affect compilation or production: Vercel builds and
+  deploys the same commits successfully, and the error page renders fine
+  on-demand at runtime. For a local sanity check that exercises the real
+  prerender, use **`npm run build:check`** (`next build --debug-prerender`),
+  which completes cleanly. Leave `npm run build` (plain `next build`) as the
+  production/Vercel build.
+
 ## Security
 
 - Run `slither contracts/` before mainnet (install: `pip install slither-analyzer`)
