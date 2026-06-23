@@ -8,6 +8,7 @@
     "dev": "next dev",
     "dev:clean": "rm -rf .next && next dev",
     "build": "NODE_ENV=production next build",
+    "build:check": "next build --debug-prerender",
     "start": "next start",
     "server": "node --env-file=.env server/index.js",
     "oracle": "node --env-file=.env server/antiBotOracle.js",

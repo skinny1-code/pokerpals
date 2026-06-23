@@ -20,7 +20,8 @@ npm run server               # start WebSocket game server (server/index.js) —
 npm run oracle               # start anti-bot oracle as a separate process (server/antiBotOracle.js)
 npm run dev                  # Next.js dev server
 npm run dev:clean            # clears .next cache then starts dev server
-npm run build                # production Next.js build
+npm run build                # production Next.js build (used by Vercel)
+npm run build:check          # local verify build (next build --debug-prerender) — see "Known Issues" in README; plain `next build` aborts locally on the /_global-error prerender, a framework/env bug that does NOT affect Vercel/production
 npm run launch               # shortcut: npm run server & npm run dev in parallel
 
 npm run faucet               # send 10,000 CHIPS to deployer (testnet only)

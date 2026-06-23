@@ -236,6 +236,30 @@ export const REGISTRY_ABI = [
     ]},
 ];
 
+export const LIQUIDITY_POOL_ABI = [
+  { name:"buyChips",   type:"function", stateMutability:"nonpayable",
+    inputs:[{name:"usdcAmount",type:"uint256"}], outputs:[] },
+  { name:"redeemChips", type:"function", stateMutability:"nonpayable",
+    inputs:[{name:"chipsAmount",type:"uint256"}], outputs:[] },
+  { name:"quoteChipsOut", type:"function", stateMutability:"view",
+    inputs:[{name:"usdcAmount",type:"uint256"}], outputs:[{type:"uint256"}] },
+  { name:"quoteUsdcOut", type:"function", stateMutability:"view",
+    inputs:[{name:"chipsAmount",type:"uint256"}], outputs:[{type:"uint256"}] },
+  { name:"rateUsdcPerChip", type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"paused",      type:"function", stateMutability:"view", inputs:[], outputs:[{type:"bool"}] },
+  { name:"chipsBalance", type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"ChipsBought", type:"event",
+    inputs:[
+      {name:"buyer",type:"address",indexed:true},{name:"usdcIn",type:"uint256",indexed:false},
+      {name:"chipsOut",type:"uint256",indexed:false},
+    ]},
+  { name:"ChipsRedeemed", type:"event",
+    inputs:[
+      {name:"redeemer",type:"address",indexed:true},{name:"chipsIn",type:"uint256",indexed:false},
+      {name:"usdcOut",type:"uint256",indexed:false},
+    ]},
+];
+
 const CHIPS          = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
 const ESCROW         = process.env.NEXT_PUBLIC_ESCROW;
 const STAKING        = process.env.NEXT_PUBLIC_STAKING;
@@ -301,14 +325,14 @@ async function safeFeeOverrides(publicClient) {
   }
 }
 
-// Returns true if `owner` has already approved at least `needed` CHIPS to `spender`.
-// Lets the write flows skip a redundant approve popup — critical on MetaMask mobile,
-// where back-to-back approve→action popups frequently leave the 2nd one blank/stuck.
-async function hasAllowance(publicClient, owner, spender, needed) {
+// Returns true if `owner` has already approved at least `needed` of `tokenAddr` (default CHIPS)
+// to `spender`. Lets the write flows skip a redundant approve popup — critical on MetaMask
+// mobile, where back-to-back approve→action popups frequently leave the 2nd one blank/stuck.
+async function hasAllowance(publicClient, owner, spender, needed, tokenAddr = CHIPS) {
   if (!publicClient || !owner || !spender) return false;
   try {
     const current = await publicClient.readContract({
-      address: CHIPS, abi: CHIPS_ABI, functionName: "allowance", args: [owner, spender],
+      address: tokenAddr, abi: CHIPS_ABI, functionName: "allowance", args: [owner, spender],
     });
     return current >= needed;
   } catch {
@@ -642,6 +666,123 @@ export function useEscrow(tableId) {
   useEffect(() => { seatFeeRef.current = seatFee; }, [seatFee]);
 
   return { buyIn, rebuy, refund, cashOut, txHash, status, confirmed, tableInfo, isLeased, seatFee };
+}
+
+// ─── HOOK: LIQUIDITY POOL (CHIPS ⇄ USDC swap, used by the card-purchase flow) ──
+export function useLiquidityPool() {
+  const { address }            = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient           = usePublicClient();
+  const [txHash, setTxHash]    = useState(null);
+  const [status, setStatus]    = useState('idle'); // idle | approving | buying | redeeming | error
+
+  const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const { data: usdcRaw, refetch: refetchUsdc } = useReadContract({
+    address: USDC_ADDR, abi: CHIPS_ABI, functionName: "balanceOf",
+    args: [address], query: { enabled: !!address && !!USDC_ADDR, refetchInterval: 8000 },
+  });
+  const usdcBalance = usdcRaw ? Number(formatUnits(usdcRaw, 6)) : 0; // USDC is 6 decimals
+
+  const { data: rateRaw, refetch: refetchRate } = useReadContract({
+    address: LIQUIDITY_POOL, abi: LIQUIDITY_POOL_ABI, functionName: "rateUsdcPerChip",
+    query: { enabled: !!LIQUIDITY_POOL, refetchInterval: 30000 },
+  });
+
+  const { data: poolPaused, refetch: refetchPaused } = useReadContract({
+    address: LIQUIDITY_POOL, abi: LIQUIDITY_POOL_ABI, functionName: "paused",
+    query: { enabled: !!LIQUIDITY_POOL, refetchInterval: 30000 },
+  });
+
+  const { data: poolChipsRaw, refetch: refetchPoolChips } = useReadContract({
+    address: LIQUIDITY_POOL, abi: LIQUIDITY_POOL_ABI, functionName: "chipsBalance",
+    query: { enabled: !!LIQUIDITY_POOL, refetchInterval: 15000 },
+  });
+  const poolChipsAvailable = poolChipsRaw ? Number(formatUnits(poolChipsRaw, 18)) : 0;
+
+  // Quote helpers mirror the contract's exact integer math so the UI never shows a
+  // number the chain would disagree with — no extra RPC round-trip per keystroke.
+  const quoteChipsOut = useCallback((usdcHuman) => {
+    if (!rateRaw || !usdcHuman || Number(usdcHuman) <= 0) return 0;
+    const usdcAmt = parseUnits(String(usdcHuman), 6);
+    return Number(formatUnits((usdcAmt * 10n ** 18n) / rateRaw, 18));
+  }, [rateRaw]);
+
+  const quoteUsdcOut = useCallback((chipsHuman) => {
+    if (!rateRaw || !chipsHuman || Number(chipsHuman) <= 0) return 0;
+    const chipsAmt = parseUnits(String(Math.round(Number(chipsHuman))), 18);
+    return Number(formatUnits((chipsAmt * rateRaw) / 10n ** 18n, 6));
+  }, [rateRaw]);
+
+  // Buy CHIPS with USDC (the leg the card on-ramp lands in, once USDC is in the wallet).
+  const buyChips = useCallback(async (usdcHuman) => {
+    if (!address || !LIQUIDITY_POOL || !USDC_ADDR) return;
+    try {
+      const usdcAmt = parseUnits(String(usdcHuman), 6);
+      if (usdcAmt <= 0n) { setStatus('error'); return; }
+      const feeOverrides = await safeFeeOverrides(publicClient);
+      if (!(await hasAllowance(publicClient, address, LIQUIDITY_POOL, usdcAmt, USDC_ADDR))) {
+        setStatus('approving');
+        const approveTx = await writeContractAsync({
+          address: USDC_ADDR, abi: CHIPS_ABI, functionName: "approve",
+          args: [LIQUIDITY_POOL, usdcAmt], ...feeOverrides,
+        });
+        await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      }
+      setStatus('buying');
+      const tx = await writeContractAsync({
+        address: LIQUIDITY_POOL, abi: LIQUIDITY_POOL_ABI, functionName: "buyChips",
+        args: [usdcAmt], ...feeOverrides,
+      });
+      setTxHash(tx);
+      await waitForTransactionReceipt(wagmiConfig, { hash: tx, timeout: 60_000 });
+      refetchUsdc(); refetchPoolChips();
+      setStatus('idle');
+      return tx;
+    } catch (e) {
+      console.error("buyChips error:", e);
+      setStatus('error');
+    }
+  }, [address, writeContractAsync, publicClient, refetchUsdc, refetchPoolChips]);
+
+  // Redeem CHIPS back for USDC, paid out of StablecoinPool.
+  const redeemChips = useCallback(async (chipsHuman) => {
+    if (!address || !LIQUIDITY_POOL) return;
+    try {
+      const chipsAmt = parseUnits(String(Math.round(Number(chipsHuman))), 18);
+      if (chipsAmt <= 0n) { setStatus('error'); return; }
+      const feeOverrides = await safeFeeOverrides(publicClient);
+      if (!(await hasAllowance(publicClient, address, LIQUIDITY_POOL, chipsAmt))) {
+        setStatus('approving');
+        const approveTx = await writeContractAsync({
+          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          args: [LIQUIDITY_POOL, chipsAmt], ...feeOverrides,
+        });
+        await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
+      }
+      setStatus('redeeming');
+      const tx = await writeContractAsync({
+        address: LIQUIDITY_POOL, abi: LIQUIDITY_POOL_ABI, functionName: "redeemChips",
+        args: [chipsAmt], ...feeOverrides,
+      });
+      setTxHash(tx);
+      await waitForTransactionReceipt(wagmiConfig, { hash: tx, timeout: 60_000 });
+      refetchPoolChips();
+      setStatus('idle');
+      return tx;
+    } catch (e) {
+      console.error("redeemChips error:", e);
+      setStatus('error');
+    }
+  }, [address, writeContractAsync, publicClient, refetchPoolChips]);
+
+  return {
+    usdcBalance, poolChipsAvailable, paused: !!poolPaused, rateRaw,
+    quoteChipsOut, quoteUsdcOut,
+    buyChips, redeemChips,
+    txHash, status, confirmed,
+    refetch: () => { refetchUsdc(); refetchRate(); refetchPaused(); refetchPoolChips(); },
+  };
 }
 
 // ─── AUTH CACHE (sessionStorage) ─────────────────────────────────────────────
@@ -1134,6 +1275,133 @@ export function useHandleAvatars(addresses) {
     });
     return map;
   }, [uriData, validEntries]);
+}
+
+// ─── HOOK: PLAYER STATS (lifetime P/L + activity feed from on-chain logs) ─────
+// Indexes Escrow + Tournament event logs over a bounded block range (same
+// approach as useLeaderboard) and folds them into per-player lifetime stats and
+// a reverse-chronological activity feed. All filtering is client-side because
+// several relevant args (PlayerJoined.player, TournamentPaid.winners[]) are not
+// indexed and so can't be filtered by topic.
+export function usePlayerStats(target) {
+  const { address: connected } = useAccount();
+  const address = target || connected;
+  const publicClient = usePublicClient();
+  const [stats, setStats]   = useState(null);
+  const [activity, setActivity] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!address || !publicClient || (!ESCROW && !TOURNAMENT)) return;
+    let cancelled = false;
+    const me = address.toLowerCase();
+    setLoading(true);
+
+    (async () => {
+      try {
+        let fromBlock;
+        if (process.env.NEXT_PUBLIC_DEPLOY_BLOCK) {
+          fromBlock = BigInt(process.env.NEXT_PUBLIC_DEPLOY_BLOCK);
+        } else {
+          const latest = await publicClient.getBlockNumber();
+          fromBlock = latest > 500_000n ? latest - 500_000n : 0n;
+        }
+
+        // Helper: tolerate a missing contract / RPC hiccup on any single query.
+        const safeLogs = async (params) => {
+          try { return await publicClient.getLogs({ fromBlock, ...params }); }
+          catch (e) { console.warn('[usePlayerStats] getLogs', e.message); return []; }
+        };
+
+        const [joined, cashed, rebuyed, handSettled, registered, tournPaid] = await Promise.all([
+          ESCROW ? safeLogs({ address: ESCROW, event: parseAbiItem('event PlayerJoined(uint256 indexed id, address player, uint256 buyIn, uint256 seatFee)') }) : [],
+          ESCROW ? safeLogs({ address: ESCROW, event: parseAbiItem('event PlayerCashedOut(uint256 indexed id, address indexed player, uint256 amount)'), args: { player: address } }) : [],
+          ESCROW ? safeLogs({ address: ESCROW, event: parseAbiItem('event PlayerRebuyed(uint256 indexed id, address indexed player, uint256 amount)'), args: { player: address } }) : [],
+          ESCROW ? safeLogs({ address: ESCROW, event: parseAbiItem('event HandSettled(uint256 indexed id, uint256 nonce, address[] winners, uint256[] payouts, uint256 rake, uint256 burned, uint256 toStaking, uint256 referralPaid)') }) : [],
+          TOURNAMENT ? safeLogs({ address: TOURNAMENT, event: parseAbiItem('event PlayerRegistered(uint256 indexed id, address player, uint256 feePaid)') }) : [],
+          TOURNAMENT ? safeLogs({ address: TOURNAMENT, event: parseAbiItem('event TournamentPaid(uint256 indexed id, address[] winners, uint256[] payouts)') }) : [],
+        ]);
+        if (cancelled) return;
+
+        const num = (v) => Number(formatUnits(v, 18));
+        const feed = [];
+        let buyInTotal = 0, rebuyTotal = 0, cashOutTotal = 0, seatFeesPaid = 0;
+        let handsWon = 0, handWinnings = 0;
+        let tournEntries = 0, tournFeesPaid = 0, tournCashes = 0, tournWinnings = 0;
+
+        joined.filter(l => l.args.player?.toLowerCase() === me).forEach(l => {
+          buyInTotal   += num(l.args.buyIn);
+          seatFeesPaid += num(l.args.seatFee);
+          feed.push({ kind: 'buyin', block: l.blockNumber, table: Number(l.args.id),
+            amount: num(l.args.buyIn), seatFee: num(l.args.seatFee) });
+        });
+        rebuyed.forEach(l => {
+          rebuyTotal += num(l.args.amount);
+          feed.push({ kind: 'rebuy', block: l.blockNumber, table: Number(l.args.id), amount: num(l.args.amount) });
+        });
+        cashed.forEach(l => {
+          cashOutTotal += num(l.args.amount);
+          feed.push({ kind: 'cashout', block: l.blockNumber, table: Number(l.args.id), amount: num(l.args.amount) });
+        });
+        handSettled.forEach(l => {
+          const winners = (l.args.winners || []).map(w => w.toLowerCase());
+          const idx = winners.indexOf(me);
+          if (idx === -1) return;
+          const won = num(l.args.payouts?.[idx] ?? 0n);
+          handsWon += 1; handWinnings += won;
+          feed.push({ kind: 'handwin', block: l.blockNumber, table: Number(l.args.id), amount: won });
+        });
+        registered.filter(l => l.args.player?.toLowerCase() === me).forEach(l => {
+          tournEntries += 1; tournFeesPaid += num(l.args.feePaid);
+          feed.push({ kind: 'tournreg', block: l.blockNumber, tourn: Number(l.args.id), amount: num(l.args.feePaid) });
+        });
+        tournPaid.forEach(l => {
+          const winners = (l.args.winners || []).map(w => w.toLowerCase());
+          const idx = winners.indexOf(me);
+          if (idx === -1) return;
+          const won = num(l.args.payouts?.[idx] ?? 0n);
+          const place = idx + 1;
+          tournCashes += 1; tournWinnings += won;
+          feed.push({ kind: 'tournwin', block: l.blockNumber, tourn: Number(l.args.id), amount: won, place });
+        });
+
+        feed.sort((a, b) => Number(b.block - a.block));
+
+        const cashGamePnl = cashOutTotal - buyInTotal - rebuyTotal;
+        const tournPnl    = tournWinnings - tournFeesPaid;
+
+        if (!cancelled) {
+          setStats({
+            chipsBoughtIn: buyInTotal + rebuyTotal,
+            cashOutTotal,
+            seatFeesPaid,
+            cashGamePnl,
+            handsWon,
+            handWinnings,
+            tablesPlayed: new Set(
+              feed.filter(f => f.table != null).map(f => f.table)
+            ).size,
+            tournEntries,
+            tournFeesPaid,
+            tournCashes,
+            tournWinnings,
+            tournPnl,
+            netPnl: cashGamePnl + tournPnl,
+          });
+          setActivity(feed);
+        }
+      } catch (e) {
+        console.error('[usePlayerStats]', e.message);
+        if (!cancelled) { setStats(null); setActivity([]); }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [address, publicClient]);
+
+  return { stats, activity, loading };
 }
 
 // ─── HOOK: LEADERBOARD (handle holders sorted by staked CHIPS) ───────────────
