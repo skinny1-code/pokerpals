@@ -7,6 +7,9 @@ import { useLeaderboard } from '../../hooks/usePokerWallet';
 const TIER_NAMES  = ['Standard','Bronze','Silver','Gold','Whale'];
 const TIER_COLORS = ['#6a9a6a','#cd7f32','#c0c0c0','#d4af37','#9b59b6'];
 
+// Gold / Silver / Bronze medal palette for the top 3
+const MEDAL_COLORS = ['#e8c25a','#cfd4dc','#d68a4a'];
+
 function fmt(v) {
   return v >= 1_000_000 ? `${(v/1_000_000).toFixed(2)}M`
        : v >= 1_000     ? `${(v/1_000).toFixed(1)}K`
@@ -14,54 +17,87 @@ function fmt(v) {
 }
 
 function RankMedal({ rank }) {
-  if (rank === 1) return <span style={{ fontSize:16 }}>🥇</span>;
-  if (rank === 2) return <span style={{ fontSize:16 }}>🥈</span>;
-  if (rank === 3) return <span style={{ fontSize:16 }}>🥉</span>;
-  return <span style={{ fontSize:12, color:'#3a6a3a', fontFamily:"'JetBrains Mono',monospace",
-    width:24, display:'inline-block', textAlign:'center' }}>#{rank}</span>;
+  if (rank === 1) return <span style={{ fontSize:18 }}>🥇</span>;
+  if (rank === 2) return <span style={{ fontSize:18 }}>🥈</span>;
+  if (rank === 3) return <span style={{ fontSize:18 }}>🥉</span>;
+  return <span style={{ fontSize:12, color:'#5a8a5a', fontWeight:800,
+    fontFamily:"'JetBrains Mono',monospace",
+    width:26, display:'inline-block', textAlign:'center' }}>#{rank}</span>;
 }
 
 function LeaderRow({ entry, isHero }) {
   const [hov, setHov] = useState(false);
   const tierColor = TIER_COLORS[entry.tier] || TIER_COLORS[0];
+  const isTop3 = entry.rank <= 3;
+  const medalColor = isTop3 ? MEDAL_COLORS[entry.rank - 1] : null;
 
   return (
     <div
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        display:'grid', gridTemplateColumns:'40px 2fr 1fr 80px',
-        alignItems:'center', padding:'12px 16px', borderRadius:8, gap:8,
-        background: isHero ? 'rgba(212,175,55,.06)' : hov ? 'rgba(255,255,255,.02)' : 'transparent',
-        border:`1px solid ${isHero ? '#d4af3744' : hov ? '#1a3a1a55' : 'transparent'}`,
-        transition:'all .15s',
+        display:'grid', gridTemplateColumns:'46px 2fr 1fr 88px',
+        alignItems:'center', padding:'13px 16px', borderRadius:'var(--r-md)', gap:8,
+        position:'relative', overflow:'hidden',
+        background: isHero
+          ? 'linear-gradient(135deg, rgba(232,194,90,.10), rgba(232,194,90,.03))'
+          : isTop3
+            ? `linear-gradient(135deg, ${medalColor}14, rgba(8,16,9,.5))`
+            : hov ? 'rgba(255,255,255,.025)' : 'rgba(8,16,9,.35)',
+        border:`1px solid ${
+          isHero ? 'var(--border-gold)'
+          : isTop3 ? `${medalColor}3a`
+          : hov ? 'var(--border-mid)' : 'var(--border)'}`,
+        boxShadow: isHero
+          ? '0 0 22px rgba(232,194,90,.14)'
+          : isTop3 ? `0 4px 18px ${medalColor}1a`
+          : hov ? 'var(--shadow-sm)' : 'none',
+        transform: hov ? 'translateY(-1px)' : 'none',
+        transition:'transform .18s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease',
       }}
     >
-      <div style={{ display:'flex', justifyContent:'center' }}>
+      {/* Left medal accent stripe for top 3 */}
+      {isTop3 && (
+        <div aria-hidden style={{
+          position:'absolute', left:0, top:0, bottom:0, width:3,
+          background:`linear-gradient(180deg, ${medalColor}, ${medalColor}55)`,
+          boxShadow:`0 0 12px ${medalColor}88`,
+        }} />
+      )}
+
+      <div style={{ display:'flex', justifyContent:'center', position:'relative' }}>
         <RankMedal rank={entry.rank} />
       </div>
 
-      <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:0 }}>
-        <span style={{ fontSize:13, color: isHero ? '#d4af37' : '#d0c8b0', fontWeight:600,
+      <div style={{ display:'flex', flexDirection:'column', gap:3, minWidth:0, position:'relative' }}>
+        <span className={entry.rank === 1 ? 'gold-text' : undefined} style={{
+          fontSize:14, color: entry.rank === 1 ? undefined : (isHero ? 'var(--gold-pale)' : '#d6cdb0'),
+          fontWeight:800,
           overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
           {entry.handle || `${entry.addr.slice(0,10)}…`}
-          {isHero && <span style={{ fontSize:9, color:'#d4af37', marginLeft:8,
-            border:'1px solid #d4af3744', borderRadius:4, padding:'1px 5px' }}>YOU</span>}
+          {isHero && <span style={{ fontSize:8, color:'var(--gold)', marginLeft:8, fontWeight:800,
+            letterSpacing:1, border:'1px solid var(--border-gold)', borderRadius:5,
+            padding:'2px 6px', verticalAlign:'middle',
+            background:'rgba(232,194,90,.08)' }}>YOU</span>}
         </span>
-        <span style={{ fontSize:9, color:'#3a6a3a', fontFamily:"'JetBrains Mono',monospace" }}>
+        <span style={{ fontSize:9, color:'#3a6a3a', fontFamily:"'JetBrains Mono',monospace",
+          letterSpacing:.3 }}>
           {entry.addr.slice(0,8)}…{entry.addr.slice(-4)}
         </span>
       </div>
 
-      <div style={{ fontSize:14, color:'#d4af37', fontWeight:700,
+      <div className={entry.rank === 1 ? 'gold-text' : undefined} style={{
+        fontSize:15, fontWeight:800, position:'relative',
+        color: entry.rank === 1 ? undefined : 'var(--gold)',
         fontFamily:"'JetBrains Mono',monospace" }}>
         ◈ {fmt(entry.staked)}
       </div>
 
-      <div style={{ display:'flex', justifyContent:'flex-end' }}>
-        <div style={{ fontSize:8, color:tierColor, border:`1px solid ${tierColor}44`,
-          borderRadius:8, padding:'2px 8px', letterSpacing:1, background:`${tierColor}11` }}>
-          {TIER_NAMES[entry.tier] || 'Standard'}
+      <div style={{ display:'flex', justifyContent:'flex-end', position:'relative' }}>
+        <div style={{ fontSize:8, color:tierColor, border:`1px solid ${tierColor}55`,
+          borderRadius:999, padding:'3px 10px', letterSpacing:1.4, fontWeight:800,
+          background:`${tierColor}14` }}>
+          {(TIER_NAMES[entry.tier] || 'Standard').toUpperCase()}
         </div>
       </div>
     </div>
@@ -71,13 +107,13 @@ function LeaderRow({ entry, isHero }) {
 function SkeletonRow() {
   return (
     <div style={{
-      display:'grid', gridTemplateColumns:'40px 2fr 1fr 80px',
-      alignItems:'center', padding:'12px 16px', borderRadius:8, gap:8,
+      display:'grid', gridTemplateColumns:'46px 2fr 1fr 88px',
+      alignItems:'center', padding:'13px 16px', borderRadius:'var(--r-md)', gap:8,
+      background:'rgba(8,16,9,.35)', border:'1px solid var(--border)',
     }}>
       {[40, 160, 80, 70].map((w, i) => (
-        <div key={i} style={{
-          height:12, borderRadius:4, background:'#1a3a1a',
-          width: w, animation:'pulse 1.5s ease-in-out infinite',
+        <div key={i} className="skeleton" style={{
+          height:12, width: w,
         }} />
       ))}
     </div>
@@ -95,59 +131,94 @@ export default function LeaderboardPage() {
   const heroEntry = mounted ? entries.find(e => e.addr === address?.toLowerCase()) : null;
 
   return (
-    <div style={{ minHeight:'100vh', background:'var(--bg-deep)' }}>
+    <div className="has-bottom-nav" style={{ minHeight:'100vh', background:'var(--bg-abyss)' }}>
       <WalletBar />
 
-      {/* Hero */}
-      <div className="page-hero">
+      {/* ── Hero ────────────────────────────────────────────────── */}
+      <div className="page-hero felt-texture" style={{ textAlign:'center' }}>
+        {/* Animated aurora backdrop */}
+        <div className="aurora" aria-hidden />
+
+        {/* Watermark crown */}
+        <div aria-hidden style={{
+          position:'absolute', top:'50%', left:'50%',
+          transform:'translate(-50%,-50%)',
+          fontSize:260, color:'rgba(255,255,255,.008)',
+          pointerEvents:'none', userSelect:'none', lineHeight:1, zIndex:0,
+        }}>♛</div>
+
         <div style={{ maxWidth:900, margin:'0 auto', position:'relative', zIndex:1 }}>
-          <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:3, marginBottom:10, fontWeight:700 }}>
+          <div className="pill animate-up s1" style={{ marginBottom:18, opacity:0 }}>
+            <span className="dot-live" />
             HALL OF FAME
           </div>
-          <h1 style={{
-            fontSize:36, color:'#d4af37', fontWeight:700,
-            fontFamily:"'Playfair Display',serif",
-            textShadow:'0 0 40px rgba(212,175,55,.2)', marginBottom:8,
+          <h1 className="gold-text serif animate-up s2" style={{
+            fontSize:44, fontWeight:900, lineHeight:1.05,
+            marginBottom:12, opacity:0,
+            textShadow:'0 0 50px rgba(232,194,90,.18)',
           }}>
             Leaderboard
           </h1>
-          <div style={{ fontSize:12, color:'#4a7a4a' }}>
-            Ranked by CHIPS staked · VIP tier determines rake discount
+          <div className="animate-up s3" style={{
+            fontSize:13, color:'#6fa074', letterSpacing:.2, opacity:0,
+          }}>
+            Ranked by CHIPS staked · VIP tier determines your rake discount
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth:900, margin:'0 auto', padding:'28px 16px' }}>
+      <div style={{ maxWidth:900, margin:'0 auto', padding:'30px 16px' }}>
 
         {/* Top 3 podium — only shown when data loaded */}
         {!loading && top3.length >= 3 && (
-          <div style={{ display:'flex', gap:12, marginBottom:32, justifyContent:'center',
-            alignItems:'flex-end' }}>
+          <div className="glass-strong felt-texture" style={{
+            display:'flex', gap:14, marginBottom:30, justifyContent:'center',
+            alignItems:'flex-end', padding:'26px 18px 22px', position:'relative', overflow:'hidden',
+          }}>
+            {/* Soft top glow accent */}
+            <div aria-hidden style={{
+              position:'absolute', top:0, left:'50%', transform:'translateX(-50%)',
+              width:360, height:120,
+              background:'radial-gradient(ellipse at 50% 0%, rgba(232,194,90,.10), transparent 70%)',
+              pointerEvents:'none',
+            }} />
             {[top3[1], top3[0], top3[2]].map((e, i) => {
-              const heights = [80, 100, 70];
-              const medals  = ['2nd','1st','3rd'];
-              const tierColor = TIER_COLORS[e.tier] || TIER_COLORS[0];
+              const heights   = [88, 116, 74];
+              const labels    = ['2nd','1st','3rd'];
+              const trophies  = ['🥈','🏆','🥉'];
+              const medalColor = [MEDAL_COLORS[1], MEDAL_COLORS[0], MEDAL_COLORS[2]][i];
+              const isFirst   = i === 1;
               return (
                 <div key={e.addr} style={{
-                  display:'flex', flexDirection:'column', alignItems:'center', gap:6,
-                  width:160,
+                  display:'flex', flexDirection:'column', alignItems:'center', gap:7,
+                  width:'min(160px, 31%)', position:'relative', zIndex:1,
                 }}>
-                  <div style={{ fontSize:9, color:'#d4af37aa', letterSpacing:2 }}>{medals[i]}</div>
-                  <div style={{ fontSize:14, color:tierColor, fontWeight:700, maxWidth:140,
+                  <div style={{ fontSize:9, color:`${medalColor}cc`, letterSpacing:2, fontWeight:800 }}>
+                    {labels[i]}
+                  </div>
+                  <div className={isFirst ? 'gold-text' : undefined} style={{
+                    fontSize: isFirst ? 15 : 13, fontWeight:800, maxWidth:'100%',
+                    color: isFirst ? undefined : medalColor,
                     overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textAlign:'center' }}>
                     {e.handle || e.addr.slice(0,10)+'…'}
                   </div>
-                  <div style={{ fontSize:11, color:'#d4af37', fontFamily:"'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'var(--gold)',
+                    fontFamily:"'JetBrains Mono',monospace" }}>
                     ◈ {fmt(e.staked)}
                   </div>
                   <div style={{
                     width:'100%', height:heights[i],
-                    background: `linear-gradient(180deg,${tierColor}33,${tierColor}11)`,
-                    border:`1px solid ${tierColor}44`, borderRadius:'8px 8px 0 0',
+                    background: `linear-gradient(180deg, ${medalColor}30, ${medalColor}0a)`,
+                    border:`1px solid ${medalColor}55`,
+                    borderBottom:'none',
+                    borderRadius:'12px 12px 0 0',
+                    boxShadow: isFirst
+                      ? `0 0 28px ${medalColor}44, inset 0 1px 0 rgba(255,255,255,.06)`
+                      : `inset 0 1px 0 rgba(255,255,255,.04)`,
                     display:'flex', alignItems:'center', justifyContent:'center',
-                    fontSize:28,
+                    fontSize: isFirst ? 34 : 28,
                   }}>
-                    {i===1 ? '🏆' : i===0 ? '🥈' : '🥉'}
+                    {trophies[i]}
                   </div>
                 </div>
               );
@@ -156,23 +227,25 @@ export default function LeaderboardPage() {
         )}
 
         {/* Column headers */}
-        <div style={{ display:'grid', gridTemplateColumns:'40px 2fr 1fr 80px',
-          padding:'6px 16px', gap:8, borderBottom:'1px solid #1a3a1a', marginBottom:4 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'46px 2fr 1fr 88px',
+          padding:'6px 16px', gap:8, borderBottom:'1px solid var(--border)', marginBottom:8 }}>
           {['#','Player','Staked','Tier'].map(h => (
-            <div key={h} style={{ fontSize:9, color:'#3a6a3a', letterSpacing:1 }}>{h.toUpperCase()}</div>
+            <div key={h} style={{ fontSize:9, color:'#4a6a4a', letterSpacing:1.5, fontWeight:800 }}>
+              {h.toUpperCase()}
+            </div>
           ))}
         </div>
 
         {/* Loading skeletons */}
         {loading && (
-          <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
             {Array.from({length:8}).map((_,i) => <SkeletonRow key={i} />)}
           </div>
         )}
 
         {/* Rows */}
         {!loading && entries.length > 0 && (
-          <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
             {entries.map(e => (
               <LeaderRow
                 key={e.addr}
@@ -185,57 +258,56 @@ export default function LeaderboardPage() {
 
         {/* Empty state */}
         {!loading && entries.length === 0 && (
-          <div style={{
-            textAlign:'center', padding:'56px 24px',
-            background:'#0c1a0c', border:'1px solid #1a3a1a', borderRadius:12,
+          <div className="glass" style={{
+            textAlign:'center', padding:'64px 24px',
           }}>
-            <div style={{ fontSize:36, marginBottom:12, opacity:.4 }}>♠</div>
-            <div style={{ fontSize:13, color:'#3a6a3a', fontWeight:500, marginBottom:4 }}>
+            <div style={{ fontSize:48, marginBottom:14, opacity:.25 }}>♠</div>
+            <div style={{ fontSize:14, color:'var(--text-secondary)', fontWeight:700, marginBottom:6 }}>
               No handle holders yet
             </div>
-            <div style={{ fontSize:10, color:'#1a3a1a' }}>
-              Mint a handle at <a href="/handle" style={{ color:'#3a6a3a' }}>/handle</a> to appear here
+            <div style={{ fontSize:11, color:'#4a6a4a' }}>
+              Mint a handle at <a href="/handle" style={{ color:'var(--gold)', fontWeight:700 }}>/handle</a> to appear here
             </div>
           </div>
         )}
 
         {/* Hero row if not in list */}
         {mounted && address && !heroEntry && !loading && entries.length > 0 && (
-          <div style={{
-            marginTop:12, padding:'12px 16px',
-            background:'rgba(212,175,55,.04)', border:'1px solid #d4af3722',
-            borderRadius:8,
+          <div className="glass-strong" style={{
+            marginTop:14, padding:'14px 16px',
+            border:'1px solid var(--border-gold)',
+            boxShadow:'0 0 22px rgba(232,194,90,.10)',
           }}>
-            <div style={{ display:'grid', gridTemplateColumns:'40px 2fr 1fr 80px',
+            <div style={{ display:'grid', gridTemplateColumns:'46px 2fr 1fr 88px',
               alignItems:'center', gap:8 }}>
-              <div style={{ textAlign:'center', fontSize:11, color:'#3a6a3a' }}>—</div>
-              <div>
-                <div style={{ fontSize:12, color:'#d4af37' }}>
+              <div style={{ textAlign:'center', fontSize:12, color:'#5a8a5a', fontWeight:800 }}>—</div>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontSize:13, color:'var(--gold-pale)', fontWeight:800 }}>
                   {address.slice(0,10)}…
-                  <span style={{ fontSize:9, marginLeft:8,
-                    border:'1px solid #d4af3744', borderRadius:4, padding:'1px 5px' }}>YOU</span>
+                  <span style={{ fontSize:8, marginLeft:8, fontWeight:800, letterSpacing:1,
+                    border:'1px solid var(--border-gold)', borderRadius:5, padding:'2px 6px',
+                    color:'var(--gold)', background:'rgba(232,194,90,.08)' }}>YOU</span>
                 </div>
-                <div style={{ fontSize:9, color:'#3a6a3a', marginTop:2 }}>
+                <div style={{ fontSize:9, color:'#4a6a4a', marginTop:3 }}>
                   Mint a handle to join the leaderboard
                 </div>
               </div>
-              <div style={{ fontSize:11, color:'#6a9a6a', fontFamily:"'JetBrains Mono',monospace" }}>◈ —</div>
-              <div style={{ fontSize:8, color:TIER_COLORS[0], border:'1px solid #6a9a6a44',
-                borderRadius:8, padding:'2px 8px', textAlign:'center' }}>Standard</div>
+              <div style={{ fontSize:13, color:'#6a9a6a', fontWeight:700,
+                fontFamily:"'JetBrains Mono',monospace" }}>◈ —</div>
+              <div style={{ display:'flex', justifyContent:'flex-end' }}>
+                <div style={{ fontSize:8, color:TIER_COLORS[0], border:`1px solid ${TIER_COLORS[0]}55`,
+                  borderRadius:999, padding:'3px 10px', letterSpacing:1.4, fontWeight:800,
+                  background:`${TIER_COLORS[0]}14` }}>STANDARD</div>
+              </div>
             </div>
           </div>
         )}
 
-        <div style={{ marginTop:16, textAlign:'center', fontSize:10, color:'#1a3a1a' }}>
+        <div style={{ marginTop:18, textAlign:'center', fontSize:10, color:'#3a5a3a',
+          letterSpacing:.4 }}>
           Live on-chain data from PokerHandle + ChipsStaking contracts
         </div>
       </div>
-
-      <style>{`
-        @keyframes pulse {
-          0%,100% { opacity:.4; } 50% { opacity:.8; }
-        }
-      `}</style>
     </div>
   );
 }
