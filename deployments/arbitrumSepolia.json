@@ -1,16 +1,21 @@
 {
   "network": "arbitrumSepolia",
   "chainId": "421614",
-  "deployedAt": "2026-06-16T19:02:37.488Z",
+  "deployedAt": "2026-06-24T03:22:19.907Z",
   "deployer": "0x0B58C02408E095F8f7527FF42184E3FC54e6Df86",
-  "deployBlock": 277923936,
+  "deployBlock": 280139230,
   "contracts": {
-    "ChipsToken": "0xe76f253c411cAF7B85B6432112Da93F4a6Edf037",
-    "ChipsStaking": "0x67E2d98e91CaB7320B579582A1c59a151AA7Be9D",
-    "ReferralRegistry": "0xEf987Ebe6be74bCfc40956A22c0f4798039D43eF",
-    "PokerEscrow": "0x17411b9CBB4e55D99D594ecb958D1b8765bDc6B2",
-    "TournamentManager": "0x792f13B3A5469646d50cD92feFf5a827aD42de01",
-    "TableRegistry": "0x9936C0B43Fc9c901e35C4c9FCFB5f67edA2015b3",
-    "PokerHandle": "0x74B5152dC48E27Cd54f7C1778F923668dF6C0e54"
+    "ChipsToken": "0xcd08364d0cDd1Be1059076641761CF276B857e33",
+    "ChipsStaking": "0xB3b6345550c2033F8dcCaC1Be4564B58850ac6fd",
+    "ReferralRegistry": "0x83433571a6cff94e2812fCBc68Ceb51eFA05413d",
+    "PokerEscrow": "0x029D706ef2Ba747cA98207A7bf602716eDC246a4",
+    "TournamentManager": "0x1da54c251A8c66579bc6FCf981D581D6557526fA",
+    "TableRegistry": "0xa33B7797F0FA057dAD274E30E86863e42d1f5198",
+    "PokerHandle": "0x6B9E15D3B020779632b992F2F08562C6EB788BA7",
+    "KingOfSpadesPool": "0x5B01d1271124a6319F2fAB821715273e71E44130",
+    "PromotionsPool": "0x3379E91D2bE653Cf72d99b1B8c5BCDCF89C82799",
+    "StablecoinPool": "0x2549103C5db87b6a03661c4cA3565115a73D692c",
+    "ChipsLiquidityPool": "0x9d6556FFcb1BFF41B18960109759f1671Aac347f",
+    "MockUSDC": "0x30239A3EcDfdF65a83572904413D8507a87B8dCB"
   }
 }

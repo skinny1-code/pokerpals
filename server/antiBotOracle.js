@@ -106,7 +106,8 @@ export async function fullVerify(address) {
   results.passport  = passport;
   results.diversity = diversity;
 
-  const pass = activity.pass && passport.pass && diversity.pass;
+  const passCount = [activity.pass, passport.pass, diversity.pass].filter(Boolean).length;
+  const pass = passCount >= 2;
   const failures = [activity, passport, diversity]
     .filter(r => !r.pass).map(r => r.reason);
 

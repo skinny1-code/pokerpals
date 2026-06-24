@@ -43,9 +43,9 @@ Settle           ─────────────────────
 
 | Contract | Purpose |
 |----------|---------|
-| `PPPToken.sol` | ERC-20 native token (1B supply) |
+| `CHIPSToken.sol` | ERC-20 native token (1B supply) |
 | `PokerEscrow.sol` | Buy-in lock + signed settlement + seat fees + VIP rake tiers |
-| `PPPStaking.sol` | Stake PPP for lower rake + APR yield |
+| `CHIPSStaking.sol` | Stake CHIPS for lower rake + APR yield |
 | `TournamentManager.sol` | Scheduled tournaments with entry fee rake |
 | `ReferralRegistry.sol` | Onchain referral codes + 20% rake split |
 
@@ -56,11 +56,11 @@ Settle           ─────────────────────
 | Stream | Rate |
 |--------|------|
 | Cash game rake | 1.5% per pot (0.6% for Whale tier) |
-| Seat fee | 2 PPP per buy-in |
+| Seat fee | 1 CHIPS per buy-in |
 | Tournament rake | 10% of entry pool |
 | Staking yield | Funded from rake → APR 2–12% |
 | Referral split | 20% of rake to referrer |
-| LP fees | 0.3% of PPP/ETH swaps on Camelot |
+| LP fees | 0.3% of CHIPS/ETH swaps on Camelot |
 
 ---
 
@@ -137,7 +137,7 @@ On pass → oracle calls `escrow.markHuman(address, true)` onchain.
 
 The house holds **zero funds**. Flow:
 
-1. Players lock PPP in `PokerEscrow.sol` via `buyIn()`
+1. Players lock CHIPS in `PokerEscrow.sol` via `buyIn()`
 2. Hand plays out on the game server
 3. Server signs: `keccak256(tableId, handNonce, winners[], shares[])`
 4. Any player submits signature to `settle()` onchain
@@ -156,6 +156,21 @@ See `.env.example` for the full list. Key groups:
 - **Contract addresses** — filled after `npm run deploy:testnet`
 
 ---
+
+## Known Issues
+
+- **`next build` aborts on `/_global-error` prerender (local only).** In some
+  local environments the production Turbopack prerender of Next's internal
+  `/_global-error` shell crashes with
+  `Cannot read properties of null (reading 'useContext')`. It reproduces with
+  Next's *default* error page (not app code), across react 19.2.0/19.2.7, and on
+  both Next 16.2.9 and the 16.3.0 canary — so it's a framework/environment bug,
+  not ours. It does **not** affect compilation or production: Vercel builds and
+  deploys the same commits successfully, and the error page renders fine
+  on-demand at runtime. For a local sanity check that exercises the real
+  prerender, use **`npm run build:check`** (`next build --debug-prerender`),
+  which completes cleanly. Leave `npm run build` (plain `next build`) as the
+  production/Vercel build.
 
 ## Security
 

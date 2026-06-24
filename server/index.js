@@ -9,6 +9,7 @@ import crypto from "crypto";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
+import { fullVerify, BehaviorMonitor } from "./antiBotOracle.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -47,6 +48,7 @@ const ESCROW_ABI = [
   "function settle(uint256,uint256,address[],uint256[],bytes) external",
   "function getTableInfo(uint256 id) external view returns (uint256 tableId, uint256 buyInAmount, uint256 bigBlind, uint8 maxPlayers, uint8 gameType, uint8 status, uint256 potTotal, uint256 handNonce, uint8 playerCount)",
   "function getPlayerDeposit(uint256 tableId, address player) external view returns (uint256)",
+  "function cashOutNonce(uint256,address) external view returns (uint256)",
   "function markHuman(address,bool) external",
   "function closeTable(uint256) external",
 ];
@@ -184,41 +186,31 @@ function bestOmaha(hole, comm) {
 }
 
 // ─── ANTI-BOT VERIFICATION ───────────────────────────────────────────────────
+// Real verification delegates to antiBotOracle.js's fullVerify() (2-of-3 checks).
+// Testnet bypass marks human directly without touching the external APIs.
 async function verifyHuman(address) {
   if (process.env.TESTNET_SKIP_HUMAN_CHECK === 'true') {
     try {
       const tx = await escrow.markHuman(address, true);
       await tx.wait();
       console.log(`[AntiBot] Testnet bypass: marked ${address} as human`);
-      return { ok: true };
+      return { pass: true, failures: [] };
     } catch (e) {
       console.error("markHuman (testnet bypass) error:", e.message);
-      return { ok: false, reason: e.message };
+      return { pass: false, failures: [e.message] };
     }
   }
-
-  try {
-    const txCount = await provider.getTransactionCount(address);
-    if (txCount < 50) return { ok: false, reason: "Less than 50 on-chain transactions" };
-
-    if (PASSPORT_API && SCORER_ID) {
-      const res = await fetch(
-        `${PASSPORT_URL}/registry/score/${SCORER_ID}/${address}`,
-        { headers: { "X-API-KEY": PASSPORT_API } }
-      );
-      const data = await res.json();
-      const score = parseFloat(data?.score || 0);
-      if (score < 15) return { ok: false, reason: `Passport score ${score} < 15` };
-    }
-
-    const tx = await escrow.markHuman(address, true);
-    await tx.wait();
-    return { ok: true };
-  } catch (e) {
-    console.error("verifyHuman error:", e.message);
-    return { ok: false, reason: "Verification error" };
-  }
+  return fullVerify(address);
 }
+
+// Bot-timing detector — flags suspiciously fast/consistent action timing.
+// Separate process from server/antiBotOracle.js's own instance (see CLAUDE.md),
+// so a fresh BehaviorMonitor is created here for the live game server.
+const behaviorMonitor = new BehaviorMonitor();
+
+// AFK guard: a player who doesn't act within this window is auto-checked
+// (if free) or auto-folded, so one stalled player can't hold up the table.
+const ACTION_TIMEOUT_MS = Number(process.env.TURN_TIMEOUT_MS) || 30_000;
 
 // ─── GAME STATE MACHINE ───────────────────────────────────────────────────────
 class PokerTable {
@@ -236,8 +228,8 @@ class PokerTable {
     this.actionIdx    = 0;
     this.handNonce    = 0;
     this.sideLog      = [];
-    this.cashOutNonces   = new Map(); // addr => nonce
     this.pendingCashouts = new Map(); // addr => { amount, sig, nonce, tableId }
+    this.bustedSeats     = new Map(); // addr => { seatIndex, ws }
     this.creator      = null;   // first player to sit
     this.isActive     = false;  // mirrors on-chain TableStatus.Active
   }
@@ -265,6 +257,7 @@ class PokerTable {
 
   start() {
     if (this.players.length < 2) return;
+    this.dealerIdx       = this.dealerIdx % this.players.length;
     this.deck            = shuffle(makeDeck());
     this.community       = [];
     this.pot             = 0;
@@ -290,6 +283,7 @@ class PokerTable {
     this.maxBet = bb;
     // Preflop: in HU the SB/dealer acts first; multi-way starts left of BB
     this.actionIdx = n === 2 ? sbIdx : (bbIdx + 1) % n;
+    this.turnStartedAt = Date.now();
 
     const handHash = crypto.createHash('sha256')
       .update(JSON.stringify({ id: String(this.id), nonce: this.handNonce, deck: this.deck.slice(0,5).join(','), ts: Date.now() }))
@@ -306,6 +300,7 @@ class PokerTable {
       iters++;
     }
     this.actionIdx = next;
+    this.turnStartedAt = Date.now();
   }
 
   _resetActionIdxForStreet() {
@@ -317,6 +312,7 @@ class PokerTable {
       iters++;
     }
     this.actionIdx = next;
+    this.turnStartedAt = Date.now();
   }
 
   // Fold a player without advancing action (used when removing a player mid-hand)
@@ -455,6 +451,8 @@ class PokerTable {
       lastRaiseAmount: this.lastRaiseAmount,
       community:       this.community,
       activeAddr:      activePlayer?.addr || null,
+      turnStartedAt:   activePlayer ? this.turnStartedAt ?? null : null,
+      turnTimeoutMs:   ACTION_TIMEOUT_MS,
       dealerAddr:      this.players[this.dealerIdx]?.addr || null,
       config:          this.config,
       creator:         this.creator ?? null,
@@ -483,8 +481,8 @@ const clients = new Map(); // ws => { addr, tableId }
 
 // Pre-seeded permanent tables — always available, reset (not deleted) when empty
 const SEED_TABLES = [
-  { id: 9001n, name: 'Micro — NLH 2-Max',      buyIn: 1000, minBuyIn: 1000, maxBuyIn: 10000, bigBlind: 20, maxPlayers: 2, gameType: 0 },
-  { id: 9002n, name: 'High Stakes — NLH 2-Max', buyIn: 5000, minBuyIn: 5000, maxBuyIn: 50000, bigBlind: 50, maxPlayers: 2, gameType: 0 },
+  { id: 9001n, name: 'Micro — NLH 9-Max',      buyIn: 1000, minBuyIn: 1000, maxBuyIn: 10000, bigBlind: 20, maxPlayers: 9, gameType: 0 },
+  { id: 9002n, name: 'High Stakes — NLH 9-Max', buyIn: 5000, minBuyIn: 5000, maxBuyIn: 50000, bigBlind: 50, maxPlayers: 9, gameType: 0 },
 ];
 for (const { id, name, ...config } of SEED_TABLES) {
   const t = new PokerTable(id, config);
@@ -516,14 +514,15 @@ const server = createServer((req, res) => {
     const url    = new URL(req.url, 'http://x');
     const tidKey = url.searchParams.get('tableId') || '9001';
     const buyIn  = Number(url.searchParams.get('buyIn') || 1000);
+    const count  = Math.max(1, Math.min(8, Number(url.searchParams.get('count') || 1)));
     const t = tables.get(tidKey);
     if (!t) { res.writeHead(404); return res.end('{"error":"table not found"}'); }
-    const result = spawnBot(t, buyIn);
+    const result = spawnBot(t, buyIn, count);
     if (!result.ok) {
       const code = result.error.includes('configured') ? 503 : 400;
       res.writeHead(code); return res.end(JSON.stringify({ error: result.error }));
     }
-    res.end(JSON.stringify({ status: 'ok', addr: BOT_ADDR, chips: result.chips }));
+    res.end(JSON.stringify({ status: 'ok', addrs: result.addrs, chips: result.chips }));
   } else {
     res.writeHead(200);
     res.end(JSON.stringify({ service: 'PokerVsPlayer WS', tables: tables.size }));
@@ -534,52 +533,105 @@ const wss = new WebSocketServer({ server, maxPayload: 65536 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function send(ws, data) {
-  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+  // Null-safe: bots (and busted/disconnected players) have ws === null. Callers
+  // like broadcastToTable() pass p.ws unguarded, so without the optional chain a
+  // single bot at the table throws here mid-HAND_OVER and aborts handleHandOver
+  // before it can schedule the next-hand restart — freezing the table at showdown.
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
 }
 function broadcastTable(t) {
   t.players.forEach(p => {
     if (p.ws?.readyState === WebSocket.OPEN)
       send(p.ws, { type: 'GAME_STATE', state: t.pubState(p.addr) });
   });
+  // Busted players are removed from t.players but still wait on a rebuy —
+  // keep their screen updating instead of freezing at the bust moment.
+  for (const [addr, info] of t.bustedSeats) {
+    if (info.ws?.readyState === WebSocket.OPEN)
+      send(info.ws, { type: 'GAME_STATE', state: t.pubState(addr) });
+  }
   maybeBotAct(t);
+  scheduleActionTimer(t);
 }
 
-function spawnBot(t, buyIn) {
+// AFK guard — (re)arms a single timeout for the current actor. Safe to call after
+// every broadcast: it clears any prior timer and recomputes the remaining time from
+// turnStartedAt, so repeated calls during the same turn don't reset the countdown.
+function scheduleActionTimer(t) {
+  if (t.actionTimer) { clearTimeout(t.actionTimer); t.actionTimer = null; }
+  if (t.phase === 'waiting' || t.phase === 'showdown') return;
+  const active = t.players[t.actionIdx];
+  if (!active || active.folded || active.allIn || active.isBot) return;
+  const remaining = Math.max(0, ACTION_TIMEOUT_MS - (Date.now() - (t.turnStartedAt || Date.now())));
+  t.actionTimer = setTimeout(() => onActionTimeout(t, active.addr), remaining);
+}
+
+async function onActionTimeout(t, addr) {
+  const idx = t.players.findIndex(p => p.addr === addr);
+  if (idx < 0 || idx !== t.actionIdx) return; // state already moved on
+  const p = t.players[idx];
+  if (p.folded || p.allIn) return;
+  const due    = Math.max(0, t.maxBet - p.bet);
+  const action = due === 0 ? 'check' : 'fold';
+  console.log(`[Server] Turn timeout — auto-${action} for ${addr.slice(0,10)} at table ${t.id}`);
+  const result = t.applyAction(addr, action, 0);
+  broadcastTable(t);
+  if (result?.winners) await handleHandOver(t, result);
+}
+
+function spawnBot(t, buyIn, count = 1) {
   if (!BOT_ADDR) return { ok: false, error: 'OPS_WALLET_KEY not configured' };
-  if (t.players.find(p => p.isBot)) return { ok: false, error: 'bot already seated' };
   const min = t.config.minBuyIn ?? t.config.buyIn;
   const max = t.config.maxBuyIn ?? t.config.buyIn;
   const chips = Math.max(min, Math.min(max, buyIn || min));
-  const seated = t.seat({ addr: BOT_ADDR, ws: null, isBot: true, onChainDeposit: chips }, null);
-  if (!seated) return { ok: false, error: 'could not seat bot' };
-  console.log(`[Bot] In-process bot spawned at table ${t.id} with ${chips} chips`);
-  broadcastTable(t);
-  if (t.players.length >= 2 && t.phase === 'waiting') {
-    t.isActive = true;
-    setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
+  const seatedAddrs = [];
+  for (let i = 0; i < count; i++) {
+    const addr = new ethers.Wallet(ethers.keccak256(ethers.toUtf8Bytes(`${BOT_KEY}:${t.id}:${i}`))).address.toLowerCase();
+    const seated = t.seat({ addr, ws: null, isBot: true, onChainDeposit: chips }, null);
+    if (!seated) break;
+    seatedAddrs.push(addr);
   }
-  return { ok: true, chips };
+  if (seatedAddrs.length === 0) return { ok: false, error: 'could not seat bot' };
+  console.log(`[Bot] ${seatedAddrs.length} in-process bot(s) spawned at table ${t.id} with ${chips} chips each`);
+  broadcastTable(t);
+  maybeAutoStart(t);
+  return { ok: true, chips, addrs: seatedAddrs };
 }
 
 function maybeBotAct(t) {
-  if (!BOT_ADDR || t.botActPending) return;
-  const bot = t.players.find(p => p.isBot);
-  if (!bot || bot.folded) return;
+  if (t.botActPending) return;
   const active = t.phase !== 'waiting' && t.phase !== 'showdown' ? t.players[t.actionIdx] : null;
-  if (!active || active.addr?.toLowerCase() !== BOT_ADDR) return;
+  if (!active?.isBot || active.folded) return;
   t.botActPending = true;
   setTimeout(async () => {
     t.botActPending = false;
-    const callAmt = Math.max(0, (t.maxBet || 0) - (bot.bet || 0));
+    const callAmt = Math.max(0, (t.maxBet || 0) - (active.bet || 0));
     const action  = callAmt === 0 ? 'check' : 'call';
     console.log(`[Bot] ${action}${callAmt > 0 ? ` ${callAmt}` : ''} at table ${t.id}`);
-    const result = t.applyAction(BOT_ADDR, action, callAmt);
+    const result = t.applyAction(active.addr, action, callAmt);
     broadcastTable(t);
     if (result?.winners) await handleHandOver(t, result);
   }, 800);
 }
 function broadcastToTable(t, msg) {
   t.players.forEach(p => send(p.ws, msg));
+}
+
+// Kick off the next hand once at least 2 players are seated and the table is idle.
+// `autoStartPending` guards against scheduling one timer per JOIN_TABLE call: at
+// higher maxPlayers, several players can join while the table is still 'waiting'
+// (phase only flips once start() actually runs), and each would otherwise queue
+// its own redundant t.start() — re-dealing and re-deducting blinds every time.
+function maybeAutoStart(t) {
+  if (t.players.length < 2 || t.phase !== 'waiting' || t.autoStartPending) return;
+  t.isActive = true;
+  t.autoStartPending = true;
+  setTimeout(() => {
+    t.autoStartPending = false;
+    try { t.start(); }
+    catch (e) { console.error(`[Server] t.start() error in maybeAutoStart:`, e.message); t.phase = 'waiting'; }
+    broadcastTable(t);
+  }, 3000);
 }
 
 // Sign and send cashout to a player, removing them from the table.
@@ -647,10 +699,9 @@ async function signAndRemovePlayer(t, addr, ws) {
 
   // Sign a cashout if player has chips
   if (amount > 0) {
-    const nonce = t.cashOutNonces.get(addr) ?? 0;
     try {
+      const nonce = Number(await escrow.cashOutNonce(BigInt(t.id), addr));
       const sig = await t.signCashOut(addr, amount, nonce);
-      t.cashOutNonces.set(addr, nonce + 1);
       const msg = { type: 'CASHOUT_SIG', amount, sig, nonce, tableId: String(t.id) };
       if (ws && ws.readyState === WebSocket.OPEN) {
         send(ws, msg);
@@ -727,13 +778,16 @@ async function handleHandOver(t, result) {
   }
 
   setTimeout(() => {
-    // Remove bust players (0 chips) before the next hand
+    // Remove bust players (0 chips) before the next hand, but keep their seat
+    // reserved in bustedSeats so a REBUY_CONFIRMED can re-seat them.
     const busted = t.players.filter(p => p.chips <= 0);
     t.players = t.players.filter(p => p.chips > 0);
     for (const p of busted) {
       console.log(`[Server] Player ${p.addr?.slice(0,10)} busted — removed from table ${t.id}`);
+      t.bustedSeats.set(p.addr, { seatIndex: p.seatIndex, ws: p.ws });
+      send(p.ws, { type: 'NEEDS_REBUY', tableId: String(t.id), busted: busted.map(b => b.addr) });
     }
-    if (t.players.length < 2) { t.phase = 'waiting'; broadcastTable(t); return; }
+    if (t.players.length < 2) { t.phase = 'waiting'; broadcastTable(t); maybeAutoStart(t); return; }
     t.handNonce++;
     t.dealerIdx = (t.dealerIdx + 1) % t.players.length;
     try {
@@ -741,6 +795,7 @@ async function handleHandOver(t, result) {
     } catch (e) {
       console.error(`[Server] t.start() error in hand restart:`, e.message);
       t.phase = 'waiting';
+      maybeAutoStart(t);
     }
     broadcastTable(t);
   }, 6000);
@@ -887,19 +942,24 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
+        // Busted and waiting on a rebuy — update their ws reference instead of
+        // re-seating them (REBUY_CONFIRMED handles re-seating), so a page
+        // refresh while waiting doesn't lose the spectator connection.
+        const bustedExisting = t.bustedSeats.get(addr);
+        if (bustedExisting) {
+          bustedExisting.ws = ws;
+          clients.set(ws, { ...client, tableId: tidKey });
+          send(ws, { type: 'GAME_STATE', state: t.pubState(addr) });
+          return;
+        }
+
         const seated = t.seat({ addr, ws, onChainDeposit }, seatIndex ?? null);
         if (!seated) return send(ws, { type: 'ERROR', error: 'Cannot join table' });
 
         clients.set(ws, { ...client, tableId: tidKey });
         console.log(`[WS] Seated ${addr.slice(0,10)} at table ${tidKey} (${t.players.length}/${t.config.maxPlayers})`);
         broadcastTable(t);
-
-        if (t.players.length >= 2) {
-          t.isActive = true;
-          if (t.phase === 'waiting') {
-            setTimeout(() => { t.start(); broadcastTable(t); }, 3000);
-          }
-        }
+        maybeAutoStart(t);
         break;
       }
 
@@ -913,10 +973,32 @@ wss.on('connection', (ws, req) => {
         const safeAmount = typeof amount === 'number' && isFinite(amount) && amount >= 0 ? amount : 0;
         const t = tables.get(String(tableId));
         if (!t) return;
+        const reactionMs = t.turnStartedAt ? Date.now() - t.turnStartedAt : null;
         const result = t.applyAction(client.addr, action, safeAmount);
         if (result?.error) return send(ws, { type: 'ERROR', error: result.error });
+        // recordAction() already console.warns internally on WARNING/FLAGGED — log-only, no enforcement.
+        behaviorMonitor.recordAction(client.addr, action, reactionMs);
         broadcastTable(t);
         if (result?.winners) await handleHandOver(t, result);
+        break;
+      }
+
+      case 'CHAT': {
+        if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+        const now = Date.now();
+        if (client.lastChat && now - client.lastChat < 500)
+          return send(ws, { type: 'ERROR', error: 'Too fast' });
+        const { tableId, text } = payload;
+        const t = tables.get(String(tableId));
+        if (!t) return;
+        if (!t.players.find(p => p.addr === client.addr)) {
+          return send(ws, { type: 'ERROR', error: 'Not seated at this table' });
+        }
+        // Strip control chars (terminal/log injection) but keep normal unicode (emoji etc.) for chat text.
+        const safeText = String(text || '').replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 200);
+        if (!safeText) return;
+        client.lastChat = now;
+        broadcastToTable(t, { type: 'CHAT', tableId: String(t.id), addr: client.addr, text: safeText, ts: now });
         break;
       }
 
@@ -929,7 +1011,28 @@ wss.on('connection', (ws, req) => {
         const addr = client.addr;
         if (!addr) return;
         const p = t.players.find(x => x.addr === addr);
-        if (!p) return send(ws, { type: 'ERROR', error: 'Not seated at table' });
+
+        if (!p) {
+          // Player busted out of a previous hand — re-seat them in their old spot
+          // instead of rejecting, so a rebuy actually gets them back into play.
+          const bustedInfo = t.bustedSeats.get(addr);
+          if (!bustedInfo) return send(ws, { type: 'ERROR', error: 'Not seated at table' });
+          try {
+            const onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+            if (onChainDeposit <= 0) {
+              return send(ws, { type: 'ERROR', error: 'Rebuy not detected on-chain yet' });
+            }
+            t.bustedSeats.delete(addr);
+            t.seat({ addr, ws, onChainDeposit }, bustedInfo.seatIndex);
+            broadcastTable(t);
+            maybeAutoStart(t);
+            send(ws, { type: 'REBUY_OK', amount: onChainDeposit, newStack: onChainDeposit });
+          } catch (e) {
+            console.error(`[Server] REBUY_CONFIRMED (busted) error:`, e.message);
+            send(ws, { type: 'ERROR', error: 'Could not verify rebuy on-chain' });
+          }
+          return;
+        }
 
         try {
           const newDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
@@ -972,11 +1075,12 @@ wss.on('connection', (ws, req) => {
         const tidKey = String(payload?.tableId || client.tableId || '9001');
         const t = tables.get(tidKey);
         if (!t) { send(ws, { type: 'ERROR', error: 'Table not found' }); break; }
-        const result = spawnBot(t, Number(payload?.buyIn) || undefined);
+        const count = Math.max(1, Math.min(8, Number(payload?.count) || 1));
+        const result = spawnBot(t, Number(payload?.buyIn) || undefined, count);
         if (!result.ok) {
           send(ws, { type: 'ERROR', error: result.error }); break;
         }
-        send(ws, { type: 'BOT_STATUS', status: 'seated', chips: result.chips });
+        send(ws, { type: 'BOT_STATUS', status: 'seated', chips: result.chips, addrs: result.addrs });
         break;
       }
 
@@ -1003,4 +1107,4 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-server.listen(PORT, () => console.log(`PokerVsPlayer WS server on :${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`PokerVsPlayer WS server on :${PORT}`));

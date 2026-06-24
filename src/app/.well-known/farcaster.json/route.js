@@ -15,7 +15,7 @@ export function GET() {
       version:              '1',
       name:                 'PokerVsPlayer',
       iconUrl:              `${base}/icon.png`,
-      homeUrl:              base || 'https://pokerpals.app',
+      homeUrl:              base || 'https://pokervsplayer.xyz',
       imageUrl:             `${base}/og.png`,
       splashImageUrl:       `${base}/splash.png`,
       splashBackgroundColor:'#0c1a0c',
