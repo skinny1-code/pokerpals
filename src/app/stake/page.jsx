@@ -4,11 +4,11 @@ import WalletBar from '../../components/WalletBar';
 import { useWallet, useStaking } from '../../hooks/usePokerWallet';
 
 const TIERS = [
-  { id:0, name:'Standard', icon:'♠', stake:0,           rake:'1.5%', apr:'0%',  color:'#6a9a6a', border:'#1a3a1a' },
-  { id:1, name:'Bronze',   icon:'◈', stake:25_000,      rake:'1.3%', apr:'5%',  color:'#cd7f32', border:'#cd7f3244' },
-  { id:2, name:'Silver',   icon:'◈', stake:250_000,     rake:'1.1%', apr:'8%',  color:'#c0c0c0', border:'#c0c0c044' },
-  { id:3, name:'Gold',     icon:'◈', stake:1_000_000,   rake:'0.9%', apr:'12%', color:'#d4af37', border:'#d4af3744' },
-  { id:4, name:'Whale',    icon:'◈', stake:5_000_000,   rake:'0.6%', apr:'18%', color:'#9b59b6', border:'#9b59b644' },
+  { id:0, name:'Standard', icon:'♠', stake:0,           rake:'1.5%', apr:'0%',  color:'#6fa074', border:'rgba(111,160,116,.3)', glow:'rgba(111,160,116,.25)' },
+  { id:1, name:'Bronze',   icon:'◈', stake:25_000,      rake:'1.3%', apr:'5%',  color:'#cd7f32', border:'rgba(205,127,50,.35)', glow:'rgba(205,127,50,.3)' },
+  { id:2, name:'Silver',   icon:'◈', stake:250_000,     rake:'1.1%', apr:'8%',  color:'#cdd3da', border:'rgba(205,211,218,.35)', glow:'rgba(205,211,218,.28)' },
+  { id:3, name:'Gold',     icon:'◈', stake:1_000_000,   rake:'0.9%', apr:'12%', color:'#e8c25a', border:'rgba(232,194,90,.4)',  glow:'rgba(232,194,90,.35)' },
+  { id:4, name:'Whale',    icon:'◈', stake:5_000_000,   rake:'0.6%', apr:'18%', color:'#f7e7a8', border:'rgba(247,231,168,.55)', glow:'rgba(232,194,90,.5)', luxe:true },
 ];
 
 function fmt(v) {
@@ -23,14 +23,18 @@ function TxButton({ onClick, disabled, loading, color, children, wide }) {
     <button onClick={onClick} disabled={disabled || loading}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
-        background: `linear-gradient(135deg,${color}22,${color}11)`,
+        background: hov && !disabled
+          ? `linear-gradient(135deg,${color}33,${color}1a)`
+          : `linear-gradient(135deg,${color}22,${color}0d)`,
         border: `1px solid ${disabled ? color+'22' : hov ? color : color+'66'}`,
-        borderRadius: 8, padding: wide ? '10px 28px' : '10px',
+        borderRadius: 'var(--r-sm)', padding: wide ? '11px 28px' : '11px',
         cursor: disabled || loading ? 'not-allowed' : 'pointer',
-        color: disabled ? color+'44' : hov ? '#fff' : color,
-        fontSize: 12, fontWeight: 700, fontFamily: 'inherit', letterSpacing: .5,
-        transition: 'all .15s', minWidth: wide ? 160 : undefined,
+        color: disabled ? color+'55' : hov ? '#fff' : color,
+        fontSize: 12, fontWeight: 800, fontFamily: 'inherit', letterSpacing: .5,
+        transition: 'all .18s ease', minWidth: wide ? 160 : undefined,
         opacity: loading ? 0.7 : 1,
+        boxShadow: hov && !disabled ? `0 6px 20px ${color}33` : 'none',
+        transform: hov && !disabled ? 'translateY(-1px)' : 'none',
       }}>
       {loading ? 'Pending…' : children}
     </button>
@@ -41,62 +45,111 @@ function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake }) {
   const [hov, setHov] = useState(false);
   const isCurrent = tier.id === currentTier;
   const isNext    = tier.id === currentTier + 1;
+  const luxe      = tier.luxe;
 
   return (
     <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
-      background: isCurrent ? `${tier.color}11` : '#0c1e0c',
-      border: `1px solid ${isCurrent ? tier.color : hov ? tier.border : '#1a3a1a'}`,
-      borderRadius: 12, padding: '20px 24px',
-      display: 'flex', flexDirection: 'column', gap: 12,
-      transition: 'all .2s',
-      boxShadow: isCurrent ? `0 0 20px ${tier.color}22` : 'none',
-      position: 'relative',
+      position: 'relative', overflow: 'hidden',
+      background: luxe
+        ? 'linear-gradient(160deg, rgba(40,32,14,.85), rgba(12,16,9,.9))'
+        : isCurrent
+          ? `linear-gradient(160deg, ${tier.color}1a, rgba(8,16,9,.85))`
+          : 'linear-gradient(160deg, rgba(18,32,20,.7), rgba(7,14,8,.82))',
+      border: `1px solid ${isCurrent ? tier.color : luxe ? tier.border : hov ? tier.border : 'var(--border)'}`,
+      borderRadius: 'var(--r-lg)', padding: '22px 24px',
+      display: 'flex', flexDirection: 'column', gap: 14,
+      transition: 'transform .22s ease, box-shadow .22s ease, border-color .22s ease',
+      transform: hov ? 'translateY(-3px)' : 'none',
+      backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+      boxShadow: isCurrent
+        ? `0 0 34px ${tier.glow}, inset 0 1px 0 rgba(255,255,255,.05)`
+        : luxe
+          ? `0 14px 40px rgba(0,0,0,.5), 0 0 30px ${tier.glow}, inset 0 1px 0 rgba(247,231,168,.12)`
+          : hov
+            ? `0 14px 34px rgba(0,0,0,.55), 0 0 0 1px ${tier.border}`
+            : 'var(--shadow-sm)',
     }}>
+      {/* Gold top hairline */}
+      <div aria-hidden style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+        background: `linear-gradient(90deg, transparent, ${tier.color}, transparent)`,
+        opacity: luxe ? 1 : .7,
+      }} />
+      {/* Luxe corner glow for the Whale tier */}
+      {luxe && (
+        <div aria-hidden style={{
+          position: 'absolute', right: -50, top: -50, width: 200, height: 200,
+          background: 'radial-gradient(circle, rgba(232,194,90,.14) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }} />
+      )}
+
       {isCurrent && (
-        <div style={{
-          position: 'absolute', top: 10, right: 12,
-          fontSize: 8, color: tier.color, border: `1px solid ${tier.color}66`,
-          borderRadius: 8, padding: '2px 8px', letterSpacing: 1,
+        <div className="pill" style={{
+          position: 'absolute', top: 14, right: 14, padding: '4px 11px',
+          fontSize: 8, letterSpacing: 2, color: tier.color,
+          border: `1px solid ${tier.border}`, background: `${tier.color}1a`,
         }}>ACTIVE</div>
       )}
       {isNext && (
-        <div style={{
-          position: 'absolute', top: 10, right: 12,
-          fontSize: 8, color: '#3a6a3a', border: '1px solid #1a3a1a',
-          borderRadius: 8, padding: '2px 8px', letterSpacing: 1,
+        <div className="pill" style={{
+          position: 'absolute', top: 14, right: 14, padding: '4px 11px',
+          fontSize: 8, letterSpacing: 2,
         }}>NEXT TIER</div>
       )}
+      {luxe && !isCurrent && !isNext && (
+        <div className="pill" style={{
+          position: 'absolute', top: 14, right: 14, padding: '4px 11px',
+          fontSize: 8, letterSpacing: 2, color: 'var(--gold-pale)',
+          border: '1px solid var(--border-gold)', background: 'rgba(232,194,90,.1)',
+        }}>★ ELITE</div>
+      )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ fontSize: 28, color: tier.color, lineHeight: 1 }}>{tier.icon}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
+        <div style={{
+          width: 50, height: 50, borderRadius: 'var(--r-md)', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 26, color: tier.color, lineHeight: 1,
+          background: `linear-gradient(145deg, ${tier.color}26, ${tier.color}08)`,
+          border: `1px solid ${tier.border}`,
+          boxShadow: luxe ? `0 0 18px ${tier.glow}` : 'none',
+        }}>{tier.icon}</div>
         <div>
-          <div style={{ fontSize: 16, color: tier.color, fontWeight: 700,
-            fontFamily: "'Playfair Display',serif" }}>{tier.name}</div>
-          <div style={{ fontSize: 10, color: '#3a6a3a', letterSpacing: 1 }}>
+          <div className={luxe ? 'gold-text serif' : 'serif'} style={{
+            fontSize: 19, fontWeight: 800, lineHeight: 1.1,
+            color: luxe ? undefined : tier.color,
+          }}>{tier.name}</div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: 1, marginTop: 3 }}>
             {tier.stake === 0 ? 'No stake required' : `Stake ◈ ${fmt(tier.stake)}+ CHIPS`}
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, position: 'relative' }}>
         {[{ label:'Rake Rate', value:tier.rake }, { label:'Staking APR', value:tier.apr }].map(({ label, value }) => (
-          <div key={label} style={{ background: 'rgba(0,0,0,.3)', borderRadius: 8, padding: '8px 12px' }}>
-            <div style={{ fontSize: 8, color: '#3a6a3a', letterSpacing: 1, marginBottom: 3 }}>{label.toUpperCase()}</div>
-            <div style={{ fontSize: 18, color: tier.color, fontWeight: 700,
-              fontFamily: "'JetBrains Mono',monospace" }}>{value}</div>
+          <div key={label} style={{
+            background: 'rgba(2,5,3,.5)', borderRadius: 'var(--r-sm)', padding: '11px 14px',
+            border: '1px solid var(--border)',
+          }}>
+            <div style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: 1.5, marginBottom: 5, fontWeight: 800 }}>{label.toUpperCase()}</div>
+            <div className={luxe ? 'gold-text' : ''} style={{
+              fontSize: 22, fontWeight: 900,
+              color: luxe ? undefined : tier.color,
+              fontFamily: "'JetBrains Mono',monospace", lineHeight: 1,
+            }}>{value}</div>
           </div>
         ))}
       </div>
 
       {tier.stake > 0 && (
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
           {tier.id > currentTier && (
             <TxButton onClick={() => onStake(tier)} color={tier.color} wide>
               Stake ◈ {fmt(tier.stake)}
             </TxButton>
           )}
           {isCurrent && stakedAmount > 0 && (
-            <TxButton onClick={() => onUnstake(stakedAmount)} color="#c0392b">
+            <TxButton onClick={() => onUnstake(stakedAmount)} color="#e0473b">
               Unstake
             </TxButton>
           )}
@@ -111,44 +164,42 @@ function StakeModal({ tier, chipsBalance, onClose, onConfirm, loading }) {
   const canAfford = chipsBalance >= tier.stake;
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.8)',
-      display:'flex', alignItems:'center', justifyContent:'center', zIndex:300 }}
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.82)',
+      backdropFilter:'blur(6px)',
+      display:'flex', alignItems:'center', justifyContent:'center', zIndex:300, padding:16 }}
       onClick={onClose}>
-      <div style={{
-        background: 'linear-gradient(135deg,#0a1f0a,#060e06)',
-        border: '1px solid #d4af37', borderRadius: 16, padding: '32px',
-        width: 360, animation: 'fade-in .3s ease forwards',
+      <div className="glass-strong" style={{
+        padding: '32px', width: '100%', maxWidth: 380,
+        boxShadow:'0 28px 70px rgba(0,0,0,.75)',
+        animation: 'pop-in .26s ease forwards',
       }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize: 9, color: '#d4af3799', letterSpacing: 3, marginBottom: 8 }}>STAKE CHIPS</div>
-        <div style={{ fontSize: 22, color: tier.color, fontWeight: 700, marginBottom: 4,
-          fontFamily: "'Playfair Display',serif" }}>{tier.name} Tier</div>
-        <div style={{ fontSize: 11, color: '#5a8a5a', marginBottom: 24 }}>
+        <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 3, marginBottom: 8, fontWeight: 800 }}>STAKE CHIPS</div>
+        <div className="gold-text serif" style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>{tier.name} Tier</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
           Stake ◈ {fmt(tier.stake)}+ CHIPS to activate {tier.name} benefits.
           Your chips stay in the staking contract and earn {tier.apr} APR.
         </div>
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 1, marginBottom: 6 }}>AMOUNT</div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 2, marginBottom: 8, fontWeight: 800 }}>AMOUNT</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input type="number" min={tier.stake} max={Math.floor(chipsBalance)} value={amount}
               onChange={e => setAmount(Number(e.target.value))}
-              style={{ flex:1, background:'#0c1e0c', border:'1px solid #1a3a1a',
-                borderRadius:6, padding:'8px 12px', color:'#d4af37',
-                fontSize:14, fontFamily:"'JetBrains Mono',monospace", outline:'none' }} />
-            <button onClick={() => setAmount(Math.floor(chipsBalance))} style={{
-              background:'#0c1e0c', border:'1px solid #1a3a1a', borderRadius:6,
-              padding:'8px 10px', cursor:'pointer', color:'#6a9a6a', fontSize:10, fontFamily:'inherit',
+              style={{ flex:1, background:'rgba(2,5,3,.6)', border:'1px solid var(--border)',
+                borderRadius:'var(--r-sm)', padding:'10px 14px', color:'var(--gold-pale)',
+                fontSize:15, fontFamily:"'JetBrains Mono',monospace", outline:'none' }} />
+            <button onClick={() => setAmount(Math.floor(chipsBalance))} className="btn btn-ghost" style={{
+              padding:'8px 14px', fontSize:10, letterSpacing:1,
             }}>MAX</button>
           </div>
           {!canAfford && (
-            <div style={{ fontSize:10, color:'#c0392b', marginTop:6 }}>
+            <div style={{ fontSize:10, color:'var(--red)', marginTop:8 }}>
               Insufficient balance (◈ {fmt(Math.floor(chipsBalance))} available)
             </div>
           )}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onClose} style={{
-            flex:1, background:'transparent', border:'1px solid #1a3a1a',
-            borderRadius:8, padding:'10px', cursor:'pointer', color:'#6a9a6a', fontSize:12, fontFamily:'inherit',
+          <button onClick={onClose} className="btn btn-ghost" style={{
+            flex:1, padding:'10px', fontSize:12,
           }}>Cancel</button>
           <TxButton onClick={() => onConfirm(amount)}
             disabled={!canAfford || amount < tier.stake} loading={loading}
@@ -204,25 +255,27 @@ export default function StakePage() {
   const loading = status !== 'idle' && status !== 'error';
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-deep)' }}>
+    <div className="has-bottom-nav" style={{ minHeight: '100vh', background: 'var(--bg-abyss)' }}>
       <WalletBar />
 
       {/* Hero */}
-      <div className="page-hero">
+      <div className="page-hero felt-texture">
+        <div className="aurora" aria-hidden />
         <div style={{ maxWidth:800, margin:'0 auto', position:'relative', zIndex:1 }}>
-          <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:3, marginBottom:10, fontWeight:700 }}>
-            VIP TIERS
+          <div className="pill animate-up s1" style={{ marginBottom:18, opacity:0 }}>
+            <span className="dot-live" />
+            VIP TIERS · STAKING
           </div>
-          <h1 style={{
-            fontSize:36, color:'#d4af37', fontWeight:700, marginBottom:10,
-            fontFamily:"'Playfair Display',serif",
-            textShadow:'0 0 40px rgba(212,175,55,.2)',
+          <h1 className="gold-text serif animate-up s2" style={{
+            fontSize:38, fontWeight:900, marginBottom:12, lineHeight:1.1, opacity:0,
           }}>
             Stake CHIPS, Play Better Poker
           </h1>
-          <p style={{ fontSize:13, color:'#5a8a5a', maxWidth:520, lineHeight:1.7 }}>
+          <p className="animate-up s3" style={{
+            fontSize:14.5, color:'#6fa074', maxWidth:520, lineHeight:1.7, opacity:0,
+          }}>
             Lock CHIPS to reduce your rake rate and earn passive yield.
-            Higher tier = less rake every hand.
+            <br/><span style={{ color:'#8fbf94' }}>Higher tier = less rake every hand.</span>
           </p>
         </div>
       </div>
@@ -239,11 +292,10 @@ export default function StakePage() {
               { label: 'Pending Yield',  value: `◈ ${fmt(pendingYield)}`,                   color: '#27ae60' },
               { label: 'Rakeback Owed',  value: `◈ ${fmt(rakebackOwed)}`,                   color: '#2980b9' },
             ].map(s => (
-              <div key={s.label} style={{ background: '#0c1e0c', border: '1px solid #1a3a1a',
-                borderRadius: 10, padding: '12px 16px' }}>
-                <div style={{ fontSize: 8, color: '#3a6a3a', letterSpacing: 1, marginBottom: 4 }}>{s.label}</div>
-                <div style={{ fontSize: 16, color: s.color, fontWeight: 700,
-                  fontFamily: "'JetBrains Mono',monospace" }}>{s.value}</div>
+              <div key={s.label} className="stat-card" style={{ padding: '14px 18px', textAlign: 'left', minWidth: 0 }}>
+                <div style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: 1.5, marginBottom: 6, fontWeight: 800 }}>{s.label.toUpperCase()}</div>
+                <div style={{ fontSize: 19, color: s.color, fontWeight: 900,
+                  fontFamily: "'JetBrains Mono',monospace", lineHeight: 1 }}>{s.value}</div>
               </div>
             ))}
           </div>
@@ -251,9 +303,9 @@ export default function StakePage() {
 
         {/* Lock warning */}
         {isLocked && (
-          <div style={{ background: 'rgba(230,126,34,.08)', border: '1px solid #e67e2244',
-            borderRadius: 8, padding: '10px 16px', marginBottom: 16,
-            fontSize: 11, color: '#e67e22' }}>
+          <div style={{ background: 'rgba(240,144,42,.1)', border: '1px solid rgba(240,144,42,.32)',
+            borderRadius: 'var(--r-md)', padding: '12px 18px', marginBottom: 16,
+            fontSize: 11.5, color: 'var(--orange)', fontWeight: 600 }}>
             ⏳ Stake locked until {unlockDate} — unstaking will be available then.
           </div>
         )}
@@ -270,45 +322,45 @@ export default function StakePage() {
 
         {/* Yield + Rakeback claim */}
         <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div style={{ background: '#0c1e0c', border: '1px solid #1a3a1a', borderRadius: 12,
-            padding: '20px 24px' }}>
-            <div style={{ fontSize: 12, color: '#27ae60', fontWeight: 700, marginBottom: 6 }}>
-              Staking Yield
+          <div className="glass-strong" style={{ padding: '22px 24px' }}>
+            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, letterSpacing: 2, marginBottom: 8 }}>
+              STAKING YIELD
             </div>
-            <div style={{ fontSize: 22, color: '#27ae60', fontWeight: 700,
-              fontFamily: "'JetBrains Mono',monospace", marginBottom: 12 }}>
+            <div style={{ fontSize: 28, color: 'var(--emerald-bright)', fontWeight: 900,
+              fontFamily: "'JetBrains Mono',monospace", marginBottom: 14, lineHeight: 1,
+              textShadow: '0 0 24px rgba(52,211,153,.3)' }}>
               ◈ {fmt(pendingYield)}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <TxButton onClick={handleClaimYield} disabled={pendingYield < 0.01 || !isConnected}
-                loading={loading && status === 'claiming'} color="#27ae60" wide>
+                loading={loading && status === 'claiming'} color="#34d399" wide>
                 Claim Yield
               </TxButton>
               <TxButton onClick={handleCompound} disabled={pendingYield < 0.01 || !isConnected || currentTier === 0}
-                loading={loading && status === 'compounding'} color="#9b59b6" wide>
+                loading={loading && status === 'compounding'} color="#e8c25a" wide>
                 ↻ Compound
               </TxButton>
             </div>
           </div>
 
-          <div style={{ background: '#0c1e0c', border: '1px solid #1a3a1a', borderRadius: 12,
-            padding: '20px 24px' }}>
-            <div style={{ fontSize: 12, color: '#2980b9', fontWeight: 700, marginBottom: 6 }}>
-              Rakeback (5% of rake)
+          <div className="glass-strong" style={{ padding: '22px 24px' }}>
+            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, letterSpacing: 2, marginBottom: 8 }}>
+              RAKEBACK (5% OF RAKE)
             </div>
-            <div style={{ fontSize: 22, color: '#2980b9', fontWeight: 700,
-              fontFamily: "'JetBrains Mono',monospace", marginBottom: 12 }}>
+            <div className="gold-text" style={{ fontSize: 28, fontWeight: 900,
+              fontFamily: "'JetBrains Mono',monospace", marginBottom: 14, lineHeight: 1 }}>
               ◈ {fmt(rakebackOwed)}
             </div>
             <TxButton onClick={handleClaimRakeback} disabled={rakebackOwed < 0.01 || !isConnected}
-              loading={loading && status === 'claiming'} color="#2980b9" wide>
+              loading={loading && status === 'claiming'} color="#e8c25a" wide>
               Claim Rakeback
             </TxButton>
           </div>
         </div>
 
         {mounted && !isConnected && (
-          <div style={{ textAlign: 'center', padding: '32px 0', color: '#3a6a3a', fontSize: 12 }}>
+          <div className="glass" style={{ textAlign: 'center', padding: '32px 24px', marginTop: 24,
+            color: 'var(--text-muted)', fontSize: 12.5, fontWeight: 600 }}>
             Connect your wallet to see your staking position
           </div>
         )}

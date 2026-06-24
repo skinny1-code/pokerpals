@@ -3,13 +3,13 @@ import { useState, useCallback } from 'react';
 
 function ActionButton({ label, sub, onClick, disabled, variant = 'default', wide = false }) {
   const colors = {
-    fold:    { bg: 'linear-gradient(135deg,#3a1010,#1a0808)', border: '#c0392b', color: '#e74c3c', hover: '#c0392b' },
-    check:   { bg: 'linear-gradient(135deg,#0d2035,#091525)', border: '#2980b9', color: '#7fb3d3', hover: '#2980b9' },
-    call:    { bg: 'linear-gradient(135deg,#0a2a15,#061a0d)', border: '#27ae60', color: '#2ecc71', hover: '#27ae60' },
-    raise:   { bg: 'linear-gradient(135deg,#2a1a00,#1a1000)', border: '#d4af37', color: '#d4af37', hover: '#f1c40f' },
-    bet:     { bg: 'linear-gradient(135deg,#2a1a00,#1a1000)', border: '#d4af37', color: '#d4af37', hover: '#f1c40f' },
-    'all-in':{ bg: 'linear-gradient(135deg,#2a1500,#1a0d00)', border: '#e67e22', color: '#f39c12', hover: '#e67e22' },
-    default: { bg: 'linear-gradient(135deg,#111,#0a0a0a)',    border: '#333',    color: '#aaa',    hover: '#555'    },
+    fold:    { bg: 'linear-gradient(135deg,#3a1210,#1a0807)', border: '#e0473b', color: '#f0675a', hover: '#e0473b' },
+    check:   { bg: 'linear-gradient(135deg,#0d2438,#091626)', border: '#2f93d8', color: '#86c2e8', hover: '#2f93d8' },
+    call:    { bg: 'linear-gradient(135deg,#0a3018,#06190d)', border: '#10b981', color: '#34d399', hover: '#10b981' },
+    raise:   { bg: 'linear-gradient(135deg,#322207,#1c1303)', border: '#e8c25a', color: '#f7e7a8', hover: '#f7e7a8' },
+    bet:     { bg: 'linear-gradient(135deg,#322207,#1c1303)', border: '#e8c25a', color: '#f7e7a8', hover: '#f7e7a8' },
+    'all-in':{ bg: 'linear-gradient(135deg,#321a00,#1c0f00)', border: '#f0902a', color: '#f8b15a', hover: '#f0902a' },
+    default: { bg: 'linear-gradient(135deg,#121,#0a0a0a)',    border: '#333',    color: '#aaa',    hover: '#555'    },
   };
   const s = colors[variant] || colors.default;
   const [hov, setHov] = useState(false);
@@ -23,16 +23,17 @@ function ActionButton({ label, sub, onClick, disabled, variant = 'default', wide
       style={{
         background: disabled ? '#111' : s.bg,
         border: `1px solid ${disabled ? '#222' : hov ? s.hover : s.border}`,
-        borderRadius: 8,
-        padding: wide ? '12px 24px' : '10px 16px',
+        borderRadius: 10,
+        padding: wide ? '14px 24px' : '13px 18px',
         cursor: disabled ? 'not-allowed' : 'pointer',
         color: disabled ? '#333' : hov ? s.hover : s.color,
         fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 13, fontWeight: 700, letterSpacing: .5,
+        fontSize: 13.5, fontWeight: 700, letterSpacing: .5,
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
-        minWidth: wide ? 120 : 80,
+        minWidth: wide ? 124 : 84,
         transition: 'all .15s',
-        boxShadow: !disabled && hov ? `0 0 12px ${s.border}44` : 'none',
+        transform: !disabled && hov ? 'translateY(-1px)' : 'none',
+        boxShadow: !disabled && hov ? `0 6px 18px ${s.border}33, 0 0 14px ${s.border}33` : 'none',
       }}
     >
       <span>{label}</span>
@@ -69,7 +70,7 @@ function BetSlider({ min, max, value, onChange, bigBlind }) {
                 fontFamily: "'JetBrains Mono', monospace",
                 transition: 'all .1s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#d4af37'; e.currentTarget.style.borderColor = '#d4af3744'; }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#f7e7a8'; e.currentTarget.style.borderColor = '#e8c25a55'; }}
               onMouseLeave={e => { e.currentTarget.style.color = '#6a9a6a'; e.currentTarget.style.borderColor = '#1a3a1a'; }}
             >{p.label}</button>
           );
@@ -85,7 +86,7 @@ function BetSlider({ min, max, value, onChange, bigBlind }) {
         }}>
           <div style={{
             position: 'absolute', left: 0, top: 0, height: '100%',
-            width: `${pct}%`, background: 'linear-gradient(90deg, #1a4a1a, #d4af37)',
+            width: `${pct}%`, background: 'linear-gradient(90deg, #10b981, #e8c25a)',
             borderRadius: 2, transition: 'width .05s',
           }} />
         </div>
@@ -97,9 +98,10 @@ function BetSlider({ min, max, value, onChange, bigBlind }) {
         />
         {/* thumb indicator */}
         <div style={{
-          position: 'absolute', left: `${pct}%`, width: 14, height: 14,
-          background: '#d4af37', borderRadius: '50%', transform: 'translateX(-50%)',
-          border: '2px solid #060e06', boxShadow: '0 0 6px #d4af3766',
+          position: 'absolute', left: `${pct}%`, width: 16, height: 16,
+          background: 'radial-gradient(circle at 35% 30%, #f7e7a8, #e8c25a 70%)',
+          borderRadius: '50%', transform: 'translateX(-50%)',
+          border: '2px solid #050a06', boxShadow: '0 0 8px #e8c25a88',
           pointerEvents: 'none', transition: 'left .05s',
         }} />
       </div>

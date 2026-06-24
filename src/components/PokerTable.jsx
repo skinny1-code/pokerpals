@@ -4,10 +4,10 @@ import Card, { EmptyCardSlot } from './Card';
 import PlayerSeat from './PlayerSeat';
 
 const CHIP_DENOMS = [
-  { bbMult: 1000, color: '#d4af37', hi: '#f1c40f' },
-  { bbMult: 500,  color: '#8e44ad', hi: '#9b59b6' },
+  { bbMult: 1000, color: '#e8c25a', hi: '#f7e7a8' },
+  { bbMult: 500,  color: '#a06cd4', hi: '#b985e0' },
   { bbMult: 100,  color: '#1a1a1a', hi: '#555'    },
-  { bbMult: 25,   color: '#1a6b32', hi: '#27ae60' },
+  { bbMult: 25,   color: '#1a6b32', hi: '#10b981' },
   { bbMult: 5,    color: '#8b1a1a', hi: '#c0392b' },
   { bbMult: 1,    color: '#1a3a8b', hi: '#2980b9' },
   { bbMult: 0,    color: '#3a3a3a', hi: '#7f8c8d' },
@@ -94,14 +94,14 @@ function PotDisplay({ pot, sidePots = [], bigBlind = 100 }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
-        background: 'rgba(0,0,0,.55)', border: '1px solid #d4af3733',
+        background: 'rgba(0,0,0,.55)', border: '1px solid #e8c25a33',
         borderRadius: 20, padding: '6px 14px',
       }}>
         <PotChips amount={pot} bigBlind={bigBlind} />
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
           <span style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 1 }}>POT</span>
           <span style={{
-            fontSize: 14, color: '#d4af37', fontWeight: 700,
+            fontSize: 14, color: '#e8c25a', fontWeight: 700,
             fontFamily: "'JetBrains Mono', monospace",
           }}>◈ {fmt(pot)}</span>
         </div>
@@ -131,7 +131,7 @@ function StreetLabel({ street }) {
   return (
     <div style={{
       position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
-      fontSize: 9, color: '#d4af37aa', letterSpacing: 3, fontWeight: 700,
+      fontSize: 9, color: '#e8c25aaa', letterSpacing: 3, fontWeight: 700,
     }}>{labels[street] || street.toUpperCase()}</div>
   );
 }
@@ -142,24 +142,24 @@ function WinnerBanner({ winners = [] }) {
     <div style={{
       position: 'absolute', top: '35%', left: '50%',
       transform: 'translate(-50%, -50%)',
-      background: 'rgba(0,0,0,.85)', border: '1px solid #d4af37',
+      background: 'rgba(0,0,0,.85)', border: '1px solid #e8c25a',
       borderRadius: 12, padding: '10px 24px',
       textAlign: 'center', zIndex: 50,
       animation: 'fade-in .4s ease forwards',
     }}>
-      <div style={{ fontSize: 10, color: '#d4af37aa', letterSpacing: 3, marginBottom: 4 }}>
+      <div style={{ fontSize: 10, color: '#e8c25aaa', letterSpacing: 3, marginBottom: 4 }}>
         WINNER
       </div>
       {winners.map((w, i) => (
-        <div key={i} style={{ fontSize: 16, color: '#d4af37', fontWeight: 700 }}>
+        <div key={i} style={{ fontSize: 16, color: '#e8c25a', fontWeight: 700 }}>
           {w.handle || (w.address ? `${w.address.slice(0,8)}…` : 'Player')}
-          <span style={{ fontSize: 11, marginLeft: 8, color: '#f1c40f' }}>
+          <span style={{ fontSize: 11, marginLeft: 8, color: '#f7e7a8' }}>
             ◈ {w.amount?.toLocaleString()}
           </span>
         </div>
       ))}
       {winners[0]?.hand && (
-        <div style={{ fontSize: 10, color: '#d4af3777', marginTop: 4, letterSpacing: 1 }}>
+        <div style={{ fontSize: 10, color: '#e8c25a77', marginTop: 4, letterSpacing: 1 }}>
           {winners[0].hand}
         </div>
       )}
@@ -215,8 +215,16 @@ export default function PokerTable({
       {/* ── Outer rail ── */}
       <div style={{
         position: 'absolute', inset: 0, borderRadius: '50%',
-        background: 'radial-gradient(ellipse at center, #3d2515 0%, #2c1a0e 60%, #1a0f07 100%)',
-        boxShadow: '0 8px 32px rgba(0,0,0,.8), inset 0 2px 8px rgba(255,255,255,.05)',
+        background: 'radial-gradient(ellipse at center, #43291a 0%, #2c1a0e 58%, #160c05 100%)',
+        boxShadow: '0 12px 44px rgba(0,0,0,.85), inset 0 2px 10px rgba(255,255,255,.06)',
+      }} />
+
+      {/* ── Gold rim light between rail and felt ── */}
+      <div aria-hidden style={{
+        position: 'absolute', inset: '3.4%', borderRadius: '50%',
+        border: '1.5px solid rgba(232,194,90,.32)',
+        boxShadow: '0 0 18px rgba(232,194,90,.16), inset 0 0 14px rgba(232,194,90,.08)',
+        pointerEvents: 'none',
       }} />
 
       {/* ── Felt surface ── */}
@@ -224,8 +232,8 @@ export default function PokerTable({
         position: 'absolute',
         inset: '5%',
         borderRadius: '50%',
-        background: 'radial-gradient(ellipse at 45% 40%, #1f5a36 0%, #1a4a2e 50%, #0f3020 100%)',
-        boxShadow: 'inset 0 4px 20px rgba(0,0,0,.5)',
+        background: 'radial-gradient(ellipse at 45% 38%, #1c6440 0%, #134a2e 52%, #0a2c1c 100%)',
+        boxShadow: 'inset 0 4px 24px rgba(0,0,0,.55), inset 0 0 60px rgba(16,185,129,.05)',
         overflow: 'hidden',
       }}>
         {/* subtle felt texture */}
@@ -276,7 +284,7 @@ export default function PokerTable({
               </span>
             )}
             {tableInfo.gameType === 1 && (
-              <span style={{ fontSize: 8, color: '#8e44ad', letterSpacing: 1, border: '1px solid #8e44ad44',
+              <span style={{ fontSize: 8, color: '#a06cd4', letterSpacing: 1, border: '1px solid #a06cd444',
                 padding: '1px 5px', borderRadius: 3 }}>PLO</span>
             )}
           </div>

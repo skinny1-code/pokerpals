@@ -91,79 +91,75 @@ function CardOnRamp() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ fontSize: 12, color: '#5a8a5a', lineHeight: 1.7 }}>
-        Buy <strong style={{ color: '#d4af37' }}>USDC</strong> with a debit/credit card, then convert it
+      <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+        Buy <strong className="gold-text" style={{ fontWeight: 800 }}>USDC</strong> with a debit/credit card, then convert it
         straight to CHIPS at the pool rate — no DEX or manual bridging needed.
       </div>
 
       {!configured ? (
-        <div style={{ background: '#1a0c0c', border: '1px solid #3a1a1a', borderRadius: 8, padding: '12px 16px', fontSize: 11, color: '#e67e22', lineHeight: 1.6 }}>
-          ⚠️ Card payments aren't configured yet — set <code style={{ color: '#f0c674' }}>NEXT_PUBLIC_TRANSAK_API_KEY</code> to
+        <div style={{ background: 'rgba(240,144,42,.08)', border: '1px solid rgba(240,144,42,.3)', borderRadius: 'var(--r-md)', padding: '13px 16px', fontSize: 11.5, color: 'var(--orange)', lineHeight: 1.6 }}>
+          ⚠️ Card payments aren't configured yet — set <code style={{ color: 'var(--gold-pale)' }}>NEXT_PUBLIC_TRANSAK_API_KEY</code> to
           enable this tab. Use a manual exchange below in the meantime.
         </div>
       ) : !address ? (
-        <div style={{ background: '#0a160a', border: '1px solid #1a3a1a', borderRadius: 8, padding: '12px 16px', fontSize: 11, color: '#5a8a5a' }}>
+        <div className="glass" style={{ padding: '13px 16px', fontSize: 11.5, color: 'var(--text-secondary)' }}>
           Connect your wallet above to buy CHIPS with a card.
         </div>
       ) : (
         <>
           {/* Step 1 — card → USDC */}
-          <div style={{ background: '#0c1e0c', border: '1px solid #1a3a1a', borderRadius: 12, padding: '16px 20px' }}>
-            <div style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 2, marginBottom: 8 }}>STEP 1</div>
-            <div style={{ fontSize: 13, color: '#d4af37', fontWeight: 700, marginBottom: 6 }}>Buy USDC with your card</div>
-            <div style={{ fontSize: 11, color: '#5a8a5a', marginBottom: 12 }}>
+          <div className="glass-strong" style={{ padding: '18px 20px' }}>
+            <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 2.5, marginBottom: 9, fontWeight: 800 }}>STEP 1</div>
+            <div className="serif" style={{ fontSize: 16, color: 'var(--gold-pale)', fontWeight: 700, marginBottom: 6 }}>Buy USDC with your card</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.6 }}>
               Opens a secure Transak window. USDC lands directly in your connected wallet on Arbitrum.
             </div>
-            <button onClick={handleBuyCard} style={{
-              width: '100%', background: 'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-              border: '1px solid #d4af37', borderRadius: 8, padding: '12px',
-              color: '#d4af37', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+            <button onClick={handleBuyCard} className="btn btn-gold" style={{
+              width: '100%', padding: '13px', fontSize: 13,
             }}>
               💳 Buy USDC with Card
             </button>
           </div>
 
           {/* Step 2 — USDC → CHIPS via ChipsLiquidityPool */}
-          <div style={{ background: '#0c1e0c', border: '1px solid #1a3a1a', borderRadius: 12, padding: '16px 20px' }}>
-            <div style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 2, marginBottom: 8 }}>STEP 2</div>
-            <div style={{ fontSize: 13, color: '#d4af37', fontWeight: 700, marginBottom: 6 }}>Convert USDC → CHIPS</div>
-            <div style={{ fontSize: 11, color: '#5a8a5a', marginBottom: 10 }}>
+          <div className="glass-strong" style={{ padding: '18px 20px' }}>
+            <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 2.5, marginBottom: 9, fontWeight: 800 }}>STEP 2</div>
+            <div className="serif" style={{ fontSize: 16, color: 'var(--gold-pale)', fontWeight: 700, marginBottom: 6 }}>Convert USDC → CHIPS</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 12 }}>
               Your USDC balance:{' '}
-              <span style={{ color: '#a8c8a8', fontFamily: "'JetBrains Mono',monospace" }}>
+              <span style={{ color: 'var(--gold-pale)', fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>
                 ${usdcBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </span>
             </div>
 
             {paused ? (
-              <div style={{ fontSize: 11, color: '#e67e22' }}>The swap pool is temporarily paused — try again later.</div>
+              <div style={{ fontSize: 11.5, color: 'var(--orange)' }}>The swap pool is temporarily paused — try again later.</div>
             ) : (
               <>
                 <input
                   type="number" min="0" step="any" placeholder="USDC amount"
                   value={amount} onChange={e => setAmount(e.target.value)}
                   style={{
-                    width: '100%', background: '#060e06', border: '1px solid #1a3a1a',
-                    borderRadius: 8, padding: '10px 12px', color: '#a8c8a8',
-                    fontFamily: "'JetBrains Mono',monospace", fontSize: 13, marginBottom: 8,
-                    boxSizing: 'border-box',
+                    width: '100%', background: '#0a180a', border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-sm)', padding: '12px 14px', color: 'var(--gold-pale)',
+                    fontFamily: "'JetBrains Mono',monospace", fontSize: 14, marginBottom: 10,
+                    boxSizing: 'border-box', outline: 'none', transition: 'border-color .15s',
                   }}
+                  onFocus={e => e.target.style.borderColor = 'var(--border-gold)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
                 />
                 {amountNum > 0 && (
-                  <div style={{ fontSize: 11, color: '#5a8a5a', marginBottom: 10 }}>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 12 }}>
                     ≈{' '}
-                    <span style={{ color: '#d4af37', fontWeight: 700 }}>
+                    <span className="gold-text" style={{ fontWeight: 800, fontFamily: "'JetBrains Mono',monospace" }}>
                       ◈{quotedChips.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </span>{' '}
                     CHIPS
                   </div>
                 )}
-                <button onClick={handleConvert} disabled={!canConvert} style={{
-                  width: '100%',
-                  background: canConvert ? 'linear-gradient(135deg,#1a4a1a,#0c2e0c)' : '#0a160a',
-                  border: `1px solid ${canConvert ? '#d4af37' : '#1a3a1a'}`,
-                  borderRadius: 8, padding: '12px',
-                  color: canConvert ? '#d4af37' : '#3a6a3a',
-                  fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+                <button onClick={handleConvert} disabled={!canConvert} className="btn btn-gold" style={{
+                  width: '100%', padding: '13px', fontSize: 13,
+                  opacity: canConvert ? 1 : .45,
                   cursor: canConvert ? 'pointer' : 'not-allowed',
                 }}>
                   {status === 'approving' ? 'Approving USDC…'
@@ -172,7 +168,7 @@ function CardOnRamp() {
                    : 'Convert to CHIPS'}
                 </button>
                 {status === 'error' && (
-                  <div style={{ fontSize: 11, color: '#e74c3c', marginTop: 8 }}>Something went wrong — try again.</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--red)', marginTop: 8 }}>Something went wrong — try again.</div>
                 )}
               </>
             )}
@@ -183,39 +179,40 @@ function CardOnRamp() {
       {/* Manual fallback — buy ETH on an exchange and swap, no Transak account needed */}
       <div>
         <button onClick={() => setShowManual(v => !v)} style={{
-          background: 'transparent', border: 'none', color: '#3a6a3a',
-          fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline',
+          background: 'transparent', border: 'none', color: 'var(--text-muted)',
+          fontSize: 11.5, cursor: 'pointer', padding: 0, textDecoration: 'underline',
+          fontFamily: 'inherit', fontWeight: 600,
         }}>
           {showManual ? '▾' : '▸'} Prefer to buy manually on an exchange?
         </button>
         {showManual && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
-            <div style={{ fontSize: 12, color: '#5a8a5a', lineHeight: 1.7 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
               Buy ETH on any exchange with your card, then withdraw to{' '}
-              <strong style={{ color: '#d4af37' }}>Arbitrum One</strong> network and swap to CHIPS.
+              <strong className="gold-text" style={{ fontWeight: 800 }}>Arbitrum One</strong> network and swap to CHIPS.
             </div>
             {EXCHANGES.map(ex => (
               <a key={ex.name} href={ex.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
-                <div
-                  style={{ background: '#0c1e0c', border: '1px solid #1a3a1a', borderRadius: 12, padding: '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                <div className="card-elevated"
+                  style={{ padding: '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                   onMouseEnter={e => e.currentTarget.style.borderColor = ex.color + '66'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = '#1a3a1a'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = ''}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <div style={{ fontSize: 28 }}>{ex.logo}</div>
                     <div>
-                      <div style={{ fontSize: 14, color: ex.color, fontWeight: 700 }}>{ex.name}</div>
-                      <div style={{ fontSize: 11, color: '#5a8a5a', marginTop: 2 }}>{ex.desc}</div>
+                      <div style={{ fontSize: 14.5, color: ex.color, fontWeight: 700 }}>{ex.name}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 2 }}>{ex.desc}</div>
                     </div>
                   </div>
-                  <div style={{ fontSize: 16, color: '#3a6a3a' }}>↗</div>
+                  <div style={{ fontSize: 16, color: 'var(--text-muted)' }}>↗</div>
                 </div>
               </a>
             ))}
-            <div style={{ background: '#0a160a', border: '1px solid #1a3a1a', borderRadius: 8, padding: '12px 16px' }}>
-              <div style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 2, marginBottom: 6 }}>IMPORTANT — WITHDRAW TO ARBITRUM</div>
-              <div style={{ fontSize: 11, color: '#5a8a5a', lineHeight: 1.6 }}>
-                When withdrawing from the exchange, select <strong style={{ color: '#a8c8a8' }}>Arbitrum One</strong> as the network — not Ethereum mainnet (fees are 100× higher there).
+            <div className="glass" style={{ padding: '13px 16px' }}>
+              <div style={{ fontSize: 9, color: 'var(--gold)', letterSpacing: 2.5, marginBottom: 7, fontWeight: 800 }}>IMPORTANT — WITHDRAW TO ARBITRUM</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                When withdrawing from the exchange, select <strong style={{ color: 'var(--gold-pale)' }}>Arbitrum One</strong> as the network — not Ethereum mainnet (fees are 100× higher there).
               </div>
             </div>
           </div>
@@ -245,74 +242,82 @@ export default function BuyPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-deep)' }}>
+    <div className="has-bottom-nav" style={{ minHeight: '100vh', background: 'var(--bg-abyss)' }}>
       <WalletBar />
 
       {/* Hero */}
-      <div className="page-hero" style={{ textAlign:'center' }}>
+      <div className="page-hero felt-texture" style={{ textAlign:'center', padding:'52px 24px 44px' }}>
+        {/* Animated aurora backdrop */}
+        <div className="aurora" aria-hidden />
         <div style={{ position:'relative', zIndex:1 }}>
-          <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:4, marginBottom:10, fontWeight:700 }}>
+          <div className="pill animate-up s1" style={{ marginBottom:18, opacity:0 }}>
+            <span className="dot-live" />
             GET CHIPS
           </div>
-          <h1 style={{
-            fontSize:36, fontWeight:900, color:'#d4af37',
-            fontFamily:"'Playfair Display',serif", marginBottom:8,
-            textShadow:'0 0 40px rgba(212,175,55,.2)',
+          <h1 className="gold-text serif animate-up s2" style={{
+            fontSize:46, fontWeight:900, marginBottom:10, opacity:0, lineHeight:1.05,
+            textShadow:'0 0 50px rgba(232,194,90,.25)',
           }}>
             Buy CHIPS
           </h1>
-          <p style={{ fontSize:13, color:'#5a8a5a', maxWidth:400, margin:'0 auto' }}>
+          <p className="animate-up s3" style={{ fontSize:14, color:'var(--text-secondary)', maxWidth:420, margin:'0 auto', lineHeight:1.7, opacity:0 }}>
             CHIPS is used for all tables, buy-ins, and staking on PokerVsPlayer.
           </p>
           {mounted && address && (
-            <div style={{ marginTop:12, fontSize:13, color:'#6a9a6a' }}>
-              Your balance:{' '}
-              <span style={{ color:'#d4af37', fontWeight:700,
-                fontFamily:"'JetBrains Mono',monospace" }}>
-                ◈{chipsBalance?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}
-              </span>
+            <div className="animate-up s4" style={{ marginTop:18, opacity:0 }}>
+              <div className="stat-card" style={{ display:'inline-block' }}>
+                <div className="gold-text" style={{
+                  fontSize:28, fontWeight:900, lineHeight:1.1,
+                  fontFamily:"'JetBrains Mono',monospace" }}>
+                  ◈{chipsBalance?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}
+                </div>
+                <div style={{ fontSize:9, color:'var(--text-muted)', letterSpacing:2, marginTop:6, fontWeight:800 }}>
+                  YOUR BALANCE
+                </div>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px' }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '28px 16px' }}>
 
         {/* Token address */}
-        <div style={{
-          background: '#0c1e0c', border: '1px solid #1a3a1a', borderRadius: 10,
-          padding: '12px 16px', marginBottom: 20,
+        <div className="glass" style={{
+          padding: '14px 16px', marginBottom: 20,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
         }}>
-          <div>
-            <div style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 2, marginBottom: 3 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 9, color: 'var(--gold)', letterSpacing: 2.5, marginBottom: 4, fontWeight: 800 }}>
               CHIPS TOKEN CONTRACT
             </div>
-            <div style={{ fontSize: 11, color: '#a8c8a8', fontFamily: "'JetBrains Mono',monospace",
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: "'JetBrains Mono',monospace",
               wordBreak: 'break-all' }}>
               {CHIPS || 'Not deployed'}
             </div>
           </div>
-          <button onClick={copy} style={{
-            background: copied ? '#1a4a1a' : '#0a160a',
-            border: '1px solid #1a3a1a', borderRadius: 6,
-            padding: '6px 12px', cursor: 'pointer',
-            color: copied ? '#27ae60' : '#6a9a6a', fontSize: 10,
-            fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
+          <button onClick={copy} className={copied ? 'btn btn-emerald' : 'btn btn-ghost'} style={{
+            padding: '8px 14px', fontSize: 11,
+            whiteSpace: 'nowrap', flexShrink: 0,
           }}>
             {copied ? '✓ Copied' : 'Copy'}
           </button>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
+        <div style={{
+          display: 'flex', gap: 3, marginBottom: 22,
+          background: 'rgba(6,14,7,.8)', border: '1px solid var(--border)',
+          borderRadius: 'var(--r-md)', padding: 4,
+        }}>
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
-              flex: 1, padding: '10px 6px', cursor: 'pointer',
-              background: tab === t.id ? '#0c1e0c' : 'transparent',
-              border: `1px solid ${tab === t.id ? '#d4af3744' : '#1a3a1a'}`,
-              borderRadius: 8, color: tab === t.id ? '#d4af37' : '#6a9a6a',
-              fontSize: 11, fontWeight: 700, fontFamily: 'inherit', letterSpacing: .3,
+              flex: 1, padding: '11px 6px', cursor: 'pointer',
+              background: tab === t.id ? 'linear-gradient(135deg,#173017,#0e220e)' : 'transparent',
+              border: `1px solid ${tab === t.id ? 'rgba(232,194,90,.25)' : 'transparent'}`,
+              borderRadius: 'var(--r-sm)', color: tab === t.id ? 'var(--gold-pale)' : 'var(--text-secondary)',
+              fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit', letterSpacing: .3,
+              transition: 'all .15s',
             }}>
               {t.label}
             </button>
@@ -322,7 +327,7 @@ export default function BuyPage() {
         {/* Swap tab */}
         {tab === 'swap' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 12, color: '#5a8a5a', marginBottom: 4 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 4, lineHeight: 1.6 }}>
               Swap any token for CHIPS on Arbitrum. Choose your preferred DEX:
             </div>
 
@@ -344,48 +349,44 @@ export default function BuyPage() {
             ].map(dex => (
               <a key={dex.name} href={dex.url} target="_blank" rel="noopener noreferrer"
                 style={{ textDecoration: 'none' }}>
-                <div style={{
-                  background: '#0c1e0c', border: '1px solid #1a3a1a', borderRadius: 12,
-                  padding: '16px 20px', cursor: 'pointer', transition: 'border-color .15s',
+                <div className="card-elevated" style={{
+                  padding: '16px 20px', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = dex.color + '66'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = '#1a3a1a'}>
+                onMouseLeave={e => e.currentTarget.style.borderColor = ''}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <div style={{ fontSize: 28 }}>{dex.logo}</div>
                     <div>
-                      <div style={{ fontSize: 14, color: dex.color, fontWeight: 700 }}>
+                      <div style={{ fontSize: 14.5, color: dex.color, fontWeight: 700 }}>
                         {dex.name}
                       </div>
-                      <div style={{ fontSize: 11, color: '#5a8a5a', marginTop: 2 }}>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 2 }}>
                         {dex.desc}
                       </div>
                     </div>
                   </div>
-                  <div style={{ fontSize: 16, color: '#3a6a3a' }}>↗</div>
+                  <div style={{ fontSize: 16, color: 'var(--text-muted)' }}>↗</div>
                 </div>
               </a>
             ))}
 
             {IS_TESTNET && (
               <div style={{
-                background: '#1a0c0c', border: '1px solid #3a1a1a', borderRadius: 8,
-                padding: '12px 16px', fontSize: 11, color: '#e67e22',
+                background: 'rgba(240,144,42,.08)', border: '1px solid rgba(240,144,42,.3)', borderRadius: 'var(--r-md)',
+                padding: '13px 16px', fontSize: 11.5, color: 'var(--orange)', lineHeight: 1.6,
               }}>
                 ⚠️ You're on Arbitrum Sepolia testnet. DEX liquidity for CHIPS won't exist until
                 mainnet launch. Use the Testnet Faucet tab to get CHIPS for testing.
               </div>
             )}
 
-            <div style={{
-              background: '#0a160a', border: '1px solid #1a3a1a', borderRadius: 8,
-              padding: '12px 16px',
-            }}>
-              <div style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 2, marginBottom: 6 }}>
+            <div className="glass" style={{ padding: '14px 16px' }}>
+              <div style={{ fontSize: 9, color: 'var(--gold)', letterSpacing: 2.5, marginBottom: 8, fontWeight: 800 }}>
                 HOW TO ADD CHIPS TO METAMASK
               </div>
-              <ol style={{ margin: 0, paddingLeft: 16, color: '#5a8a5a', fontSize: 11,
-                display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <ol style={{ margin: 0, paddingLeft: 16, color: 'var(--text-secondary)', fontSize: 11.5,
+                display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <li>Open MetaMask → Assets → Import Token</li>
                 <li>Paste the CHIPS contract address above</li>
                 <li>Symbol: CHIPS, Decimals: 18 → Save</li>
@@ -400,48 +401,42 @@ export default function BuyPage() {
         {/* Testnet faucet tab */}
         {tab === 'faucet' && IS_TESTNET && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{
-              background: '#0c1e0c', border: '1px solid #1a3a1a', borderRadius: 12,
-              padding: '24px', textAlign: 'center',
+            <div className="glass-strong felt-texture" style={{
+              padding: '28px 24px', textAlign: 'center', position: 'relative', overflow: 'hidden',
             }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>🚰</div>
-              <div style={{ fontSize: 14, color: '#d4af37', fontWeight: 700, marginBottom: 8 }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🚰</div>
+              <div className="gold-text serif" style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>
                 Testnet Faucet
               </div>
-              <div style={{ fontSize: 12, color: '#5a8a5a', marginBottom: 20, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 22, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 22px' }}>
                 You're on Arbitrum Sepolia testnet. Ask the operator to run the faucet script
                 to receive test CHIPS — no real money involved.
               </div>
               <div style={{
-                background: '#060e06', border: '1px solid #1a3a1a', borderRadius: 8,
-                padding: '12px 16px', textAlign: 'left',
+                background: '#060e06', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
+                padding: '14px 16px', textAlign: 'left',
               }}>
-                <div style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 2, marginBottom: 6 }}>
+                <div style={{ fontSize: 9, color: 'var(--gold)', letterSpacing: 2.5, marginBottom: 7, fontWeight: 800 }}>
                   OPERATOR COMMAND
                 </div>
-                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11,
-                  color: '#a8c8a8', wordBreak: 'break-all' }}>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11.5,
+                  color: 'var(--gold-pale)', wordBreak: 'break-all' }}>
                   {`FAUCET_TO=${mounted && address ? address : '0xYOUR_ADDRESS'} npm run faucet`}
                 </div>
               </div>
             </div>
 
-            <div style={{
-              background: '#0a160a', border: '1px solid #1a3a1a', borderRadius: 8,
-              padding: '12px 16px',
-            }}>
-              <div style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 2, marginBottom: 6 }}>
+            <div className="glass" style={{ padding: '14px 16px' }}>
+              <div style={{ fontSize: 9, color: 'var(--gold)', letterSpacing: 2.5, marginBottom: 7, fontWeight: 800 }}>
                 ALSO GET TESTNET ETH FOR GAS
               </div>
-              <div style={{ fontSize: 11, color: '#5a8a5a', marginBottom: 8 }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 10 }}>
                 You'll also need Arbitrum Sepolia ETH for gas fees:
               </div>
               <a href="https://faucet.quicknode.com/arbitrum/sepolia" target="_blank"
-                rel="noopener noreferrer" style={{
-                  display: 'inline-block', background: '#0c2e0c',
-                  border: '1px solid #d4af3744', borderRadius: 6,
-                  padding: '6px 14px', textDecoration: 'none',
-                  color: '#d4af37', fontSize: 11, fontWeight: 700,
+                rel="noopener noreferrer" className="btn btn-emerald" style={{
+                  padding: '9px 18px', textDecoration: 'none',
+                  fontSize: 11.5,
                 }}>
                 Get Sepolia ETH ↗
               </a>

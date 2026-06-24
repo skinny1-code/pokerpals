@@ -1,14 +1,14 @@
 'use client';
 import Card, { EmptyCardSlot } from './Card';
 
-const AVATAR_COLORS = ['#c0392b','#2980b9','#27ae60','#8e44ad','#e67e22','#16a085','#d35400','#2c3e50'];
+const AVATAR_COLORS = ['#c0392b','#2980b9','#10b981','#8e44ad','#f0902a','#16a085','#d35400','#2c3e50'];
 
 // Chip denominations in BB multiples (highest first)
 const CHIP_DENOMS = [
-  { bbMult: 1000, color: '#d4af37', hi: '#f1c40f' },
+  { bbMult: 1000, color: '#e8c25a', hi: '#f7e7a8' },
   { bbMult: 500,  color: '#8e44ad', hi: '#9b59b6' },
   { bbMult: 100,  color: '#1a1a1a', hi: '#555'    },
-  { bbMult: 25,   color: '#1a6b32', hi: '#27ae60' },
+  { bbMult: 25,   color: '#1a6b32', hi: '#10b981' },
   { bbMult: 5,    color: '#8b1a1a', hi: '#c0392b' },
   { bbMult: 1,    color: '#1a3a8b', hi: '#2980b9' },
   { bbMult: 0,    color: '#3a3a3a', hi: '#7f8c8d' },
@@ -61,10 +61,10 @@ function ChipPile({ amount, bigBlind = 100, maxChips = 7, chipW = 26, chipH = 7 
         ))}
       </div>
       <div style={{
-        fontSize: 9, color: '#d4af37', fontWeight: 700,
+        fontSize: 9, color: '#e8c25a', fontWeight: 700,
         fontFamily: "'JetBrains Mono', monospace",
         background: 'rgba(0,0,0,.75)', borderRadius: 4, padding: '1px 5px',
-        border: '1px solid #d4af3733', whiteSpace: 'nowrap',
+        border: '1px solid #e8c25a33', whiteSpace: 'nowrap',
       }}>◈ {fmt(amount)}</div>
     </div>
   );
@@ -78,7 +78,7 @@ function TimerRing({ pct = 1, size = 56 }) {
     <svg width={size} height={size} style={{ position: 'absolute', top: 0, left: 0, transform: 'rotate(-90deg)' }}>
       <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="3"/>
       <circle cx={cx} cy={cy} r={r} fill="none"
-        stroke={urgent ? '#c0392b' : '#d4af37'}
+        stroke={urgent ? '#c0392b' : '#e8c25a'}
         strokeWidth="3"
         strokeDasharray={circ}
         strokeDashoffset={circ * (1 - pct)}
@@ -94,9 +94,9 @@ function ChipCount({ amount }) {
     : v >= 1_000 ? `${(v/1_000).toFixed(1)}K` : String(v);
   return (
     <div style={{
-      background: 'rgba(0,0,0,.75)', border: '1px solid #d4af3766',
+      background: 'rgba(0,0,0,.75)', border: '1px solid #e8c25a66',
       borderRadius: 20, padding: '3px 10px',
-      fontSize: 11, color: '#d4af37', fontWeight: 700,
+      fontSize: 11, color: '#e8c25a', fontWeight: 700,
       fontFamily: "'JetBrains Mono', monospace",
       whiteSpace: 'nowrap',
     }}>
@@ -109,11 +109,11 @@ function ActionBadge({ action }) {
   const styles = {
     fold:   { bg: '#3a1a1a', border: '#c0392b', color: '#c0392b', label: 'FOLD' },
     check:  { bg: '#1a2a3a', border: '#2980b9', color: '#7fb3d3', label: 'CHECK' },
-    call:   { bg: '#1a2a3a', border: '#27ae60', color: '#2ecc71', label: 'CALL' },
-    raise:  { bg: '#2a1a00', border: '#d4af37', color: '#d4af37', label: 'RAISE' },
-    'all-in': { bg: '#2a1a00', border: '#d4af37', color: '#f39c12', label: 'ALL IN' },
-    bet:    { bg: '#2a1a00', border: '#d4af37', color: '#d4af37', label: 'BET' },
-    blind:  { bg: '#1a2a1a', border: '#27ae60', color: '#27ae60', label: 'BLIND' },
+    call:   { bg: '#1a2a3a', border: '#10b981', color: '#34d399', label: 'CALL' },
+    raise:  { bg: '#2a1a00', border: '#e8c25a', color: '#e8c25a', label: 'RAISE' },
+    'all-in': { bg: '#2a1a00', border: '#e8c25a', color: '#f8b15a', label: 'ALL IN' },
+    bet:    { bg: '#2a1a00', border: '#e8c25a', color: '#e8c25a', label: 'BET' },
+    blind:  { bg: '#1a2a1a', border: '#10b981', color: '#10b981', label: 'BLIND' },
   };
   const s = styles[action?.toLowerCase()] || { bg: '#111', border: '#444', color: '#aaa', label: action };
   return (
@@ -190,9 +190,9 @@ export default function PlayerSeat({
       >
         <div style={{
           width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: '50%',
-          border: '2px dashed #d4af3733',
+          border: '2px dashed #e8c25a33',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 20, color: '#d4af3744',
+          fontSize: 20, color: '#e8c25a44',
         }}>+</div>
         <div style={{ fontSize: 9, color: '#d4af3366', letterSpacing: 1 }}>EMPTY</div>
       </div>
@@ -248,9 +248,9 @@ export default function PlayerSeat({
         <div style={{
           width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: '50%',
           overflow: 'hidden',
-          border: `2px solid ${isActive ? '#d4af37' : isAllIn ? '#e67e22' : '#1a3a1a'}`,
+          border: `2px solid ${isActive ? '#e8c25a' : isAllIn ? '#f0902a' : '#1a3a1a'}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: isActive ? '0 0 12px #d4af3766' : 'none',
+          boxShadow: isActive ? '0 0 18px #e8c25a99, 0 0 4px #e8c25a' : 'none',
           transition: 'border-color .3s, box-shadow .3s',
           position: 'relative', zIndex: 1,
         }}>
@@ -287,7 +287,7 @@ export default function PlayerSeat({
         {isAllIn && (
           <div style={{
             position: 'absolute', top: -8, right: -4,
-            background: '#e67e22', borderRadius: 4,
+            background: '#f0902a', borderRadius: 4,
             fontSize: 7, color: '#fff', fontWeight: 700,
             padding: '1px 4px', letterSpacing: .5, zIndex: 2,
           }}>ALL IN</div>
@@ -299,7 +299,7 @@ export default function PlayerSeat({
         {lastAction && <ActionBadge action={lastAction} />}
         <div style={{
           fontSize: player.handle ? 11 : 9,
-          color: player.isHero ? '#d4af37' : avatarUrl ? '#e8f0e8' : '#a8c8a8',
+          color: player.isHero ? '#e8c25a' : avatarUrl ? '#e8f0e8' : '#a8c8a8',
           fontWeight: 700, maxWidth: 80, overflow: 'hidden',
           textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           textAlign: 'center',
