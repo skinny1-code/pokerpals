@@ -21,6 +21,7 @@ function loadDeployedAddresses() {
       NEXT_PUBLIC_TOURNAMENT:     c.TournamentManager || '',
       NEXT_PUBLIC_TABLE_REGISTRY: c.TableRegistry  || '',
       NEXT_PUBLIC_POKER_HANDLE:   c.PokerHandle    || '',
+      NEXT_PUBLIC_HAND_HISTORY:   c.HandHistory    || '',
       ...(d.deployBlock ? { NEXT_PUBLIC_DEPLOY_BLOCK: String(d.deployBlock) } : {}),
     };
   }

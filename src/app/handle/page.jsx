@@ -1,9 +1,66 @@
 'use client';
 import { useState, useEffect } from 'react';
 import WalletBar from '../../components/WalletBar';
-import { useHandle } from '../../hooks/usePokerWallet';
+import { useHandle, useStaking, useHandHistory } from '../../hooks/usePokerWallet';
 import { useWallet } from '../../hooks/usePokerWallet';
 import Link from 'next/link';
+
+const TIER_NAMES = ['Standard', 'Bronze', 'Silver', 'Gold', 'Whale'];
+
+function StatCard({ label, value, accent }) {
+  return (
+    <div style={{
+      flex: 1, background: '#0c1e0c', border: '1px solid #1a3a1a',
+      borderRadius: 8, padding: '10px 8px', textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 8, color: '#3a6a3a', letterSpacing: 2, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 13, color: accent || '#d4af37', fontWeight: 700,
+        fontFamily: "'JetBrains Mono',monospace" }}>{value}</div>
+    </div>
+  );
+}
+
+function ProfileDashboard() {
+  const { stakedAmount, currentTier } = useStaking();
+  const { available, handsPlayed, handsWon, totalWinnings, winRate, lastBatchAt } = useHandHistory();
+
+  return (
+    <div style={{ marginTop: 20, textAlign: 'left' }}>
+      <div style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 2, marginBottom: 8 }}>
+        STAKING
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <StatCard label="STAKED" value={`${Math.floor(stakedAmount).toLocaleString()}`} />
+        <StatCard label="VIP TIER" value={TIER_NAMES[currentTier] || 'Standard'} />
+      </div>
+
+      <div style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 2, marginBottom: 8 }}>
+        GAMEPLAY STATS
+      </div>
+      {available ? (
+        <>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <StatCard label="HANDS PLAYED" value={handsPlayed.toLocaleString()} />
+            <StatCard label="HANDS WON" value={handsWon.toLocaleString()} />
+            <StatCard label="WIN RATE" value={`${winRate.toFixed(1)}%`} />
+          </div>
+          <div style={{ marginTop: 8, fontSize: 10, color: '#5a8a5a', textAlign: 'center' }}>
+            Total winnings: <span style={{ color: '#d4af37' }}>{Math.floor(totalWinnings).toLocaleString()} CHIPS</span>
+          </div>
+          <div style={{ marginTop: 4, fontSize: 9, color: '#3a6a3a', textAlign: 'center' }}>
+            {lastBatchAt
+              ? `Synced on-chain in periodic batches — last update ${new Date(lastBatchAt * 1000).toLocaleString()}`
+              : 'Stats sync on-chain in periodic batches — no batch recorded yet'}
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 10, color: '#3a6a3a', textAlign: 'center' }}>
+          Gameplay stats contract not deployed yet.
+        </div>
+      )}
+    </div>
+  );
+}
 
 function HandlePreview({ handle }) {
   const display = handle || 'YourHandle';
@@ -178,6 +235,9 @@ export default function HandlePage() {
             <div style={{ marginTop: 8, fontSize: 11, color: '#5a8a5a' }}>
               Your handle is an NFT — you can trade it on any ERC-721 marketplace.
             </div>
+
+            <ProfileDashboard />
+
             <Link href="/" style={{
               display: 'inline-block', marginTop: 20,
               background: 'transparent', border: '1px solid #1a3a1a',

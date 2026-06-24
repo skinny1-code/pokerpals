@@ -50,6 +50,13 @@ export const CHIPS_ABI = [
 ];
 export const PPP_ABI = CHIPS_ABI; // kept for backwards compat
 
+export const HAND_HISTORY_ABI = [
+  { name:"getStats", type:"function", stateMutability:"view",
+    inputs:[{name:"player",type:"address"}],
+    outputs:[{name:"handsPlayed",type:"uint256"},{name:"handsWon",type:"uint256"},
+             {name:"totalWinnings",type:"uint256"},{name:"lastBatchAt",type:"uint256"}] },
+];
+
 export const STAKING_ABI = [
   { name:"stake",   type:"function", stateMutability:"nonpayable",
     inputs:[{name:"amount",type:"uint256"}], outputs:[] },
@@ -237,6 +244,7 @@ const PROMOTIONS_POOL = process.env.NEXT_PUBLIC_PROMOTIONS_POOL;
 const STABLECOIN_POOL = process.env.NEXT_PUBLIC_STABLECOIN_POOL;
 const LIQUIDITY_POOL  = process.env.NEXT_PUBLIC_LIQUIDITY_POOL;
 const MOCK_USDC      = process.env.NEXT_PUBLIC_MOCK_USDC;
+const HAND_HISTORY    = process.env.NEXT_PUBLIC_HAND_HISTORY;
 const USDC_ADDR      = MOCK_USDC || process.env.NEXT_PUBLIC_USDC;
 
 // ─── CONTRACT ADDRESSES (exported for dashboard and other consumers) ──────────
@@ -468,6 +476,28 @@ export function useStaking() {
     stake, unstake, claimYield, claimRakeback, compound,
     status, confirmed,
     refetch: () => { refetchStake(); refetchPending(); refetchRakeback(); },
+  };
+}
+
+// ─── HOOK: HAND HISTORY (batched on-chain gameplay stats) ──────────────────────
+export function useHandHistory() {
+  const { address } = useAccount();
+
+  const { data, refetch, isLoading } = useReadContract({
+    address: HAND_HISTORY, abi: HAND_HISTORY_ABI, functionName: "getStats",
+    args: [address], query: { enabled: !!address && !!HAND_HISTORY, refetchInterval: 30000 },
+  });
+
+  const handsPlayed   = data ? Number(data[0]) : 0;
+  const handsWon      = data ? Number(data[1]) : 0;
+  const totalWinnings = data ? Number(formatUnits(data[2], 18)) : 0;
+  const lastBatchAt   = data ? Number(data[3]) : 0;
+  const winRate        = handsPlayed > 0 ? (handsWon / handsPlayed) * 100 : 0;
+
+  return {
+    available: !!HAND_HISTORY,
+    handsPlayed, handsWon, totalWinnings, lastBatchAt, winRate,
+    loading: isLoading, refetch,
   };
 }
 
