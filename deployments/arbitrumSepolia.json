@@ -1,15 +1,15 @@
 {
   "network": "arbitrumSepolia",
   "chainId": "421614",
-  "deployedAt": "2026-06-23T04:53:24.656Z",
+  "deployedAt": "2026-06-24T03:22:19.907Z",
   "deployer": "0x0B58C02408E095F8f7527FF42184E3FC54e6Df86",
   "deployBlock": 280139230,
   "contracts": {
     "ChipsToken": "0xcd08364d0cDd1Be1059076641761CF276B857e33",
     "ChipsStaking": "0xB3b6345550c2033F8dcCaC1Be4564B58850ac6fd",
     "ReferralRegistry": "0x83433571a6cff94e2812fCBc68Ceb51eFA05413d",
-    "PokerEscrow": "0x0683521dd8a66702BbdFfC9dF3A0C928dbFC036f",
-    "TournamentManager": "0x04B064a23973a54047546d66A9cBFdB449371c2A",
+    "PokerEscrow": "0x029D706ef2Ba747cA98207A7bf602716eDC246a4",
+    "TournamentManager": "0x1da54c251A8c66579bc6FCf981D581D6557526fA",
     "TableRegistry": "0xa33B7797F0FA057dAD274E30E86863e42d1f5198",
     "PokerHandle": "0x6B9E15D3B020779632b992F2F08562C6EB788BA7",
     "KingOfSpadesPool": "0x5B01d1271124a6319F2fAB821715273e71E44130",
