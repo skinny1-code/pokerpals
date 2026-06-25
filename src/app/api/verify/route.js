@@ -1,6 +1,7 @@
-// Testnet-only endpoint: marks a wallet address as human-verified on PokerEscrow.
-// Called by the table page when a player can't buy in due to humanVerified == false.
-// On mainnet, human verification goes through the antibot oracle process instead.
+// Dev-only escape hatch: marks a wallet address as human-verified on PokerEscrow,
+// bypassing the antiBotOracle checks. Disabled by default — requires DEV_VERIFY_SECRET
+// to be set on the server AND supplied in the request body. The live UI no longer calls
+// this route; real verification goes through the VERIFY_HUMAN websocket flow.
 import { createWalletClient, createPublicClient, http, parseAbi } from 'viem';
 import { arbitrumSepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -16,6 +17,7 @@ export async function POST(req) {
     return Response.json({ error: 'Verification via API only available on testnet' }, { status: 403 });
   }
 
+  const devSecret = process.env.DEV_VERIFY_SECRET;
   const deployerKey = process.env.DEPLOYER_KEY;
   const rpc         = process.env.ARB_SEPOLIA_RPC;
   const escrowAddr  = process.env.NEXT_PUBLIC_ESCROW;
@@ -24,11 +26,16 @@ export async function POST(req) {
     return Response.json({ error: 'Server not configured (DEPLOYER_KEY or NEXT_PUBLIC_ESCROW missing)' }, { status: 500 });
   }
 
-  let address;
+  let address, secret;
   try {
-    ({ address } = await req.json());
+    ({ address, secret } = await req.json());
   } catch {
     return Response.json({ error: 'Invalid request body' }, { status: 400 });
+  }
+
+  // Fail closed: disabled unless an operator explicitly opts in via DEV_VERIFY_SECRET
+  if (!devSecret || secret !== devSecret) {
+    return Response.json({ error: 'Dev verification disabled' }, { status: 403 });
   }
 
   if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {

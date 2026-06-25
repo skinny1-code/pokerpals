@@ -76,7 +76,7 @@ async function main() {
 
   // 5. TournamentManager
   const Tourn = await ethers.getContractFactory("TournamentManager");
-  const tourn = await Tourn.deploy(tokenAddr, OPERATOR, RAKE_ADDR, ORACLE, stakingAddr);
+  const tourn = await Tourn.deploy(tokenAddr, OPERATOR, RAKE_ADDR, stakingAddr);
   await tourn.waitForDeployment();
   const tournAddr = await tourn.getAddress();
   console.log("✅ TournamentManager:", tournAddr);
@@ -90,7 +90,7 @@ async function main() {
 
   // 7. PokerHandle — username NFT
   const Handle = await ethers.getContractFactory("PokerHandle");
-  const handle = await Handle.deploy(tokenAddr);
+  const handle = await Handle.deploy(tokenAddr, escrowAddr);
   await handle.waitForDeployment();
   const handleAddr = await handle.getAddress();
   console.log("✅ PokerHandle:", handleAddr);
@@ -205,11 +205,14 @@ async function main() {
     const c = await registry.setKingsPool(kingsPoolAddr,  { nonce: n + 2 });
     const d = await escrow.setTableRegistry(registryAddr, { nonce: n + 3 });
     const e = await token.setEscrowFactory(escrowAddr,    { nonce: n + 4 });
-    await Promise.all([a.wait(), b.wait(), c.wait(), d.wait(), e.wait()]);
+    const f = await escrow.setPokerHandle(handleAddr,     { nonce: n + 5 });
+    const g = await tourn.setPokerHandle(handleAddr,      { nonce: n + 6 });
+    await Promise.all([a.wait(), b.wait(), c.wait(), d.wait(), e.wait(), f.wait(), g.wait()]);
   }
   console.log("✅ KingsPool wired into escrow + tournament + registry");
   console.log("✅ PokerEscrow wired to TableRegistry");
   console.log("✅ Token wired to escrow");
+  console.log("✅ PokerHandle wired into escrow + tournament (isHandleEligible gate)");
 
   console.log("\n── Role wallets ───────────────────────────────────────");
   console.log(`Deployer:          ${deployer.address}`);

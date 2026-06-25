@@ -8,60 +8,9 @@ import BettingControls from '../../../components/BettingControls';
 import Card from '../../../components/Card';
 import { useTableSocket, useEscrow, useHandleMap, useHandleAvatars, useWallet } from '../../../hooks/usePokerWallet';
 import { useIsMobile } from '../../../hooks/useIsMobile';
+import VerifyHumanBanner from '../../../components/VerifyHumanBanner';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
-
-// ── Testnet human-verification banner ────────────────────────────────────────
-function VerifyBanner({ address, onVerified }) {
-  const [status, setStatus] = useState('idle'); // idle | verifying | done | error
-  const [err, setErr]       = useState(null);
-
-  const requestVerify = async () => {
-    setStatus('verifying');
-    setErr(null);
-    try {
-      const res  = await fetch('/api/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Verification failed');
-      setStatus('done');
-      onVerified?.();
-    } catch (e) {
-      setErr(e.message);
-      setStatus('error');
-    }
-  };
-
-  return (
-    <div style={{
-      background: status === 'done' ? '#0a1f0a' : '#1a0c04',
-      borderBottom: `1px solid ${status === 'done' ? '#27ae6055' : '#c8793055'}`,
-      padding: '8px 16px',
-      display: 'flex', alignItems: 'center', gap: 10, fontSize: 11,
-    }}>
-      <span style={{ color: status === 'done' ? '#27ae60' : '#e07030' }}>
-        {status === 'done' ? '✓ Verified — you can now buy in!' : '⚠ Your wallet needs testnet verification to sit at this table.'}
-      </span>
-      {status !== 'done' && (
-        <button
-          onClick={requestVerify}
-          disabled={status === 'verifying'}
-          style={{
-            background: 'transparent', border: '1px solid #c8793088',
-            borderRadius: 6, padding: '3px 12px', cursor: status === 'verifying' ? 'not-allowed' : 'pointer',
-            color: '#e07030', fontSize: 10, fontWeight: 700,
-          }}
-        >
-          {status === 'verifying' ? 'Verifying…' : 'Request Verification'}
-        </button>
-      )}
-      {err && <span style={{ color: '#e74c3c', fontSize: 10 }}>{err}</span>}
-    </div>
-  );
-}
 
 // ── action label from server → badge key ─────────────────────────────────────
 function parseActionLabel(label) {
@@ -78,7 +27,7 @@ function parseActionLabel(label) {
 }
 
 // ── map server pubState → PokerTable seats array (uses seatIndex for position) ──
-function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}) {
+function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}, now = Date.now()) {
   if (!state) return Array(9).fill(null);
 
   const seats = Array(9).fill(null);
@@ -87,6 +36,10 @@ function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}) {
   players.forEach(p => {
     const idx = p.seatIndex ?? null;
     if (idx == null || idx < 0 || idx > 8) return;
+    const isActive = p.addr?.toLowerCase() === state.activeAddr?.toLowerCase();
+    const timerPct = isActive && state.turnStartedAt && state.turnTimeoutMs
+      ? Math.max(0, Math.min(1, 1 - (now - state.turnStartedAt) / state.turnTimeoutMs))
+      : 1;
     seats[idx] = {
       player: {
         address:   p.addr,
@@ -98,7 +51,8 @@ function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}) {
         isAllIn:   p.allIn,
       },
       cards:      (p.hand || []).map(c => c === '??' ? { faceDown: true } : c),
-      isActive:   p.addr?.toLowerCase() === state.activeAddr?.toLowerCase(),
+      isActive,
+      timerPct,
       lastAction: parseActionLabel(p.actionLabel),
       betAmount:  p.bet || 0,
       isDealer:   p.addr?.toLowerCase() === state.dealerAddr?.toLowerCase(),
@@ -108,13 +62,37 @@ function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}) {
   return seats;
 }
 
+// ── hero hand panel — hero's own hole cards, shown bigger below the table ──────
+function HeroHandPanel({ cards = [], folded = false }) {
+  if (!cards.length) return null;
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+      margin: '20px auto 0', opacity: folded ? 0.45 : 1, transition: 'opacity .3s',
+    }}>
+      <div style={{ fontSize: 9, color: '#e8c25a99', letterSpacing: 3 }}>YOUR HAND</div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        {cards.map((c, i) => {
+          const cardStr = typeof c === 'string' ? c : c?.card;
+          const fd = typeof c === 'object' ? !!c?.faceDown : false;
+          return (
+            <div key={`${i}-${cardStr || 'fd'}`} className="card-deal" style={{ animationDelay: `${i * 0.12}s` }}>
+              <Card card={cardStr} faceDown={fd} width={84} height={118} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── status badge ──────────────────────────────────────────────────────────────
 function StatusDot({ status }) {
   const color = {
     disconnected: '#555',
-    connecting:   '#e67e22',
-    connected:    '#e67e22',
-    authed:       '#27ae60',
+    connecting:   '#f0902a',
+    connected:    '#f0902a',
+    authed:       '#10b981',
   }[status] || '#555';
   const label = { disconnected:'Disconnected', connecting:'Connecting…', connected:'Authenticating…', authed:'Connected' }[status] || status;
   return (
@@ -127,14 +105,23 @@ function StatusDot({ status }) {
 }
 
 // ── chat + hand history ────────────────────────────────────────────────────────
-function ChatPanel({ messages }) {
+function ChatPanel({ messages, onSend }) {
   const endRef = useRef(null);
+  const [draft, setDraft] = useState('');
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth' }); }, [messages]);
+
+  const submit = () => {
+    const text = draft.trim();
+    if (!text || !onSend) return;
+    onSend(text);
+    setDraft('');
+  };
+
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%',
-      background:'#060e06', border:'1px solid #1a3a1a', borderRadius:8, overflow:'hidden' }}>
-      <div style={{ padding:'8px 12px', borderBottom:'1px solid #1a3a1a',
-        fontSize:9, color:'#3a6a3a', letterSpacing:2 }}>TABLE LOG</div>
+    <div className="glass" style={{ display:'flex', flexDirection:'column', height:'100%',
+      overflow:'hidden' }}>
+      <div style={{ padding:'8px 12px', borderBottom:'1px solid var(--border)',
+        fontSize:9, color:'#3a6a3a', letterSpacing:2, fontWeight:800 }}>TABLE LOG</div>
       <div style={{ flex:1, overflowY:'auto', padding:'8px 12px',
         display:'flex', flexDirection:'column', gap:2 }}>
         {messages.map((m,i) => (
@@ -142,8 +129,8 @@ function ChatPanel({ messages }) {
             fontSize:10, padding:'2px 0',
             borderBottom:'1px solid rgba(255,255,255,.03)',
             color: m.type==='system' ? '#3a6a3a'
-                 : m.type==='action' ? '#d4af37'
-                 : m.type==='winner' ? '#27ae60'
+                 : m.type==='action' ? '#e8c25a'
+                 : m.type==='winner' ? '#10b981'
                  : '#7a9a7a',
             fontFamily: m.type!=='chat' ? "'JetBrains Mono',monospace" : 'inherit',
           }}>
@@ -153,20 +140,47 @@ function ChatPanel({ messages }) {
         ))}
         <div ref={endRef} />
       </div>
+      {onSend && (
+        <div style={{ display:'flex', gap:6, padding:8, borderTop:'1px solid #1a3a1a' }}>
+          <input
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+            maxLength={200}
+            placeholder="Say something…"
+            style={{
+              flex:1, background:'#0a160a', border:'1px solid #1a3a1a', borderRadius:6,
+              padding:'6px 10px', color:'#cfe8cf', fontSize:11,
+              fontFamily:"'JetBrains Mono',monospace", outline:'none',
+            }}
+          />
+          <button
+            className={draft.trim() ? 'btn btn-gold' : 'btn btn-ghost'}
+            onClick={submit}
+            disabled={!draft.trim()}
+            style={{
+              padding:'6px 14px', fontSize:9, letterSpacing:1,
+              cursor: draft.trim() ? 'pointer' : 'not-allowed',
+              fontFamily:"'JetBrains Mono',monospace",
+              opacity: draft.trim() ? 1 : .5,
+            }}
+          >SEND</button>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── hand-over overlay ─────────────────────────────────────────────────────────
 function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
-  const [secs, setSecs] = useState(7);
+  const [secs, setSecs] = useState(6);
   const identity = handOver?.handNonce ?? 0;
 
   useEffect(() => {
     if (!handOver) return;
-    setSecs(7);
+    setSecs(6);
     const iv = setInterval(() => setSecs(s => s - 1), 1000);
-    const t  = setTimeout(() => { clearInterval(iv); onDismiss(); }, 7000);
+    const t  = setTimeout(() => { clearInterval(iv); onDismiss(); }, 6000);
     return () => { clearInterval(iv); clearTimeout(t); };
   }, [identity]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -178,18 +192,16 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
 
   return (
     <div style={{
-      position:'fixed', inset:0, background:'rgba(0,0,0,.8)',
+      position:'fixed', inset:0, background:'rgba(0,0,0,.82)', backdropFilter:'blur(4px)',
       display:'flex', alignItems:'center', justifyContent:'center', zIndex:200,
     }} onClick={onDismiss}>
-      <div style={{
-        background:'linear-gradient(135deg,#0a1f0a,#060e06)',
-        border:'1px solid #d4af37', borderRadius:16,
+      <div className="glass-strong pop-in" style={{
+        border:'1px solid var(--border-gold)',
         padding:'28px 36px', textAlign:'center',
-        boxShadow:'0 0 40px rgba(212,175,55,.3)',
-        animation:'fade-in .4s ease forwards',
+        boxShadow:'var(--shadow-md), 0 0 50px rgba(232,194,90,.22)',
         maxWidth: 480, width: '90vw',
       }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize:9, color:'#d4af3799', letterSpacing:4, marginBottom:12 }}>HAND COMPLETE</div>
+        <div className="gold-text" style={{ fontSize:9, letterSpacing:4, marginBottom:12, fontWeight:800 }}>HAND COMPLETE</div>
 
         {/* Winners */}
         {winners.map((w, i) => {
@@ -197,12 +209,12 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
           const displayName = handleMap[w?.toLowerCase()] || `${w.slice(0,8)}…`;
           return (
             <div key={i} style={{ marginBottom: losers.length ? 16 : 0 }}>
-              <div style={{ fontSize:20, color:'#d4af37', fontWeight:700,
+              <div style={{ fontSize:20, color:'#e8c25a', fontWeight:700,
                 fontFamily:"'Playfair Display',serif" }}>
                 {displayName} wins
               </div>
               {res?.hand && (
-                <div style={{ fontSize:11, color:'#d4af3799', letterSpacing:1, marginTop:2 }}>
+                <div style={{ fontSize:11, color:'#e8c25a99', letterSpacing:1, marginTop:2 }}>
                   {res.hand}
                 </div>
               )}
@@ -215,7 +227,7 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
                   ))}
                 </div>
               )}
-              <div style={{ fontSize:15, color:'#27ae60', fontWeight:700, marginTop:8,
+              <div style={{ fontSize:15, color:'#10b981', fontWeight:700, marginTop:8,
                 fontFamily:"'JetBrains Mono',monospace" }}>
                 ◈ {handOver.pot?.toLocaleString()}
               </div>
@@ -225,7 +237,7 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
 
         {/* Losers */}
         {losers.length > 0 && (
-          <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #1a3a1a' }}>
+          <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' }}>
             {losers.map((r, i) => {
               const displayName = handleMap[r.addr?.toLowerCase()] || `${r.addr?.slice(0,8)}…`;
               return (
@@ -278,9 +290,9 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
       {/* Oval table background */}
       <div style={{
         position:'relative', width:'100%', paddingBottom:'70%',
-        background:'radial-gradient(ellipse at center, #0d2b0d 60%, #071507)',
-        border:'2px solid #1a4a1a', borderRadius:'50%',
-        boxShadow:'0 0 40px rgba(39,174,96,.1)',
+        background:'radial-gradient(ellipse at 45% 38%, #1c6440 0%, #134a2e 52%, #0a2c1c 100%)',
+        border:'2px solid var(--border-gold)', borderRadius:'50%',
+        boxShadow:'0 0 40px rgba(16,185,129,.14), inset 0 0 60px rgba(0,0,0,.35)',
       }}>
         {/* Centre label */}
         <div style={{
@@ -293,7 +305,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
               {fmt(minBuyIn)}–{fmt(maxBuyIn)} CHIPS
             </div>
           ) : (
-            <div style={{ fontSize:13, color:'#d4af37', fontWeight:700,
+            <div style={{ fontSize:13, color:'#e8c25a', fontWeight:700,
               fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>
               {fmt(buyInAmount)} CHIPS
             </div>
@@ -318,12 +330,12 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
                 background: isTaken ? '#1a3a1a'
                   : isSelected ? 'linear-gradient(135deg,#1a4a1a,#0c2e0c)'
                   : '#0c1e0c',
-                border: `2px solid ${isTaken ? '#2a5a2a' : isSelected ? '#d4af37' : '#3a6a3a'}`,
+                border: `2px solid ${isTaken ? '#2a5a2a' : isSelected ? '#e8c25a' : '#3a6a3a'}`,
                 cursor: isTaken ? 'default' : 'pointer',
                 display:'flex', flexDirection:'column',
                 alignItems:'center', justifyContent:'center',
                 transition:'all .15s',
-                boxShadow: isSelected ? '0 0 12px rgba(212,175,55,.4)' : 'none',
+                boxShadow: isSelected ? '0 0 14px rgba(232,194,90,.5)' : 'none',
               }}
             >
               {isTaken ? (
@@ -334,7 +346,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
                   </div>
                 </>
               ) : (
-                <div style={{ fontSize:11, color: isSelected ? '#d4af37' : '#3a6a3a', fontWeight:700 }}>
+                <div style={{ fontSize:11, color: isSelected ? '#e8c25a' : '#3a6a3a', fontWeight:700 }}>
                   {i+1}
                 </div>
               )}
@@ -345,9 +357,9 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
 
       {/* Buy-in panel */}
       {pendingSeat !== null && (
-        <div style={{
-          marginTop:16, background:'#060e06', border:'1px solid #d4af3744',
-          borderRadius:10, padding:'16px 20px', display:'flex', flexDirection:'column', gap:12,
+        <div className="glass-strong pop-in" style={{
+          marginTop:16, border:'1px solid var(--border-gold)',
+          padding:'16px 20px', display:'flex', flexDirection:'column', gap:12,
         }}>
           <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:1 }}>SEAT {pendingSeat + 1} — BUY IN</div>
           {minBuyIn != null && maxBuyIn != null && minBuyIn !== maxBuyIn && (
@@ -357,11 +369,11 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
                 min={minBuyIn} max={maxBuyIn} step={minBuyIn}
                 value={buyInAmount}
                 onChange={e => onBuyInChange(Number(e.target.value))}
-                style={{ accentColor:'#d4af37', width:'100%' }}
+                style={{ accentColor:'#e8c25a', width:'100%' }}
               />
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#3a6a3a' }}>
                 <span>{fmt(minBuyIn)}</span>
-                <span style={{ color:'#d4af37', fontWeight:700, fontFamily:"'JetBrains Mono',monospace", fontSize:13 }}>
+                <span style={{ color:'#e8c25a', fontWeight:700, fontFamily:"'JetBrains Mono',monospace", fontSize:13 }}>
                   {fmt(buyInAmount)} CHIPS
                 </span>
                 <span>{fmt(maxBuyIn)}</span>
@@ -369,19 +381,17 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
             </div>
           )}
           {(minBuyIn == null || minBuyIn === maxBuyIn) && (
-            <div style={{ fontSize:13, color:'#d4af37', fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>
+            <div style={{ fontSize:13, color:'#e8c25a', fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>
               {fmt(buyInAmount)} CHIPS
             </div>
           )}
           <button
+            className={escrowStatus !== 'idle' ? 'btn btn-ghost' : 'btn btn-gold'}
             onClick={() => onBuyIn(pendingSeat)}
             disabled={escrowStatus !== 'idle'}
             style={{
-              background: escrowStatus !== 'idle' ? '#0a160a' : 'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-              border:`1px solid ${escrowStatus !== 'idle' ? '#1a3a1a' : '#d4af37'}`,
-              borderRadius:8, padding:'10px 20px', cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer',
-              color: escrowStatus !== 'idle' ? '#3a6a3a' : '#d4af37',
-              fontSize:12, fontWeight:700, fontFamily:'inherit', alignSelf:'flex-end',
+              padding:'10px 20px', cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer',
+              fontSize:12, fontFamily:'inherit', alignSelf:'flex-end',
             }}
           >
             {escrowStatus === 'approving' ? 'Approving…'
@@ -398,28 +408,25 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
 function ConfirmModal({ message, onConfirm, onCancel }) {
   return (
     <div style={{
-      position:'fixed', inset:0, background:'rgba(0,0,0,.75)',
+      position:'fixed', inset:0, background:'rgba(0,0,0,.75)', backdropFilter:'blur(4px)',
       display:'flex', alignItems:'center', justifyContent:'center', zIndex:400,
       padding:16,
     }}>
-      <div style={{
-        background:'linear-gradient(160deg,#0d1f0d,#060e06)',
-        border:'1px solid #3a6a3a', borderRadius:14, padding:'24px 20px',
+      <div className="glass-strong pop-in" style={{
+        padding:'24px 20px',
         width:'100%', maxWidth:340, textAlign:'center',
       }}>
         <div style={{ fontSize:12, color:'#8aaa8a', lineHeight:1.6, marginBottom:20 }}>
           {message}
         </div>
         <div style={{ display:'flex', gap:10 }}>
-          <button onClick={onCancel} style={{
-            flex:1, background:'transparent', border:'1px solid #1a3a1a',
-            borderRadius:8, padding:'12px', cursor:'pointer',
-            color:'#5a7a5a', fontSize:12, fontFamily:'inherit',
+          <button className="btn btn-ghost" onClick={onCancel} style={{
+            flex:1, padding:'12px', fontSize:12,
           }}>Stay</button>
           <button onClick={onConfirm} style={{
             flex:1, background:'linear-gradient(135deg,#3a0f0f,#1f0707)',
             border:'1px solid #7a2a2a', borderRadius:8, padding:'12px',
-            cursor:'pointer', color:'#e74c3c', fontSize:12,
+            cursor:'pointer', color:'#f0675a', fontSize:12,
             fontFamily:'inherit', fontWeight:700,
           }}>Leave</button>
         </div>
@@ -437,6 +444,7 @@ function TablePageInner() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const address = mounted ? rawAddress : undefined;
+  const [botCount, setBotCount] = useState(1);
 
   const { buyIn, rebuy, cashOut, refund, status: escrowStatus, tableInfo } = useEscrow(id);
   const { isHuman, refetchIsHuman } = useWallet();
@@ -465,8 +473,10 @@ function TablePageInner() {
     gameState, handOver, wsStatus, wsError,
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
-    seatPickerData,
+    seatPickerData, needsRebuy,
     sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot, botStatus,
+    chatMessages, sendChat,
+    verifyStatus, verifyFailures, sendVerifyHuman,
   } = useTableSocket(id, tableConfig);
 
   const isMobile = useIsMobile();
@@ -524,6 +534,19 @@ function TablePageInner() {
     if (wsError) setLog(prev => [...prev, { type:'system', text:`⚠ ${wsError}` }]);
   }, [wsError]);
 
+  // Merge incoming chat into the log so it interleaves with action/winner entries
+  const seenChatRef = useRef(0);
+  useEffect(() => {
+    if (chatMessages.length <= seenChatRef.current) return;
+    const fresh = chatMessages.slice(seenChatRef.current);
+    seenChatRef.current = chatMessages.length;
+    setLog(prev => [...prev.slice(-60), ...fresh.map(c => ({
+      type: 'chat',
+      handle: handleMap[c.addr?.toLowerCase()] || `${c.addr.slice(0,6)}…`,
+      text: c.text,
+    }))]);
+  }, [chatMessages, handleMap]);
+
   // Derive hero state
   const heroPlayer = useMemo(() =>
     gameState?.players?.find(p => p.addr?.toLowerCase() === address?.toLowerCase()),
@@ -531,6 +554,12 @@ function TablePageInner() {
   );
   const isHeroTurn = heroPlayer && !heroPlayer.folded &&
     gameState?.activeAddr?.toLowerCase() === address?.toLowerCase();
+  const heroBustedOut = !heroPlayer && !!address &&
+    needsRebuy?.busted?.some(a => a?.toLowerCase() === address.toLowerCase());
+  const heroCards = useMemo(() =>
+    (heroPlayer?.hand || []).map(c => c === '??' ? { faceDown: true } : c),
+    [heroPlayer]
+  );
 
   const callAmount = isHeroTurn
     ? Math.max(0, (gameState?.maxBet || 0) - (heroPlayer?.bet || 0))
@@ -539,7 +568,17 @@ function TablePageInner() {
   const bigBlind   = gameState?.config?.bigBlind || 100;
   const minRaise   = Math.max(bigBlind, gameState?.lastRaiseAmount || bigBlind);
 
-  const seats = useMemo(() => mapToSeats(gameState, address, handleMap, avatarMap), [gameState, address, handleMap, avatarMap]);
+  // Tick while a hand is live so the per-seat turn timer ring animates smoothly,
+  // independent of GAME_STATE updates (which only arrive when someone acts).
+  const turnInProgress = !!gameState?.activeAddr && gameState.phase !== 'waiting' && gameState.phase !== 'showdown';
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!turnInProgress) return;
+    const iv = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(iv);
+  }, [turnInProgress]);
+
+  const seats = useMemo(() => mapToSeats(gameState, address, handleMap, avatarMap, now), [gameState, address, handleMap, avatarMap, now]);
 
   const handleLeave = useCallback(() => {
     const isWaiting = gameState?.phase === 'waiting' || !gameState;
@@ -583,18 +622,26 @@ function TablePageInner() {
     joinWithSeat(seatIndex, amount);
   }, [buyIn, joinWithSeat, selectedBuyIn, tableConfig, tableInfo]);
 
+  const maxBots = Math.max(1, (gameState?.config?.maxPlayers || tableConfig?.maxPlayers || 6) - 1);
+  const botControlsDisabled = botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated';
+
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg-deep)', display:'flex', flexDirection:'column' }}>
       <WalletBar />
 
       {/* Human verification banner — shown when wallet connected but not yet verified */}
       {mounted && address && isHuman === false && (
-        <VerifyBanner address={address} onVerified={refetchIsHuman} />
+        <VerifyHumanBanner
+          status={verifyStatus}
+          failures={verifyFailures}
+          onVerify={sendVerifyHuman}
+          onVerified={refetchIsHuman}
+        />
       )}
 
       {/* Breadcrumb + status */}
-      <div style={{
-        padding:'8px 16px', borderBottom:'1px solid #1a3a1a',
+      <div className="glass" style={{
+        padding:'9px 16px', borderRadius:0, borderTop:'none', borderLeft:'none', borderRight:'none',
         display:'flex', alignItems:'center', gap:8, fontSize:10, color:'#3a6a3a',
       }}>
         <Link href="/" onClick={e => {
@@ -607,7 +654,7 @@ function TablePageInner() {
         <span>›</span>
         <span style={{ color:'#6a9a6a' }}>
           Table #{id}
-          {gameState?.config && ` · ${(gameState.config.bigBlind/2).toLocaleString()}/${gameState.config.bigBlind.toLocaleString()} CHIPS`}
+          {gameState?.config && <span className="gold-text" style={{ fontWeight:700 }}> · {(gameState.config.bigBlind/2).toLocaleString()}/{gameState.config.bigBlind.toLocaleString()} CHIPS</span>}
         </span>
         <div style={{ marginLeft:'auto' }}><StatusDot status={wsStatus} /></div>
       </div>
@@ -621,32 +668,32 @@ function TablePageInner() {
         {/* Table area */}
         <div style={{
           display:'flex', flexDirection:'column',
+          justifyContent: isMobile ? 'center' : 'flex-start',
           padding:'24px 16px 100px',
           overflowY:'auto', position:'relative',
         }}>
           {/* Connecting placeholder */}
           {wsStatus === 'disconnected' && !gameState && !seatPickerData && (
-            <div style={{
+            <div className="pop-in" style={{
               position:'absolute', top:'50%', left:'50%',
               transform:'translate(-50%,-50%)',
               textAlign:'center', color:'#3a6a3a', fontSize:12,
             }}>
-              <div style={{ fontSize:32, marginBottom:12 }}>♠</div>
-              <div>Connecting to game server…</div>
-              {wsError && <div style={{ color:'#c0392b', marginTop:8, fontSize:11 }}>{wsError}</div>}
+              <div className="gold-text" style={{ fontSize:40, marginBottom:14,
+                filter:'drop-shadow(0 0 18px rgba(232,194,90,.35))' }}>♠</div>
+              <div style={{ letterSpacing:1 }}>Connecting to game server…</div>
+              {wsError && <div style={{ color:'#e0473b', marginTop:8, fontSize:11 }}>{wsError}</div>}
             </div>
           )}
 
           {/* Waiting for players — prominent banner in main area */}
           {gameState?.phase === 'waiting' && heroPlayer && (
-            <div style={{
-              background:'linear-gradient(135deg,#0a1f0a,#060e06)',
-              border:'1px solid #1a4a1a', borderRadius:12,
-              padding:'20px 24px', marginBottom:16, textAlign:'center',
-              boxShadow:'0 0 20px rgba(39,174,96,.08)',
+            <div className="glass-strong pop-in" style={{
+              padding:'22px 24px', marginBottom:16, textAlign:'center',
+              boxShadow:'var(--shadow-md), 0 0 28px rgba(16,185,129,.1)',
             }}>
-              <div style={{ fontSize:24, marginBottom:8 }}>♠</div>
-              <div style={{ fontSize:14, color:'#27ae60', fontWeight:700,
+              <div className="gold-text" style={{ fontSize:26, marginBottom:8 }}>♠</div>
+              <div style={{ fontSize:15, color:'#10b981', fontWeight:700,
                 fontFamily:"'Playfair Display',serif", marginBottom:6 }}>
                 You're at the table!
               </div>
@@ -657,43 +704,68 @@ function TablePageInner() {
               </div>
               <div style={{ display:'flex', gap:8, justifyContent:'center', flexWrap:'wrap' }}>
                 <button
+                  className="btn btn-emerald"
                   onClick={() => {
                     navigator.clipboard?.writeText(window.location.href).catch(() => {});
                     alert('Table link copied!\n\n' + window.location.href + '\n\nShare this with your opponent.');
                   }}
-                  style={{
-                    background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-                    border:'1px solid #27ae6066', borderRadius:8,
-                    padding:'10px 20px', cursor:'pointer',
-                    color:'#27ae60', fontSize:11, fontFamily:'inherit', fontWeight:700,
-                    letterSpacing:1,
-                  }}
+                  style={{ padding:'10px 20px', fontSize:11, letterSpacing:1 }}
                 >
                   COPY & SHARE TABLE LINK
                 </button>
                 <button
-                  onClick={() => spawnBot()}
-                  disabled={botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated'}
+                  onClick={() => setBotCount(c => Math.max(1, c - 1))}
+                  disabled={botControlsDisabled}
                   style={{
-                    background: botStatus === 'seated' || botStatus === 'already_seated'
-                      ? 'linear-gradient(135deg,#0a2a1a,#060e06)'
-                      : 'linear-gradient(135deg,#1a2a3a,#0c1e2e)',
-                    border: `1px solid ${botStatus === 'seated' || botStatus === 'already_seated' ? '#27ae6066' : '#4a7aaa66'}`,
-                    borderRadius:8, padding:'10px 20px',
+                    width:28, background:'#0c1e2e', border:'1px solid #4a7aaa66', borderRadius:8,
+                    padding:'10px 0', color:'#7ab4e0', fontSize:13, fontFamily:'inherit',
+                    fontWeight:700, cursor: botControlsDisabled ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={maxBots}
+                  value={botCount}
+                  onChange={e => setBotCount(Math.max(1, Math.min(maxBots, Number(e.target.value) || 1)))}
+                  disabled={botControlsDisabled}
+                  style={{
+                    width:44, background:'#0c1e2e', border:'1px solid #4a7aaa66', borderRadius:8,
+                    padding:'10px 6px', color:'#7ab4e0', fontSize:11, fontFamily:'inherit',
+                    fontWeight:700, textAlign:'center',
+                  }}
+                />
+                <button
+                  onClick={() => setBotCount(c => Math.min(maxBots, c + 1))}
+                  disabled={botControlsDisabled}
+                  style={{
+                    width:28, background:'#0c1e2e', border:'1px solid #4a7aaa66', borderRadius:8,
+                    padding:'10px 0', color:'#7ab4e0', fontSize:13, fontFamily:'inherit',
+                    fontWeight:700, cursor: botControlsDisabled ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  +
+                </button>
+                <button
+                  className={botStatus === 'seated' || botStatus === 'already_seated' ? 'btn btn-emerald' : 'btn btn-ghost'}
+                  onClick={() => spawnBot(undefined, botCount)}
+                  disabled={botControlsDisabled}
+                  style={{
+                    padding:'10px 20px',
                     cursor: botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated'
                       ? 'not-allowed' : 'pointer',
-                    color: botStatus === 'seated' || botStatus === 'already_seated' ? '#27ae60'
-                         : botStatus === 'error' ? '#e74c3c' : '#7ab4e0',
-                    fontSize:11, fontFamily:'inherit', fontWeight:700, letterSpacing:1,
+                    color: botStatus === 'error' ? '#f0675a' : undefined,
+                    fontSize:11, letterSpacing:1,
                     opacity: botStatus === 'spawning' ? 0.7 : 1,
-                    transition:'all .2s',
                   }}
                 >
                   {botStatus === 'spawning'     ? '⏳ Spawning…'
                    : botStatus === 'seated'     ? '✓ Bot Seated'
                    : botStatus === 'already_seated' ? '✓ Bot Ready'
                    : botStatus === 'error'      ? '✗ Failed'
-                   : '+ Spawn Bot'}
+                   : '+ Spawn Bots'}
                 </button>
               </div>
               <div style={{ fontSize:9, color:'#3a6a3a', marginTop:10, letterSpacing:1 }}>
@@ -734,6 +806,8 @@ function TablePageInner() {
             } : null}
           />
 
+          <HeroHandPanel cards={heroCards} folded={!!heroPlayer?.folded} />
+
           <BettingControls
             isActive={!!isHeroTurn}
             inGame={!!gameState && gameState.phase !== 'waiting' && !!heroPlayer && !heroPlayer.folded}
@@ -765,8 +839,9 @@ function TablePageInner() {
             padding:'8px 12px calc(16px + env(safe-area-inset-bottom))',
             borderLeft:'none', borderTop:'1px solid var(--gold-dim)',
             borderRadius:'16px 16px 0 0',
-            background:'linear-gradient(180deg,#0a160a,#060e06)',
-            boxShadow:'0 -8px 30px rgba(0,0,0,.6)',
+            background:'linear-gradient(160deg, rgba(20,34,22,.92), rgba(6,14,7,.96))',
+            backdropFilter:'blur(18px)', WebkitBackdropFilter:'blur(18px)',
+            boxShadow:'0 -8px 30px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04)',
             transform: drawerOpen ? 'translateY(0)' : 'translateY(100%)',
             transition:'transform .28s ease',
             zIndex:150,
@@ -782,34 +857,33 @@ function TablePageInner() {
           )}
 
           {/* Player stacks */}
-          <div style={{ background:'#060e06', border:'1px solid #1a3a1a',
-            borderRadius:8, overflow:'hidden', flexShrink:0 }}>
-            <div style={{ padding:'8px 12px', borderBottom:'1px solid #1a3a1a',
-              fontSize:9, color:'#3a6a3a', letterSpacing:2 }}>STACKS</div>
+          <div className="glass" style={{ overflow:'hidden', flexShrink:0 }}>
+            <div style={{ padding:'8px 12px', borderBottom:'1px solid var(--border)',
+              fontSize:9, color:'#3a6a3a', letterSpacing:2, fontWeight:800 }}>STACKS</div>
             <div style={{ padding:'6px' }}>
               {(gameState?.players || []).map((p, i) => (
                 <div key={i} style={{
                   display:'flex', alignItems:'center', justifyContent:'space-between',
                   padding:'5px 8px', borderRadius:4,
-                  background: p.addr === gameState?.activeAddr ? 'rgba(212,175,55,.05)' : 'transparent',
+                  background: p.addr === gameState?.activeAddr ? 'rgba(232,194,90,.07)' : 'transparent',
                   opacity: p.folded ? 0.4 : 1,
                 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:5 }}>
                     <div style={{ width:8, height:8, borderRadius:'50%',
-                      background: p.addr === gameState?.activeAddr ? '#d4af37' : '#1a3a1a' }} />
+                      background: p.addr === gameState?.activeAddr ? '#e8c25a' : '#1a3a1a' }} />
                     <span style={{
                       fontSize:10, maxWidth:100,
                       overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
-                      color: p.addr?.toLowerCase() === address?.toLowerCase() ? '#d4af37' : '#8aaa8a',
+                      color: p.addr?.toLowerCase() === address?.toLowerCase() ? '#e8c25a' : '#8aaa8a',
                     }}>
                       {p.addr?.toLowerCase() === address?.toLowerCase()
                         ? 'You'
                         : `${p.addr?.slice(0,8)}…`}
                     </span>
-                    {p.allIn && <span style={{ fontSize:7, color:'#e67e22',
-                      border:'1px solid #e67e2244', borderRadius:2, padding:'0 3px' }}>AI</span>}
+                    {p.allIn && <span style={{ fontSize:7, color:'#f0902a',
+                      border:'1px solid #f0902a44', borderRadius:2, padding:'0 3px' }}>AI</span>}
                   </div>
-                  <span style={{ fontSize:10, color:'#d4af37',
+                  <span style={{ fontSize:10, color:'#e8c25a',
                     fontFamily:"'JetBrains Mono',monospace" }}>
                     ◈{((p.chips||0)/1000).toFixed(1)}K
                   </span>
@@ -825,29 +899,27 @@ function TablePageInner() {
 
           {/* Waiting status compact badge */}
           {gameState?.phase === 'waiting' && heroPlayer && (
-            <div style={{
-              background:'rgba(39,174,96,.06)', border:'1px solid #27ae6033',
-              borderRadius:6, padding:'6px 10px',
-              fontSize:9, color:'#27ae60', letterSpacing:1, textAlign:'center',
+            <div className="pill" style={{
+              border:'1px solid #10b98144', color:'#10b981',
+              justifyContent:'center', width:'100%',
             }}>
-              WAITING — {gameState.players.length}/{gameState.config?.maxPlayers} seated
+              <span className="dot-live" /> WAITING — {gameState.players.length}/{gameState.config?.maxPlayers} seated
             </div>
           )}
 
           {/* Table log */}
           <div style={{ flex:1, minHeight:180 }}>
-            <ChatPanel messages={log} />
+            <ChatPanel messages={log} onSend={sendChat} />
           </div>
 
           {/* Phase indicator */}
           {gameState?.phase && gameState.phase !== 'waiting' && (
-            <div style={{
-              background:'#060e06', border:'1px solid #1a3a1a', borderRadius:8,
+            <div className="glass" style={{
               padding:'8px 12px', display:'flex', justifyContent:'space-between',
               alignItems:'center',
             }}>
               <span style={{ fontSize:9, color:'#3a6a3a', letterSpacing:1 }}>STREET</span>
-              <span style={{ fontSize:11, color:'#d4af37', fontWeight:700, letterSpacing:2,
+              <span style={{ fontSize:11, color:'#e8c25a', fontWeight:700, letterSpacing:2,
                 fontFamily:"'JetBrains Mono',monospace" }}>
                 {gameState.phase.toUpperCase()}
               </span>
@@ -856,53 +928,46 @@ function TablePageInner() {
 
           {/* Cashout banner — shown after server sends CASHOUT_SIG */}
           {cashoutSig && (
-            <div style={{ background:'rgba(212,175,55,.08)', border:'1px solid #d4af3766',
-              borderRadius:8, padding:'12px' }}>
-              <div style={{ fontSize:9, color:'#d4af37', letterSpacing:1, marginBottom:6 }}>READY TO WITHDRAW</div>
-              <div style={{ fontSize:16, color:'#d4af37', fontWeight:700,
+            <div className="glass-strong pop-in" style={{ border:'1px solid var(--border-gold)', padding:'12px' }}>
+              <div className="gold-text" style={{ fontSize:9, letterSpacing:1, marginBottom:6, fontWeight:800 }}>READY TO WITHDRAW</div>
+              <div className="gold-text" style={{ fontSize:16, fontWeight:700,
                 fontFamily:"'JetBrains Mono',monospace", marginBottom:8 }}>
                 ◈ {Number(cashoutSig.amount).toLocaleString()}
               </div>
-              <button onClick={handleCashOut} disabled={escrowStatus !== 'idle'}
-                style={{ width:'100%', background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-                  border:'1px solid #d4af37', borderRadius:6, padding:'8px',
-                  color:'#d4af37', fontSize:11, fontWeight:700, fontFamily:'inherit',
+              <button className="btn btn-gold" onClick={handleCashOut} disabled={escrowStatus !== 'idle'}
+                style={{ width:'100%', padding:'10px', fontSize:11,
                   cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer' }}>
                 {escrowStatus === 'cashout' ? 'Withdrawing…' : 'Claim Chips + Leave'}
               </button>
             </div>
           )}
 
-          {/* Rebuy section */}
-          {mounted && gameState && heroPlayer && heroPlayer.chips < gameState.config?.buyIn && (
+          {/* Rebuy section — shown when low on chips, or fully busted out of the table */}
+          {mounted && gameState && (heroBustedOut || (heroPlayer && heroPlayer.chips < gameState.config?.buyIn)) && (
             <div>
+              {heroBustedOut && (
+                <div style={{ fontSize:10, color:'#f0902a', marginBottom:6 }}>
+                  You're out of chips — rebuy to keep playing.
+                </div>
+              )}
               {!showRebuy ? (
-                <button onClick={() => setShowRebuy(true)} style={{
-                  width:'100%', background:'transparent', border:'1px solid #1a5a1a',
-                  borderRadius:6, padding:'7px', cursor:'pointer',
-                  color:'#27ae60', fontSize:11, fontFamily:'inherit', transition:'all .15s',
-                }}
-                onMouseEnter={e => e.currentTarget.style.borderColor='#27ae60'}
-                onMouseLeave={e => e.currentTarget.style.borderColor='#1a5a1a'}>
+                <button className="btn btn-emerald" onClick={() => setShowRebuy(true)} style={{
+                  width:'100%', padding:'8px', fontSize:11,
+                }}>
                   + Rebuy
                 </button>
               ) : (
                 <div style={{ display:'flex', gap:4 }}>
-                  <input type="number" value={rebuyAmt} onChange={e => setRebuyAmt(e.target.value)}
+                  <input className="glass" type="number" value={rebuyAmt} onChange={e => setRebuyAmt(e.target.value)}
                     placeholder="Amount"
-                    style={{ flex:1, background:'#060e06', border:'1px solid #1a3a1a',
-                      borderRadius:6, padding:'6px 8px', color:'#d4af37', fontSize:11,
+                    style={{ flex:1, padding:'6px 8px', color:'var(--gold)', fontSize:11,
                       fontFamily:"'JetBrains Mono',monospace", outline:'none' }} />
-                  <button onClick={handleRebuy} disabled={escrowStatus !== 'idle'}
-                    style={{ background:'#0c2e0c', border:'1px solid #27ae60',
-                      borderRadius:6, padding:'6px 10px', cursor:'pointer',
-                      color:'#27ae60', fontSize:11, fontFamily:'inherit' }}>
+                  <button className="btn btn-emerald" onClick={handleRebuy} disabled={escrowStatus !== 'idle'}
+                    style={{ padding:'6px 12px', fontSize:11 }}>
                     {escrowStatus !== 'idle' ? '…' : 'OK'}
                   </button>
-                  <button onClick={() => setShowRebuy(false)}
-                    style={{ background:'transparent', border:'1px solid #1a3a1a',
-                      borderRadius:6, padding:'6px 8px', cursor:'pointer',
-                      color:'#3a6a3a', fontSize:11, fontFamily:'inherit' }}>✕</button>
+                  <button className="btn btn-ghost" onClick={() => setShowRebuy(false)}
+                    style={{ padding:'6px 10px', fontSize:11 }}>✕</button>
                 </div>
               )}
             </div>
@@ -911,8 +976,8 @@ function TablePageInner() {
           {/* Creator lock notice */}
           {tableLocked && mounted && address?.toLowerCase() === gameState?.creator?.toLowerCase() && (
             <div style={{
-              background:'rgba(230,126,34,.08)', border:'1px solid #e67e2244',
-              borderRadius:8, padding:'10px 12px', fontSize:10, color:'#e67e22', lineHeight:1.5,
+              background:'rgba(230,126,34,.08)', border:'1px solid #f0902a44',
+              borderRadius:8, padding:'10px 12px', fontSize:10, color:'#f0902a', lineHeight:1.5,
             }}>
               🔒 Table locked — a player must play 7 hands or all others must leave before you can close this table.
             </div>
@@ -921,13 +986,12 @@ function TablePageInner() {
           {/* Refund available (table not yet active) */}
           {refundAvailable && !cashoutSig && (
             <div>
-              <div style={{ fontSize:9, color:'#d4af3799', letterSpacing:1, marginBottom:6 }}>
+              <div style={{ fontSize:9, color:'#e8c25a99', letterSpacing:1, marginBottom:6 }}>
                 You left the waiting room
               </div>
-              <button onClick={handleRefund} disabled={escrowStatus !== 'idle'} style={{
-                width:'100%', background:'rgba(212,175,55,.08)', border:'1px solid #d4af3766',
-                borderRadius:6, padding:'8px', cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer',
-                color:'#d4af37', fontSize:11, fontFamily:'inherit', fontWeight:700,
+              <button className="btn btn-gold" onClick={handleRefund} disabled={escrowStatus !== 'idle'} style={{
+                width:'100%', padding:'8px', fontSize:11,
+                cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer',
               }}>
                 {escrowStatus !== 'idle' ? 'Processing…' : 'Return to Lobby'}
               </button>
@@ -938,20 +1002,18 @@ function TablePageInner() {
           {!cashoutSig && !refundAvailable && (
             cashoutLocked ? (
               <div style={{
-                background:'rgba(230,126,34,.08)', border:'1px solid #e67e2244',
+                background:'rgba(240,144,42,.08)', border:'1px solid #f0902a44',
                 borderRadius:6, padding:'8px 12px', textAlign:'center',
-                fontSize:11, color:'#e67e22', fontWeight:700,
+                fontSize:11, color:'#f0902a', fontWeight:700,
               }}>
                 🔒 Locked — {cashoutLocked.handsRemaining} hand{cashoutLocked.handsRemaining !== 1 ? 's' : ''} remaining
               </div>
             ) : (
-              <button onClick={handleLeave} style={{
-                background:'transparent', border:'1px solid #3a1a1a',
-                borderRadius:6, padding:'8px', cursor:'pointer',
-                color:'#6a4a4a', fontSize:11, fontFamily:'inherit', transition:'all .15s',
+              <button className="btn btn-ghost" onClick={handleLeave} style={{
+                padding:'8px', fontSize:11, transition:'all .15s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.color='#e74c3c'; e.currentTarget.style.borderColor='#c0392b'; }}
-              onMouseLeave={e => { e.currentTarget.style.color='#6a4a4a'; e.currentTarget.style.borderColor='#3a1a1a'; }}>
+              onMouseEnter={e => { e.currentTarget.style.color='#f0675a'; e.currentTarget.style.borderColor='#e0473b'; }}
+              onMouseLeave={e => { e.currentTarget.style.color=''; e.currentTarget.style.borderColor=''; }}>
                 Leave Table
               </button>
             )
@@ -964,10 +1026,9 @@ function TablePageInner() {
         ? <div onClick={() => setDrawerOpen(false)} style={{
             position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:145,
           }} />
-        : <button onClick={() => setDrawerOpen(true)} style={{
+        : <button className="pill" onClick={() => setDrawerOpen(true)} style={{
             position:'fixed', top:58, right:10, zIndex:140,
-            background:'rgba(10,22,10,.92)', border:'1px solid var(--gold-dim)',
-            borderRadius:20, padding:'6px 14px', cursor:'pointer',
+            borderColor:'var(--gold-dim)', padding:'7px 16px', cursor:'pointer',
             color:'var(--gold)', fontSize:11, fontWeight:700, fontFamily:'inherit',
             letterSpacing:1, boxShadow:'0 2px 10px rgba(0,0,0,.5)',
           }}>

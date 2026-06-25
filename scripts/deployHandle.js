@@ -17,7 +17,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deployer:", deployer.address);
 
-  // Load existing deployment to get ChipsToken address
+  // Load existing deployment to get ChipsToken + PokerEscrow addresses
   const deplPath = path.resolve(__dirname, `../deployments/${networkName}.json`);
   if (!fs.existsSync(deplPath)) {
     throw new Error(`No existing deployment found at ${deplPath}. Run deploy.js first.`);
@@ -26,13 +26,56 @@ async function main() {
   const tokenAddr = existing.contracts.ChipsToken;
   if (!tokenAddr) throw new Error("ChipsToken address not found in deployment JSON");
   console.log("Using ChipsToken:", tokenAddr);
+  const escrowAddr = existing.contracts.PokerEscrow;
+  if (!escrowAddr) throw new Error("PokerEscrow address not found in deployment JSON");
+  console.log("Using PokerEscrow:", escrowAddr);
+  const tournAddr = existing.contracts.TournamentManager;
+  console.log("Using TournamentManager:", tournAddr || "(not deployed)");
+
+  const Handle = await ethers.getContractFactory("PokerHandle");
+
+  // Read every handle already minted on the old contract (if one exists) before
+  // replacing it, so they can be replayed in the same tokenId order below —
+  // getTokenTier()/getAnimal() are pure functions of tokenId, so preserving
+  // mint order preserves each holder's tier badge and animal art.
+  const oldHandleAddr = existing.contracts.PokerHandle;
+  let migrated = [];
+  if (oldHandleAddr) {
+    const old = Handle.attach(oldHandleAddr); // only the constructor differs; calls below are unaffected
+    const total = await old.totalMinted();
+    console.log(`Found ${total} existing handle(s) on old PokerHandle (${oldHandleAddr}) — will replay`);
+    for (let id = 1n; id <= total; id++) {
+      const [owner, handleStr] = await Promise.all([old.ownerOf(id), old.getHandle(id)]);
+      migrated.push({ owner, handle: handleStr });
+    }
+  }
 
   // Deploy new PokerHandle
-  const Handle = await ethers.getContractFactory("PokerHandle");
-  const handle = await Handle.deploy(tokenAddr);
+  const handle = await Handle.deploy(tokenAddr, escrowAddr);
   await handle.waitForDeployment();
   const handleAddr = await handle.getAddress();
   console.log("✅ PokerHandle (new):", handleAddr);
+
+  // Replay prior holders via the existing owner-gated reserveHandle() — no charge,
+  // sequential mint, reproduces identical tokenId → handle → owner mappings.
+  for (const { owner, handle: handleStr } of migrated) {
+    await (await handle.reserveHandle(handleStr, owner)).wait();
+    console.log(`  ↳ migrated "${handleStr}" → ${owner}`);
+  }
+  if (migrated.length) console.log(`✅ Migrated ${migrated.length} handle(s) to new contract`);
+
+  // Wire the new PokerHandle into the isHandleEligible gate on Escrow + Tournament
+  const escrow = await ethers.getContractAt("PokerEscrow", escrowAddr);
+  await (await escrow.setPokerHandle(handleAddr)).wait();
+  console.log("✅ PokerHandle wired into PokerEscrow (isHandleEligible gate)");
+
+  if (tournAddr) {
+    const tourn = await ethers.getContractAt("TournamentManager", tournAddr);
+    await (await tourn.setPokerHandle(handleAddr)).wait();
+    console.log("✅ PokerHandle wired into TournamentManager (isHandleEligible gate)");
+  } else {
+    console.log("ℹ️  TournamentManager not deployed on this network — skipping");
+  }
 
   // Update deployment JSON — keep all other contracts, replace only PokerHandle
   existing.contracts.PokerHandle = handleAddr;

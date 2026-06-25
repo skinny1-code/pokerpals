@@ -11,6 +11,27 @@ Two processes must be running before the browser can reach anything:
 | WS game server | `node --env-file=.env server/index.js` | 4000 | `/tmp/pokerpals_ws.log` |
 | Next.js (prod) | `NODE_ENV=production npx next start -p 3000` | 3000 | `/tmp/pokerpals_next.log` |
 
+**Operator key (web / CI sessions):** the WS server exits with
+`FATAL: OPERATOR_PRIVATE_KEY not set` unless that env var is present. The
+SessionStart hook's `setup:env` rewrites `.env` to contract addresses only, so
+the real key is usually absent here — and you do **not** want the production
+settlement signing key inside an ephemeral sandbox anyway. Mint a throwaway key
+in-memory and pass it inline (never write it to `.env`, never commit it):
+
+```bash
+OPERATOR_PRIVATE_KEY="$(node -e "console.log(require('ethers').Wallet.createRandom().privateKey)")" \
+OPS_WALLET_KEY="$OPERATOR_PRIVATE_KEY" \
+TESTNET_SKIP_CHAIN_VERIFY=true \
+node --env-file=.env server/index.js
+```
+
+`node --env-file` does not override vars already set in the shell, so the inline
+key wins over the secret-less `.env`. The throwaway key boots the server, WS, and
+game loop fully; it signs nothing the deployed escrow would accept, so its blast
+radius if leaked is zero. `TESTNET_SKIP_CHAIN_VERIFY=true` lets table ops run
+without a reachable RPC (the sandbox has no outbound to Arbitrum).
+`smoke.sh` does all of this automatically.
+
 **Always use the production build** (`npm run build` first, then `next start`).
 The dev server (`next dev`) triggers `/_error` prerendering failures because the
 cloud container defaults to `NODE_ENV=development`.

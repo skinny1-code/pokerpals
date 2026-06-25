@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useWallet, useHandle } from '../hooks/usePokerWallet';
 import { useAccount, useSwitchChain } from 'wagmi';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 const CHAIN_NAMES = { 421614: 'Arbitrum Sepolia', 42161: 'Arbitrum One' };
@@ -18,6 +19,13 @@ const NAV_LINKS = [
   { href:'/buy',         label:'Buy CHIPS',    icon:'$' },
   { href:'/handle',      label:'Handle',       icon:'@' },
 ];
+// Primary destinations surfaced in the mobile bottom tab bar (5th slot = More)
+const BOTTOM_LINKS = [
+  { href:'/',           label:'Lobby',  icon:'♠' },
+  { href:'/tournament', label:'Play',   icon:'🏆' },
+  { href:'/stake',      label:'Stake',  icon:'◈' },
+  { href:'/buy',        label:'Buy',    icon:'＄' },
+];
 const MENU_ICON = { fontSize:18, width:24, textAlign:'center' };
 
 export default function WalletBar() {
@@ -28,6 +36,7 @@ export default function WalletBar() {
   const { chainId, status: wagmiStatus } = useAccount();
   const { switchChain } = useSwitchChain();
   const isMobile = useIsMobile();
+  const pathname = usePathname();
   const [mounted, setMounted]         = useState(false);
   const [hasInjected, setHasInjected] = useState(false);
   const [siteUrl, setSiteUrl]         = useState('');
@@ -58,99 +67,104 @@ export default function WalletBar() {
   const wrongNet = mounted && isConnected && chainId && chainId !== EXPECTED;
   const chainName = CHAIN_NAMES[chainId] || `Chain ${chainId}`;
   const displayName = myHandle || short(address);
+  const isActive = href => href === '/' ? pathname === '/' : pathname?.startsWith(href);
 
   return (
+    <>
     <header style={{
-      background: 'linear-gradient(180deg,#0b160b 0%,rgba(6,14,6,.97) 100%)',
-      borderBottom: '1px solid #1a3a1a',
-      boxShadow: '0 1px 24px rgba(0,0,0,.5)',
-      padding: '0 20px',
-      height: 58,
+      background: 'linear-gradient(180deg,#0a160b 0%,rgba(5,10,6,.94) 100%)',
+      borderBottom: '1px solid var(--border)',
+      boxShadow: '0 1px 28px rgba(0,0,0,.55)',
+      padding: '0 18px',
+      height: 60,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
       position: 'sticky',
       top: 0,
       zIndex: 100,
-      backdropFilter: 'blur(16px)',
+      backdropFilter: 'blur(18px)',
+      WebkitBackdropFilter: 'blur(18px)',
       gap: 12,
     }}>
+      {/* gold hairline under the bar */}
+      <div aria-hidden style={{
+        position:'absolute', left:0, right:0, bottom:-1, height:1,
+        background:'linear-gradient(90deg, transparent, rgba(232,194,90,.35), transparent)',
+      }} />
 
       {/* Logo */}
-      <Link href="/" style={{ textDecoration:'none', display:'flex', alignItems:'center', flexShrink:0 }}>
-        <img src="/logo.png" alt="Poker Vs Player" style={{ height:30, width:'auto', display:'block' }} />
+      <Link href="/" style={{ textDecoration:'none', display:'flex', alignItems:'center', flexShrink:0, color:'var(--cream)' }}>
+        <img src="/logo.png" alt="Poker Vs Player" style={{
+          height:30, width:'auto', display:'block',
+          filter:'drop-shadow(0 0 14px rgba(232,194,90,.25))',
+        }} />
       </Link>
 
       {/* Desktop nav — hidden on mobile */}
       <nav className="hide-mobile" style={{ display:'flex', gap:2, flex:1, justifyContent:'center' }}>
-        {NAV_LINKS.map(({ href, label }) => (
-          <Link key={href} href={href} style={{
-            color:'#6a9a6a', fontSize:12, fontWeight:600, letterSpacing:.2,
-            padding:'5px 10px', borderRadius:6,
-            border:'1px solid transparent', textDecoration:'none',
-            transition:'all .15s', whiteSpace:'nowrap',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color='#d4af37'; e.currentTarget.style.borderColor='#d4af3722'; }}
-          onMouseLeave={e => { e.currentTarget.style.color='#6a9a6a'; e.currentTarget.style.borderColor='transparent'; }}>
-            {label}
-          </Link>
-        ))}
+        {NAV_LINKS.map(({ href, label }) => {
+          const on = isActive(href);
+          return (
+            <Link key={href} href={href} style={{
+              color: on ? 'var(--gold)' : '#6fa074', fontSize:12.5, fontWeight:600, letterSpacing:.2,
+              padding:'6px 12px', borderRadius:8, position:'relative',
+              border:`1px solid ${on ? 'rgba(232,194,90,.25)' : 'transparent'}`,
+              background: on ? 'rgba(232,194,90,.07)' : 'transparent',
+              textDecoration:'none', transition:'all .15s', whiteSpace:'nowrap',
+            }}
+            onMouseEnter={e => { if(!on){ e.currentTarget.style.color='var(--gold)'; e.currentTarget.style.borderColor='rgba(232,194,90,.18)'; } }}
+            onMouseLeave={e => { if(!on){ e.currentTarget.style.color='#6fa074'; e.currentTarget.style.borderColor='transparent'; } }}>
+              {label}
+            </Link>
+          );
+        })}
       </nav>
 
-      {/* Mobile hamburger — shown only on mobile */}
-      {isMobile && (
+      {/* Mobile dropdown menu (full list + disconnect), driven by bottom-nav "More" */}
+      {isMobile && menuOpen && (
         <>
-          {menuOpen && (
-            <>
-              <div onClick={() => setMenuOpen(false)}
-                style={{ position:'fixed', inset:0, zIndex:98, background:'rgba(0,0,0,.5)' }} />
-              <div style={{
-                position:'fixed', top:58, left:0, right:0, zIndex:99,
-                background:'linear-gradient(180deg,#0a140a,#060e06)',
-                borderBottom:'1px solid #1a3a1a',
-                boxShadow:'0 8px 32px rgba(0,0,0,.6)',
-                display:'flex', flexDirection:'column',
-              }}>
-                {NAV_LINKS.map(({ href, label, icon }) => (
-                  <Link key={href} href={href}
-                    onClick={() => setMenuOpen(false)}
-                    style={{
-                      display:'flex', alignItems:'center', gap:14,
-                      padding:'16px 24px',
-                      borderBottom:'1px solid #1a3a1a',
-                      textDecoration:'none', color:'#e8e0cc',
-                      fontSize:15, fontWeight:600,
-                    }}>
-                    <span style={MENU_ICON}>{icon}</span>
-                    {label}
-                  </Link>
-                ))}
-                {mounted && isConnected && (
-                  <button onClick={() => { disconnect(); setMenuOpen(false); }} style={{
-                    display:'flex', alignItems:'center', gap:14,
-                    padding:'16px 24px',
-                    background:'transparent', border:'none', cursor:'pointer',
-                    color:'#c0392b', fontSize:15, fontWeight:600, fontFamily:'inherit',
-                    textAlign:'left',
-                  }}>
-                    <span style={MENU_ICON}>⏻</span>
-                    Disconnect
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* Hamburger button */}
-          <button onClick={() => setMenuOpen(p => !p)} style={{
-            background: menuOpen ? '#1a3a1a' : 'transparent',
-            border:'1px solid #1a3a1a', borderRadius:8,
-            padding:'7px 10px', cursor:'pointer',
-            color:'#d4af37', fontSize:18, lineHeight:1,
-            flexShrink:0, transition:'all .15s',
+          <div onClick={() => setMenuOpen(false)}
+            style={{ position:'fixed', inset:0, zIndex:98, background:'rgba(0,0,0,.55)', backdropFilter:'blur(2px)' }} />
+          <div style={{
+            position:'fixed', left:10, right:10, bottom:'calc(74px + env(safe-area-inset-bottom))', zIndex:99,
+            background:'linear-gradient(180deg,#0c1a0d,#060e07)',
+            border:'1px solid var(--border-mid)', borderRadius:18,
+            boxShadow:'0 20px 50px rgba(0,0,0,.7)',
+            overflow:'hidden', animation:'pop-in .28s ease both',
           }}>
-            {menuOpen ? '✕' : '☰'}
-          </button>
+            {NAV_LINKS.map(({ href, label, icon }) => {
+              const on = isActive(href);
+              return (
+                <Link key={href} href={href}
+                  onClick={() => setMenuOpen(false)}
+                  style={{
+                    display:'flex', alignItems:'center', gap:14,
+                    padding:'15px 22px',
+                    borderBottom:'1px solid rgba(28,58,34,.6)',
+                    textDecoration:'none',
+                    color: on ? 'var(--gold)' : '#e8e0cc',
+                    background: on ? 'rgba(232,194,90,.06)' : 'transparent',
+                    fontSize:15, fontWeight:600,
+                  }}>
+                  <span style={MENU_ICON}>{icon}</span>
+                  {label}
+                </Link>
+              );
+            })}
+            {mounted && isConnected && (
+              <button onClick={() => { disconnect(); setMenuOpen(false); }} style={{
+                display:'flex', alignItems:'center', gap:14, width:'100%',
+                padding:'15px 22px',
+                background:'transparent', border:'none', cursor:'pointer',
+                color:'#e0473b', fontSize:15, fontWeight:600, fontFamily:'inherit',
+                textAlign:'left',
+              }}>
+                <span style={MENU_ICON}>⏻</span>
+                Disconnect
+              </button>
+            )}
+          </div>
         </>
       )}
 
@@ -160,9 +174,9 @@ export default function WalletBar() {
         {/* Wrong network warning + one-click switch */}
         {wrongNet && (
           <button onClick={() => switchChain?.({ chainId: EXPECTED })} style={{
-            fontSize:10, color:'#e67e22', border:'1px solid #e67e2244',
-            background:'#1a0e0422', borderRadius:6, padding:'3px 8px',
-            fontWeight:600, cursor:'pointer',
+            fontSize:10, color:'var(--orange)', border:'1px solid rgba(240,144,42,.35)',
+            background:'rgba(240,144,42,.08)', borderRadius:7, padding:'4px 9px',
+            fontWeight:700, cursor:'pointer',
           }}>
             ⚠ Switch to {CHAIN_NAMES[EXPECTED] || `Chain ${EXPECTED}`}
           </button>
@@ -172,9 +186,9 @@ export default function WalletBar() {
           <>
             {/* Network badge */}
             <div style={{
-              fontSize:9, color:'#3a6a3a', border:'1px solid #1a3a1a',
-              borderRadius:6, padding:'3px 8px', letterSpacing:.5,
-              fontWeight:600,
+              fontSize:9, color:'var(--text-muted)', border:'1px solid var(--border)',
+              borderRadius:6, padding:'4px 9px', letterSpacing:.5,
+              fontWeight:700,
             }} className="hide-mobile">
               {CHAIN_NAMES[chainId] || chainName}
             </div>
@@ -182,9 +196,9 @@ export default function WalletBar() {
             {/* Human verified */}
             {isHuman && (
               <div style={{
-                fontSize:8, color:'#27ae60', border:'1px solid #27ae6033',
-                background:'#27ae6011', padding:'3px 8px', borderRadius:6, letterSpacing:.5,
-                fontWeight:700,
+                fontSize:8, color:'var(--emerald-bright)', border:'1px solid rgba(16,185,129,.35)',
+                background:'rgba(16,185,129,.1)', padding:'4px 9px', borderRadius:6, letterSpacing:.5,
+                fontWeight:800,
               }}>
                 ✓ VERIFIED
               </div>
@@ -192,12 +206,13 @@ export default function WalletBar() {
 
             {/* CHIPS balance — hidden on mobile to save space */}
             <div className="hide-mobile" style={{
-              background:'#0c1e0c', border:'1px solid #1a3a1a',
-              borderRadius:8, padding:'5px 12px',
+              background:'linear-gradient(135deg,#0e220f,#0a180b)', border:'1px solid var(--border-gold)',
+              borderRadius:9, padding:'6px 13px',
               display:'flex', alignItems:'center', gap:6,
+              boxShadow:'inset 0 1px 0 rgba(255,255,255,.04)',
             }}>
-              <span style={{ fontSize:12, color:'#d4af37' }}>◈</span>
-              <span style={{ fontSize:12, color:'#d4af37', fontWeight:700,
+              <span style={{ fontSize:12, color:'var(--gold)' }}>◈</span>
+              <span style={{ fontSize:12.5, color:'var(--gold-pale)', fontWeight:800,
                 fontFamily:"'JetBrains Mono',monospace" }}>
                 {chipsBalance != null
                   ? chipsBalance.toLocaleString(undefined, { maximumFractionDigits:0 })
@@ -205,30 +220,32 @@ export default function WalletBar() {
               </span>
             </div>
 
-            {/* Mobile: compact chip balance next to hamburger */}
+            {/* Mobile: compact chip balance */}
             {isMobile && chipsBalance != null && (
               <div style={{
-                fontSize:12, color:'#d4af37', fontWeight:700,
+                fontSize:12.5, color:'var(--gold-pale)', fontWeight:800,
                 fontFamily:"'JetBrains Mono',monospace",
+                display:'flex', alignItems:'center', gap:3,
               }}>
-                ◈{chipsBalance >= 1000
+                <span style={{ color:'var(--gold)' }}>◈</span>
+                {chipsBalance >= 1000
                   ? `${(chipsBalance/1000).toFixed(1)}K`
                   : chipsBalance}
               </div>
             )}
 
-            {/* Handle/Address + disconnect — desktop only; mobile uses hamburger menu */}
+            {/* Handle/Address + disconnect — desktop only; mobile uses bottom-nav menu */}
             {!isMobile && (
               <button onClick={disconnect} style={{
-                background:'#0c1e0c', border:'1px solid #1a3a1a',
-                borderRadius:8, padding:'5px 12px', cursor:'pointer',
-                color:'#8aaa8a', fontSize:11, fontFamily:'inherit', fontWeight:600,
-                display:'flex', alignItems:'center', gap:6,
+                background:'linear-gradient(135deg,#0e220f,#0a180b)', border:'1px solid var(--border)',
+                borderRadius:9, padding:'6px 13px', cursor:'pointer',
+                color:'var(--text-secondary)', fontSize:11.5, fontFamily:'inherit', fontWeight:700,
+                display:'flex', alignItems:'center', gap:7,
                 transition:'all .15s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor='#c0392b55'; e.currentTarget.style.color='#e74c3c'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor='#1a3a1a'; e.currentTarget.style.color='#8aaa8a'; }}>
-                <div style={{ width:6, height:6, borderRadius:'50%', background:'#27ae60', flexShrink:0 }} />
+              onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(224,71,59,.45)'; e.currentTarget.style.color='#e0473b'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.color='var(--text-secondary)'; }}>
+                <div style={{ width:6, height:6, borderRadius:'50%', background:'var(--emerald)', flexShrink:0, boxShadow:'0 0 6px var(--emerald)' }} />
                 {displayName}
               </button>
             )}
@@ -237,24 +254,17 @@ export default function WalletBar() {
 
         {mounted && !isConnected && wagmiStatus === 'reconnecting' && (
           <div style={{
-            background:'#0c1e0c', border:'1px solid #1a3a1a',
-            borderRadius:8, padding:'8px 20px',
-            color:'#3a6a3a', fontSize:12, fontWeight:600,
+            background:'#0c1e0c', border:'1px solid var(--border)',
+            borderRadius:9, padding:'8px 20px',
+            color:'var(--text-muted)', fontSize:12, fontWeight:600,
           }}>…</div>
         )}
 
         {mounted && !isConnected && wagmiStatus !== 'reconnecting' && (
           <div style={{ position:'relative' }}>
-            <button onClick={() => setShowPicker(p => !p)} style={{
-              background:'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-              border:'1px solid #d4af3755', borderRadius:8,
-              padding:'8px 20px', cursor:'pointer',
-              color:'#d4af37', fontSize:13, fontWeight:700,
-              fontFamily:'inherit', letterSpacing:.3,
-              transition:'all .15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor='#d4af37aa'; e.currentTarget.style.boxShadow='0 0 16px #d4af3722'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor='#d4af3755'; e.currentTarget.style.boxShadow='none'; }}>
+            <button onClick={() => setShowPicker(p => !p)} className="btn btn-gold" style={{
+              padding:'9px 20px', fontSize:13, letterSpacing:.3,
+            }}>
               Connect Wallet ▾
             </button>
 
@@ -265,14 +275,15 @@ export default function WalletBar() {
                   position:'fixed', inset:0, zIndex:199,
                 }} />
                 <div style={{
-                  position:'absolute', top:'calc(100% + 8px)', right:0,
-                  background:'#0a140a', border:'1px solid #1a3a1a',
-                  borderRadius:12, padding:8, zIndex:200,
-                  minWidth:220, boxShadow:'0 8px 32px #000a',
+                  position:'absolute', top:'calc(100% + 10px)', right:0,
+                  background:'linear-gradient(180deg,#0c1a0d,#060e07)', border:'1px solid var(--border-mid)',
+                  borderRadius:14, padding:8, zIndex:200,
+                  minWidth:230, boxShadow:'0 18px 44px rgba(0,0,0,.7)',
                   display:'flex', flexDirection:'column', gap:4,
+                  animation:'pop-in .22s ease both',
                 }}>
-                  <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:2,
-                    padding:'4px 10px', fontWeight:700 }}>CHOOSE WALLET</div>
+                  <div style={{ fontSize:9, color:'var(--text-muted)', letterSpacing:2.5,
+                    padding:'5px 10px', fontWeight:800 }}>CHOOSE WALLET</div>
 
                   {/* Farcaster / Base Mini App — shown when inside the mini app */}
                   {isInMiniApp && (
@@ -310,14 +321,14 @@ export default function WalletBar() {
                   {/* Connecting / error feedback — turns a silent failure into something visible */}
                   {connectStatus === 'pending' && (
                     <div style={{ display:'flex', alignItems:'center', gap:8,
-                      padding:'8px 12px', color:'#d4af37', fontSize:11, fontWeight:600 }}>
-                      <span style={{ width:6, height:6, borderRadius:'50%', background:'#d4af37',
+                      padding:'8px 12px', color:'var(--gold)', fontSize:11, fontWeight:600 }}>
+                      <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--gold)',
                         animation:'live-dot 1s infinite' }} />
                       Connecting… approve in your wallet
                     </div>
                   )}
                   {connectStatus === 'error' && connectError && (
-                    <div style={{ padding:'8px 12px', color:'#e74c3c', fontSize:11,
+                    <div style={{ padding:'8px 12px', color:'#e0473b', fontSize:11,
                       lineHeight:1.4, wordBreak:'break-word' }}>
                       {connectError.shortMessage || connectError.message || 'Connection failed'}
                     </div>
@@ -325,7 +336,7 @@ export default function WalletBar() {
 
                   {/* Explain the missing option instead of silently omitting it */}
                   {!HAS_WC && !isInMiniApp && (
-                    <div style={{ padding:'6px 12px', color:'#3a6a3a', fontSize:9,
+                    <div style={{ padding:'6px 12px', color:'var(--text-muted)', fontSize:9,
                       letterSpacing:.3, lineHeight:1.4 }}>
                       WalletConnect not configured — set NEXT_PUBLIC_WC_PROJECT_ID to enable
                       mobile wallets.
@@ -338,6 +349,28 @@ export default function WalletBar() {
         )}
       </div>
     </header>
+
+    {/* ── Mobile bottom tab bar ─────────────────────────────── */}
+    {isMobile && (
+      <nav className="bottom-nav">
+        {BOTTOM_LINKS.map(({ href, label, icon }) => (
+          <Link key={href} href={href} className={isActive(href) ? 'active' : ''}>
+            <span className="bn-icon">{icon}</span>
+            {label}
+          </Link>
+        ))}
+        <button onClick={() => setMenuOpen(p => !p)} style={{
+          display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+          padding:'7px 0 5px', background:'transparent', border:'none', cursor:'pointer',
+          color: menuOpen ? 'var(--gold)' : 'var(--text-muted)',
+          fontSize:9.5, fontWeight:700, fontFamily:'inherit',
+        }}>
+          <span style={{ fontSize:18, lineHeight:1 }}>{menuOpen ? '✕' : '☰'}</span>
+          More
+        </button>
+      </nav>
+    )}
+    </>
   );
 }
 
@@ -348,16 +381,16 @@ function WalletOption({ icon, label, sub, onClick }) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        background: hover ? '#0c2e0c' : 'transparent',
-        border: `1px solid ${hover ? '#d4af3733' : 'transparent'}`,
-        borderRadius:8, padding:'8px 12px', cursor:'pointer',
-        display:'flex', alignItems:'center', gap:10, width:'100%',
+        background: hover ? 'rgba(16,185,129,.08)' : 'transparent',
+        border: `1px solid ${hover ? 'var(--border-gold)' : 'transparent'}`,
+        borderRadius:10, padding:'9px 12px', cursor:'pointer',
+        display:'flex', alignItems:'center', gap:11, width:'100%',
         transition:'all .12s',
       }}>
-      <span style={{ fontSize:20 }}>{icon}</span>
+      <span style={{ fontSize:21 }}>{icon}</span>
       <div style={{ textAlign:'left' }}>
-        <div style={{ color:'#d4af37', fontSize:13, fontWeight:700, fontFamily:'inherit' }}>{label}</div>
-        <div style={{ color:'#3a6a3a', fontSize:10 }}>{sub}</div>
+        <div style={{ color:'var(--gold)', fontSize:13, fontWeight:700, fontFamily:'inherit' }}>{label}</div>
+        <div style={{ color:'var(--text-muted)', fontSize:10 }}>{sub}</div>
       </div>
     </button>
   );
