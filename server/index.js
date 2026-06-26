@@ -211,6 +211,8 @@ const behaviorMonitor = new BehaviorMonitor();
 // AFK guard: a player who doesn't act within this window is auto-checked
 // (if free) or auto-folded, so one stalled player can't hold up the table.
 const ACTION_TIMEOUT_MS = Number(process.env.TURN_TIMEOUT_MS) || 30_000;
+// One manual "+30 secs" extension allowed per turn, requested via EXTEND_TURN.
+const TURN_EXTENSION_MS = Number(process.env.TURN_EXTENSION_MS) || 30_000;
 
 // ─── GAME STATE MACHINE ───────────────────────────────────────────────────────
 class PokerTable {
@@ -284,6 +286,8 @@ class PokerTable {
     // Preflop: in HU the SB/dealer acts first; multi-way starts left of BB
     this.actionIdx = n === 2 ? sbIdx : (bbIdx + 1) % n;
     this.turnStartedAt = Date.now();
+    this.turnExtraMs = 0;
+    this.turnExtended = false;
 
     const handHash = crypto.createHash('sha256')
       .update(JSON.stringify({ id: String(this.id), nonce: this.handNonce, deck: this.deck.slice(0,5).join(','), ts: Date.now() }))
@@ -301,6 +305,8 @@ class PokerTable {
     }
     this.actionIdx = next;
     this.turnStartedAt = Date.now();
+    this.turnExtraMs = 0;
+    this.turnExtended = false;
   }
 
   _resetActionIdxForStreet() {
@@ -313,6 +319,8 @@ class PokerTable {
     }
     this.actionIdx = next;
     this.turnStartedAt = Date.now();
+    this.turnExtraMs = 0;
+    this.turnExtended = false;
   }
 
   // Fold a player without advancing action (used when removing a player mid-hand)
@@ -452,7 +460,8 @@ class PokerTable {
       community:       this.community,
       activeAddr:      activePlayer?.addr || null,
       turnStartedAt:   activePlayer ? this.turnStartedAt ?? null : null,
-      turnTimeoutMs:   ACTION_TIMEOUT_MS,
+      turnTimeoutMs:   ACTION_TIMEOUT_MS + (this.turnExtraMs || 0),
+      turnExtended:    !!this.turnExtended,
       dealerAddr:      this.players[this.dealerIdx]?.addr || null,
       config:          this.config,
       creator:         this.creator ?? null,
@@ -562,7 +571,8 @@ function scheduleActionTimer(t) {
   if (t.phase === 'waiting' || t.phase === 'showdown') return;
   const active = t.players[t.actionIdx];
   if (!active || active.folded || active.allIn || active.isBot) return;
-  const remaining = Math.max(0, ACTION_TIMEOUT_MS - (Date.now() - (t.turnStartedAt || Date.now())));
+  const timeout = ACTION_TIMEOUT_MS + (t.turnExtraMs || 0);
+  const remaining = Math.max(0, timeout - (Date.now() - (t.turnStartedAt || Date.now())));
   t.actionTimer = setTimeout(() => onActionTimeout(t, active.addr), remaining);
 }
 
@@ -980,6 +990,22 @@ wss.on('connection', (ws, req) => {
         behaviorMonitor.recordAction(client.addr, action, reactionMs);
         broadcastTable(t);
         if (result?.winners) await handleHandOver(t, result);
+        break;
+      }
+
+      case 'EXTEND_TURN': {
+        if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+        const { tableId } = payload;
+        const t = tables.get(String(tableId));
+        if (!t) return;
+        const active = t.players[t.actionIdx];
+        if (!active || active.addr !== client.addr)
+          return send(ws, { type: 'ERROR', error: 'Not your turn' });
+        if (t.turnExtended)
+          return send(ws, { type: 'ERROR', error: 'Turn already extended' });
+        t.turnExtraMs = TURN_EXTENSION_MS;
+        t.turnExtended = true;
+        broadcastTable(t);
         break;
       }
 

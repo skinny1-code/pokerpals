@@ -474,7 +474,7 @@ function TablePageInner() {
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData, needsRebuy,
-    sendAction, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot, botStatus,
+    sendAction, extendTurn, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot, botStatus,
     chatMessages, sendChat,
     verifyStatus, verifyFailures, sendVerifyHuman,
   } = useTableSocket(id, tableConfig);
@@ -823,6 +823,8 @@ function TablePageInner() {
             onCall={() => sendAction('call')}
             onRaise={amt => sendAction('raise', amt)}
             onAllIn={() => sendAction('allin')}
+            onExtendTurn={extendTurn}
+            turnExtended={!!gameState?.turnExtended}
           />
         </div>
 

@@ -81,13 +81,12 @@ function StatCard({ label, value, color, sub }) {
 
 function TabButton({ active, onClick, children }) {
   return (
-    <button onClick={onClick} style={{
-      background: active ? 'linear-gradient(135deg,#173017,#0e220e)' : 'transparent',
-      border: `1px solid ${active ? 'var(--border-gold)' : 'var(--border)'}`,
-      borderRadius: 'var(--r-sm)', padding: '9px 16px', cursor: 'pointer',
-      color: active ? 'var(--gold-pale)' : 'var(--text-secondary)', fontSize: 11.5, fontWeight: 700,
-      fontFamily: 'inherit', letterSpacing: .5, whiteSpace: 'nowrap', transition: 'all .15s',
-    }}>{children}</button>
+    <button onClick={onClick}
+      className={`tab ${active ? 'tab-active' : ''}`}
+      style={{
+        border: active ? undefined : '1px solid var(--border)',
+        padding: '9px 16px', fontSize: 11.5, letterSpacing: .5, whiteSpace: 'nowrap',
+      }}>{children}</button>
   );
 }
 
@@ -185,8 +184,7 @@ function StakingPanel() {
       )}
 
       {isLocked && (
-        <div style={{ background: 'rgba(240,144,42,.1)', border: '1px solid rgba(240,144,42,.32)', borderRadius: 'var(--r-sm)',
-          padding: '11px 14px', fontSize: 11, color: 'var(--orange)' }}>
+        <div className="notice-warn" style={{ borderRadius: 'var(--r-sm)', padding: '11px 14px', fontSize: 11 }}>
           ⏳ Stake locked until {new Date(lockedUntil * 1000).toLocaleDateString()}.
         </div>
       )}
@@ -197,9 +195,8 @@ function StakingPanel() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <input type="number" min={0} value={amount} placeholder="0"
             onChange={e => setAmount(e.target.value)}
-            style={{ flex: 1, background: 'var(--bg-abyss)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
-              padding: '11px 12px', color: 'var(--gold-pale)', fontSize: 14,
-              fontFamily: "'JetBrains Mono',monospace", outline: 'none' }} />
+            className="input"
+            style={{ flex: 1, padding: '11px 12px', fontSize: 14, fontFamily: "'JetBrains Mono',monospace" }} />
           <button onClick={() => setAmount(String(Math.floor(chipsBalance || 0)))} style={{
             background: 'var(--bg-abyss)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
             padding: '8px 14px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 10, fontWeight: 700, fontFamily: 'inherit',
@@ -386,9 +383,8 @@ function SettingsPanel({ myHandle, mintCost, chipsBalance, changeHandle, status,
           <input type="text" value={renameVal} maxLength={20}
             onChange={e => setRenameVal(e.target.value.slice(0, 20))}
             placeholder={myHandle || 'NewHandle'}
-            style={{ flex: 1, background: 'var(--bg-abyss)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
-              padding: '11px 12px', color: 'var(--gold-pale)', fontSize: 14,
-              fontFamily: "'JetBrains Mono',monospace", outline: 'none', letterSpacing: 1 }} />
+            className="input"
+            style={{ flex: 1, padding: '11px 12px', fontSize: 14, fontFamily: "'JetBrains Mono',monospace", letterSpacing: 1 }} />
         </div>
         <ValidationBadge handle={renameVal} />
 
@@ -491,9 +487,8 @@ function MintView({
             <input type="text" value={inputVal} maxLength={20}
               onChange={e => setInputVal(e.target.value.slice(0, 20))}
               placeholder="e.g. PokerShark99"
-              style={{ flex: 1, background: 'var(--bg-abyss)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
-                padding: '11px 12px', color: 'var(--gold-pale)', fontSize: 14,
-                fontFamily: "'JetBrains Mono',monospace", outline: 'none', letterSpacing: 1 }} />
+              className="input"
+              style={{ flex: 1, padding: '11px 12px', fontSize: 14, fontFamily: "'JetBrains Mono',monospace", letterSpacing: 1 }} />
           </div>
           <ValidationBadge handle={inputVal} />
           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6, marginBottom: 16 }}>

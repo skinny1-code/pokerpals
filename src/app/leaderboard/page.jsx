@@ -10,6 +10,12 @@ const TIER_COLORS = ['#6a9a6a','#cd7f32','#c0c0c0','#d4af37','#9b59b6'];
 // Gold / Silver / Bronze medal palette for the top 3
 const MEDAL_COLORS = ['#e8c25a','#cfd4dc','#d68a4a'];
 
+// Podium columns render in 2nd/1st/3rd order
+const PODIUM_HEIGHTS = [88, 116, 74];
+const PODIUM_LABELS = ['2nd','1st','3rd'];
+const PODIUM_TROPHIES = ['🥈','🏆','🥉'];
+const PODIUM_MEDAL_COLORS = [MEDAL_COLORS[1], MEDAL_COLORS[0], MEDAL_COLORS[2]];
+
 function fmt(v) {
   return v >= 1_000_000 ? `${(v/1_000_000).toFixed(2)}M`
        : v >= 1_000     ? `${(v/1_000).toFixed(1)}K`
@@ -160,7 +166,7 @@ export default function LeaderboardPage() {
             Leaderboard
           </h1>
           <div className="animate-up s3" style={{
-            fontSize:13, color:'#6fa074', letterSpacing:.2, opacity:0,
+            fontSize:13, color:'var(--text-secondary)', letterSpacing:.2, opacity:0,
           }}>
             Ranked by CHIPS staked · VIP tier determines your rake discount
           </div>
@@ -183,10 +189,7 @@ export default function LeaderboardPage() {
               pointerEvents:'none',
             }} />
             {[top3[1], top3[0], top3[2]].map((e, i) => {
-              const heights   = [88, 116, 74];
-              const labels    = ['2nd','1st','3rd'];
-              const trophies  = ['🥈','🏆','🥉'];
-              const medalColor = [MEDAL_COLORS[1], MEDAL_COLORS[0], MEDAL_COLORS[2]][i];
+              const medalColor = PODIUM_MEDAL_COLORS[i];
               const isFirst   = i === 1;
               return (
                 <div key={e.addr} style={{
@@ -194,7 +197,7 @@ export default function LeaderboardPage() {
                   width:'min(160px, 31%)', position:'relative', zIndex:1,
                 }}>
                   <div style={{ fontSize:9, color:`${medalColor}cc`, letterSpacing:2, fontWeight:800 }}>
-                    {labels[i]}
+                    {PODIUM_LABELS[i]}
                   </div>
                   <div className={isFirst ? 'gold-text' : undefined} style={{
                     fontSize: isFirst ? 15 : 13, fontWeight:800, maxWidth:'100%',
@@ -207,7 +210,7 @@ export default function LeaderboardPage() {
                     ◈ {fmt(e.staked)}
                   </div>
                   <div style={{
-                    width:'100%', height:heights[i],
+                    width:'100%', height:PODIUM_HEIGHTS[i],
                     background: `linear-gradient(180deg, ${medalColor}30, ${medalColor}0a)`,
                     border:`1px solid ${medalColor}55`,
                     borderBottom:'none',
@@ -218,7 +221,7 @@ export default function LeaderboardPage() {
                     display:'flex', alignItems:'center', justifyContent:'center',
                     fontSize: isFirst ? 34 : 28,
                   }}>
-                    {trophies[i]}
+                    {PODIUM_TROPHIES[i]}
                   </div>
                 </div>
               );
@@ -230,7 +233,7 @@ export default function LeaderboardPage() {
         <div style={{ display:'grid', gridTemplateColumns:'46px 2fr 1fr 88px',
           padding:'6px 16px', gap:8, borderBottom:'1px solid var(--border)', marginBottom:8 }}>
           {['#','Player','Staked','Tier'].map(h => (
-            <div key={h} style={{ fontSize:9, color:'#4a6a4a', letterSpacing:1.5, fontWeight:800 }}>
+            <div key={h} style={{ fontSize:9, color:'var(--text-muted)', letterSpacing:1.5, fontWeight:800 }}>
               {h.toUpperCase()}
             </div>
           ))}
@@ -265,7 +268,7 @@ export default function LeaderboardPage() {
             <div style={{ fontSize:14, color:'var(--text-secondary)', fontWeight:700, marginBottom:6 }}>
               No handle holders yet
             </div>
-            <div style={{ fontSize:11, color:'#4a6a4a' }}>
+            <div style={{ fontSize:11, color:'var(--text-muted)' }}>
               Mint a handle at <a href="/handle" style={{ color:'var(--gold)', fontWeight:700 }}>/handle</a> to appear here
             </div>
           </div>
@@ -288,7 +291,7 @@ export default function LeaderboardPage() {
                     border:'1px solid var(--border-gold)', borderRadius:5, padding:'2px 6px',
                     color:'var(--gold)', background:'rgba(232,194,90,.08)' }}>YOU</span>
                 </div>
-                <div style={{ fontSize:9, color:'#4a6a4a', marginTop:3 }}>
+                <div style={{ fontSize:9, color:'var(--text-muted)', marginTop:3 }}>
                   Mint a handle to join the leaderboard
                 </div>
               </div>
@@ -303,7 +306,7 @@ export default function LeaderboardPage() {
           </div>
         )}
 
-        <div style={{ marginTop:18, textAlign:'center', fontSize:10, color:'#3a5a3a',
+        <div style={{ marginTop:18, textAlign:'center', fontSize:10, color:'var(--text-muted)',
           letterSpacing:.4 }}>
           Live on-chain data from PokerHandle + ChipsStaking contracts
         </div>

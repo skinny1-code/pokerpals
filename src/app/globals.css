@@ -286,6 +286,43 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
   background: var(--emerald); box-shadow: 0 0 8px var(--emerald);
   animation: live-dot 2s infinite; }
 
+/* ── Tabs ────────────────────────────────────────────────── */
+.tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.tab-active {
+  background: linear-gradient(135deg, #173017, #0e220e);
+  border-color: var(--border-gold);
+  color: var(--gold-pale);
+}
+
+/* ── Form inputs ─────────────────────────────────────────── */
+.input {
+  background: var(--bg-abyss);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--gold-pale);
+  outline: none;
+  transition: border-color .15s ease;
+}
+.input:focus { border-color: var(--border-gold); }
+
+/* ── Notice banners ──────────────────────────────────────── */
+.notice-warn {
+  background: rgba(240,144,42,.1);
+  border: 1px solid rgba(240,144,42,.32);
+  border-radius: var(--r-md);
+  color: var(--orange);
+  line-height: 1.6;
+}
+
 /* ── Page hero (full-bleed) ─────────────────────────────── */
 .page-hero {
   position: relative; overflow: hidden;

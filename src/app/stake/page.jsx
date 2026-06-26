@@ -41,7 +41,7 @@ function TxButton({ onClick, disabled, loading, color, children, wide }) {
   );
 }
 
-function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake }) {
+function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake, isLocked }) {
   const [hov, setHov] = useState(false);
   const isCurrent = tier.id === currentTier;
   const isNext    = tier.id === currentTier + 1;
@@ -149,8 +149,8 @@ function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake }) {
             </TxButton>
           )}
           {isCurrent && stakedAmount > 0 && (
-            <TxButton onClick={() => onUnstake(stakedAmount)} color="#e0473b">
-              Unstake
+            <TxButton onClick={() => onUnstake(stakedAmount)} disabled={isLocked} color="#e0473b">
+              {isLocked ? 'Locked' : 'Unstake'}
             </TxButton>
           )}
         </div>
@@ -184,9 +184,8 @@ function StakeModal({ tier, chipsBalance, onClose, onConfirm, loading }) {
           <div style={{ display: 'flex', gap: 8 }}>
             <input type="number" min={tier.stake} max={Math.floor(chipsBalance)} value={amount}
               onChange={e => setAmount(Number(e.target.value))}
-              style={{ flex:1, background:'rgba(2,5,3,.6)', border:'1px solid var(--border)',
-                borderRadius:'var(--r-sm)', padding:'10px 14px', color:'var(--gold-pale)',
-                fontSize:15, fontFamily:"'JetBrains Mono',monospace", outline:'none' }} />
+              className="input"
+              style={{ flex:1, padding:'10px 14px', fontSize:15, fontFamily:"'JetBrains Mono',monospace" }} />
             <button onClick={() => setAmount(Math.floor(chipsBalance))} className="btn btn-ghost" style={{
               padding:'8px 14px', fontSize:10, letterSpacing:1,
             }}>MAX</button>
@@ -303,9 +302,7 @@ export default function StakePage() {
 
         {/* Lock warning */}
         {isLocked && (
-          <div style={{ background: 'rgba(240,144,42,.1)', border: '1px solid rgba(240,144,42,.32)',
-            borderRadius: 'var(--r-md)', padding: '12px 18px', marginBottom: 16,
-            fontSize: 11.5, color: 'var(--orange)', fontWeight: 600 }}>
+          <div className="notice-warn" style={{ padding: '12px 18px', marginBottom: 16, fontSize: 11.5, fontWeight: 600 }}>
             ⏳ Stake locked until {unlockDate} — unstaking will be available then.
           </div>
         )}
@@ -316,7 +313,8 @@ export default function StakePage() {
             <TierCard key={t.id} tier={t} currentTier={currentTier}
               stakedAmount={stakedAmount}
               onStake={setSelectedTier}
-              onUnstake={handleUnstake} />
+              onUnstake={handleUnstake}
+              isLocked={isLocked} />
           ))}
         </div>
 
