@@ -29,13 +29,20 @@ on:
         type: choice
         options: ["true", "false"]
 
-  # Auto-deploy when contracts or deploy script change on main
-  push:
-    branches: [main, master]
-    paths:
-      - "contracts/**"
-      - "scripts/deploy.js"
-      - "hardhat.config.js"
+  # NOTE: This workflow is intentionally manual-dispatch ONLY.
+  #
+  # A `push` trigger on `main` used to live here, auto-running the FULL
+  # `deploy:testnet` (all 12 contracts) whenever `contracts/**`,
+  # `scripts/deploy.js`, or `hardhat.config.js` changed. On push events all
+  # `workflow_dispatch.inputs.*` are undefined, so the "(full)" step's guard
+  # always evaluated true — meaning any routine contract merge silently
+  # redeployed every contract and wiped all on-chain state (balances, stakes,
+  # and every minted PokerHandle NFT), with no migration. That footgun
+  # destroyed real user data (a minted handle) once already.
+  #
+  # Testnet deploys are now operator-initiated only: trigger from the Actions
+  # tab (or via the API) and pick the narrowest input (handle_only / escrow_only
+  # / tournament_only) unless a full redeploy is genuinely intended.
 
 jobs:
   deploy:
