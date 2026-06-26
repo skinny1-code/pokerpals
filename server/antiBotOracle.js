@@ -3,7 +3,7 @@
 // Calls PokerEscrow.markHuman() when a player passes all checks
 
 import { ethers } from "ethers";
-import fetch from "node-fetch";
+// Node 18+ provides a global fetch (WHATWG); no node-fetch needed.
 
 const RPC_URL        = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL;
 const OPERATOR_KEY   = process.env.OPERATOR_PRIVATE_KEY;
