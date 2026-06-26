@@ -9,6 +9,7 @@ function ActionButton({ label, sub, onClick, disabled, variant = 'default', wide
     raise:   { bg: 'linear-gradient(135deg,#322207,#1c1303)', border: '#e8c25a', color: '#f7e7a8', hover: '#f7e7a8' },
     bet:     { bg: 'linear-gradient(135deg,#322207,#1c1303)', border: '#e8c25a', color: '#f7e7a8', hover: '#f7e7a8' },
     'all-in':{ bg: 'linear-gradient(135deg,#321a00,#1c0f00)', border: '#f0902a', color: '#f8b15a', hover: '#f0902a' },
+    extend:  { bg: 'linear-gradient(135deg,#1c2407,#0f1403)', border: '#8a9a4a', color: '#c8d88a', hover: '#8a9a4a' },
     default: { bg: 'linear-gradient(135deg,#121,#0a0a0a)',    border: '#333',    color: '#aaa',    hover: '#555'    },
   };
   const s = colors[variant] || colors.default;
@@ -142,6 +143,8 @@ export default function BettingControls({
   onCall,
   onRaise,
   onAllIn,
+  onExtendTurn,
+  turnExtended = false,
   disabled = false,
 }) {
   const [raiseAmount, setRaiseAmount] = useState(minRaise || bigBlind * 2);
@@ -204,6 +207,28 @@ export default function BettingControls({
             fontFamily: "'JetBrains Mono', monospace" }}>
             POT ODDS  {potOdds}  •  TO CALL  ◈ {callAmount.toLocaleString()}  •  POT  ◈ {pot.toLocaleString()}
           </span>
+        </div>
+      )}
+
+      {/* turn-timer extension */}
+      {onExtendTurn && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+          <button
+            onClick={onExtendTurn}
+            disabled={disabled || turnExtended}
+            style={{
+              background: turnExtended ? '#111' : 'linear-gradient(135deg,#1c2407,#0f1403)',
+              border: `1px solid ${turnExtended ? '#222' : '#8a9a4a'}`,
+              borderRadius: 20,
+              padding: '5px 16px',
+              cursor: turnExtended || disabled ? 'not-allowed' : 'pointer',
+              color: turnExtended ? '#444' : '#c8d88a',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10.5, fontWeight: 700, letterSpacing: .5,
+            }}
+          >
+            {turnExtended ? 'TIME EXTENDED' : '+30 SECS'}
+          </button>
         </div>
       )}
 

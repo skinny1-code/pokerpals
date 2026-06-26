@@ -971,6 +971,11 @@ export function useTableSocket(tableId, tableConfig) {
       wsRef.current.send(JSON.stringify({ type: 'ACTION', payload: { tableId, action, amount } }));
   }, [tableId]);
 
+  const extendTurn = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN)
+      wsRef.current.send(JSON.stringify({ type: 'EXTEND_TURN', payload: { tableId } }));
+  }, [tableId]);
+
   const leaveTable = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN)
       wsRef.current.send(JSON.stringify({ type: 'LEAVE_TABLE', payload: { tableId } }));
@@ -1014,7 +1019,7 @@ export function useTableSocket(tableId, tableConfig) {
     cashoutSig, setCashoutSig,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData, needsRebuy,
-    sendAction, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat, spawnBot, botStatus,
+    sendAction, extendTurn, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat, spawnBot, botStatus,
     chatMessages, sendChat,
     verifyStatus, verifyFailures, sendVerifyHuman,
   };
