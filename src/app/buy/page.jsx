@@ -97,7 +97,7 @@ function CardOnRamp() {
       </div>
 
       {!configured ? (
-        <div style={{ background: 'rgba(240,144,42,.08)', border: '1px solid rgba(240,144,42,.3)', borderRadius: 'var(--r-md)', padding: '13px 16px', fontSize: 11.5, color: 'var(--orange)', lineHeight: 1.6 }}>
+        <div className="notice-warn" style={{ padding: '13px 16px', fontSize: 11.5 }}>
           ⚠️ Card payments aren't configured yet — set <code style={{ color: 'var(--gold-pale)' }}>NEXT_PUBLIC_TRANSAK_API_KEY</code> to
           enable this tab. Use a manual exchange below in the meantime.
         </div>
@@ -139,14 +139,12 @@ function CardOnRamp() {
                 <input
                   type="number" min="0" step="any" placeholder="USDC amount"
                   value={amount} onChange={e => setAmount(e.target.value)}
+                  className="input"
                   style={{
-                    width: '100%', background: '#0a180a', border: '1px solid var(--border)',
-                    borderRadius: 'var(--r-sm)', padding: '12px 14px', color: 'var(--gold-pale)',
+                    width: '100%', padding: '12px 14px',
                     fontFamily: "'JetBrains Mono',monospace", fontSize: 14, marginBottom: 10,
-                    boxSizing: 'border-box', outline: 'none', transition: 'border-color .15s',
+                    boxSizing: 'border-box',
                   }}
-                  onFocus={e => e.target.style.borderColor = 'var(--border-gold)'}
-                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
                 />
                 {amountNum > 0 && (
                   <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 12 }}>
@@ -311,14 +309,9 @@ export default function BuyPage() {
           borderRadius: 'var(--r-md)', padding: 4,
         }}>
           {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              flex: 1, padding: '11px 6px', cursor: 'pointer',
-              background: tab === t.id ? 'linear-gradient(135deg,#173017,#0e220e)' : 'transparent',
-              border: `1px solid ${tab === t.id ? 'rgba(232,194,90,.25)' : 'transparent'}`,
-              borderRadius: 'var(--r-sm)', color: tab === t.id ? 'var(--gold-pale)' : 'var(--text-secondary)',
-              fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit', letterSpacing: .3,
-              transition: 'all .15s',
-            }}>
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`tab ${tab === t.id ? 'tab-active' : ''}`}
+              style={{ flex: 1, padding: '11px 6px', fontSize: 11.5, letterSpacing: .3 }}>
               {t.label}
             </button>
           ))}
@@ -372,10 +365,7 @@ export default function BuyPage() {
             ))}
 
             {IS_TESTNET && (
-              <div style={{
-                background: 'rgba(240,144,42,.08)', border: '1px solid rgba(240,144,42,.3)', borderRadius: 'var(--r-md)',
-                padding: '13px 16px', fontSize: 11.5, color: 'var(--orange)', lineHeight: 1.6,
-              }}>
+              <div className="notice-warn" style={{ padding: '13px 16px', fontSize: 11.5 }}>
                 ⚠️ You're on Arbitrum Sepolia testnet. DEX liquidity for CHIPS won't exist until
                 mainnet launch. Use the Testnet Faucet tab to get CHIPS for testing.
               </div>

@@ -253,14 +253,8 @@ function CreateTableModal({ onClose }) {
           <input
             type="number" value={buyIn}
             onChange={e => setBuyIn(Number(e.target.value))}
-            style={{
-              width:'100%', padding:'11px 14px', borderRadius:10, boxSizing:'border-box',
-              background:'#0a180a', border:'1px solid var(--border)',
-              color:'var(--gold-pale)', fontFamily:"'JetBrains Mono',monospace", fontSize:14,
-              outline:'none', transition:'border-color .15s',
-            }}
-            onFocus={e => e.target.style.borderColor = 'var(--border-gold)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            className="input"
+            style={{ width:'100%', padding:'11px 14px', boxSizing:'border-box', fontFamily:"'JetBrains Mono',monospace", fontSize:14 }}
           />
           <div style={{ fontSize:9, color:'#4a7a4a', marginTop:6, fontFamily:"'JetBrains Mono',monospace" }}>
             = {effectiveBB ? Math.round(buyIn / effectiveBB) : 0}× big blind

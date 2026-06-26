@@ -202,14 +202,8 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
             type="text" value={name} maxLength={40}
             onChange={e => setName(e.target.value)}
             placeholder="e.g. Friday Night Game"
-            style={{
-              width:'100%', padding:'11px 14px', borderRadius:10, boxSizing:'border-box',
-              background:'#0a180a', border:'1px solid var(--border)',
-              color:'var(--gold-pale)', fontFamily:'inherit', fontSize:14,
-              outline:'none', transition:'border-color .15s',
-            }}
-            onFocus={e => e.target.style.borderColor = 'var(--border-gold)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            className="input"
+            style={{ width:'100%', padding:'11px 14px', boxSizing:'border-box', fontFamily:'inherit', fontSize:14 }}
           />
         </div>
 
@@ -322,14 +316,8 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
             <input
               type="number" placeholder="0 = none" value={minBuyIn}
               onChange={e => setMinBuyIn(e.target.value)}
-              style={{
-                width:'100%', padding:'11px 14px', borderRadius:10, boxSizing:'border-box',
-                background:'#0a180a', border:'1px solid var(--border)',
-                color:'var(--gold-pale)', fontFamily:"'JetBrains Mono',monospace", fontSize:13,
-                outline:'none', transition:'border-color .15s',
-              }}
-              onFocus={e => e.target.style.borderColor = 'var(--border-gold)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+              className="input"
+              style={{ width:'100%', padding:'11px 14px', boxSizing:'border-box', fontFamily:"'JetBrains Mono',monospace", fontSize:13 }}
             />
           </div>
           <div style={{ flex:1 }}>
@@ -337,14 +325,8 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
             <input
               type="number" placeholder="0 = none" value={maxBuyIn}
               onChange={e => setMaxBuyIn(e.target.value)}
-              style={{
-                width:'100%', padding:'11px 14px', borderRadius:10, boxSizing:'border-box',
-                background:'#0a180a', border:'1px solid var(--border)',
-                color:'var(--gold-pale)', fontFamily:"'JetBrains Mono',monospace", fontSize:13,
-                outline:'none', transition:'border-color .15s',
-              }}
-              onFocus={e => e.target.style.borderColor = 'var(--border-gold)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+              className="input"
+              style={{ width:'100%', padding:'11px 14px', boxSizing:'border-box', fontFamily:"'JetBrains Mono',monospace", fontSize:13 }}
             />
           </div>
         </div>
@@ -358,14 +340,8 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
             type="text" placeholder="0x… ERC-721 contract, leave blank for open"
             value={nftGate}
             onChange={e => setNftGate(e.target.value)}
-            style={{
-              width:'100%', padding:'11px 14px', borderRadius:10, boxSizing:'border-box',
-              background:'#0a180a', border:'1px solid var(--border)',
-              color:'var(--gold-pale)', fontFamily:"'JetBrains Mono',monospace", fontSize:12,
-              outline:'none', transition:'border-color .15s',
-            }}
-            onFocus={e => e.target.style.borderColor = 'var(--border-gold)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            className="input"
+            style={{ width:'100%', padding:'11px 14px', boxSizing:'border-box', fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}
           />
           {nftGateInvalid && (
             <div style={{ fontSize:11, color:'#f0675a', marginTop:8,
@@ -523,14 +499,12 @@ export default function RoomsPage() {
                 { id:'gated', label:'NFT-Gated' },
                 { id:'mine',  label:'Mine' },
               ].map(f => (
-                <button key={f.id} onClick={() => setFilter(f.id)} style={{
-                  background: filter===f.id ? 'linear-gradient(135deg,#173017,#0e220e)' : 'transparent',
-                  border: filter===f.id ? '1px solid rgba(232,194,90,.2)' : '1px solid transparent',
-                  borderRadius:8, padding:'6px 13px', cursor:'pointer',
-                  color: filter===f.id ? 'var(--gold-pale)' : '#5a8a5a',
-                  fontSize:11.5, fontWeight:700, fontFamily:'inherit',
-                  transition:'all .15s',
-                }}>{f.label}</button>
+                <button key={f.id} onClick={() => setFilter(f.id)}
+                  className={`tab ${filter===f.id ? 'tab-active' : ''}`}
+                  style={{
+                    padding:'6px 13px', fontSize:11.5,
+                    color: filter===f.id ? undefined : '#5a8a5a',
+                  }}>{f.label}</button>
               ))}
             </div>
           </div>
