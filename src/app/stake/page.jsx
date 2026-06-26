@@ -41,7 +41,7 @@ function TxButton({ onClick, disabled, loading, color, children, wide }) {
   );
 }
 
-function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake }) {
+function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake, isLocked }) {
   const [hov, setHov] = useState(false);
   const isCurrent = tier.id === currentTier;
   const isNext    = tier.id === currentTier + 1;
@@ -149,8 +149,8 @@ function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake }) {
             </TxButton>
           )}
           {isCurrent && stakedAmount > 0 && (
-            <TxButton onClick={() => onUnstake(stakedAmount)} color="#e0473b">
-              Unstake
+            <TxButton onClick={() => onUnstake(stakedAmount)} disabled={isLocked} color="#e0473b">
+              {isLocked ? 'Locked' : 'Unstake'}
             </TxButton>
           )}
         </div>
@@ -313,7 +313,8 @@ export default function StakePage() {
             <TierCard key={t.id} tier={t} currentTier={currentTier}
               stakedAmount={stakedAmount}
               onStake={setSelectedTier}
-              onUnstake={handleUnstake} />
+              onUnstake={handleUnstake}
+              isLocked={isLocked} />
           ))}
         </div>
 
