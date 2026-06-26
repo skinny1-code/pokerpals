@@ -54,6 +54,63 @@ const ESCROW_ABI = [
 ];
 const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, operator);
 
+// ─── HAND HISTORY (batched on-chain gameplay stats) ─────────────────────────
+const HAND_HISTORY_ADDR = process.env.NEXT_PUBLIC_HAND_HISTORY || _depl?.contracts?.HandHistory;
+const HAND_HISTORY_FLUSH_MS = Number(process.env.HAND_HISTORY_FLUSH_MS) || 15 * 60 * 1000; // default 15 min
+const HAND_HISTORY_ABI = [
+  "function recordBatch(address[],uint256[],uint256[],uint256[]) external",
+];
+const handHistory = HAND_HISTORY_ADDR
+  ? new ethers.Contract(HAND_HISTORY_ADDR, HAND_HISTORY_ABI, operator)
+  : null;
+
+// addr -> { handsPlayed, handsWon, winnings (bigint, CHIPS wei) }
+const pendingHandStats = new Map();
+
+function recordHandStatsLocally(participantAddrs, winnerAddrs, winningsByAddr) {
+  for (const addr of participantAddrs) {
+    const key = addr.toLowerCase();
+    const entry = pendingHandStats.get(key) || { handsPlayed: 0, handsWon: 0, winnings: 0n };
+    entry.handsPlayed += 1;
+    if (winnerAddrs.includes(addr)) entry.handsWon += 1;
+    const won = winningsByAddr.get(addr);
+    if (won) entry.winnings += won;
+    pendingHandStats.set(key, entry);
+  }
+}
+
+async function flushHandHistory() {
+  if (!handHistory || pendingHandStats.size === 0) return;
+  const batch = new Map(pendingHandStats);
+  pendingHandStats.clear();
+  try {
+    const players          = [...batch.keys()];
+    const handsPlayedDelta = players.map(a => BigInt(batch.get(a).handsPlayed));
+    const handsWonDelta    = players.map(a => BigInt(batch.get(a).handsWon));
+    const winningsDelta    = players.map(a => batch.get(a).winnings);
+    const tx = await handHistory.recordBatch(players, handsPlayedDelta, handsWonDelta, winningsDelta);
+    await tx.wait();
+    console.log(`[Server] HandHistory batch flushed: ${players.length} players`);
+  } catch (e) {
+    // Re-queue this batch's deltas so a transient RPC error doesn't lose stats
+    for (const [addr, delta] of batch) {
+      const entry = pendingHandStats.get(addr) || { handsPlayed: 0, handsWon: 0, winnings: 0n };
+      entry.handsPlayed += delta.handsPlayed;
+      entry.handsWon    += delta.handsWon;
+      entry.winnings    += delta.winnings;
+      pendingHandStats.set(addr, entry);
+    }
+    console.error('[Server] flushHandHistory error:', e.message);
+  }
+}
+
+if (handHistory) {
+  setInterval(flushHandHistory, HAND_HISTORY_FLUSH_MS);
+  console.log(`[Server] HandHistory batching enabled — flush every ${HAND_HISTORY_FLUSH_MS / 1000}s`);
+} else {
+  console.log('[Server] HandHistory not deployed — gameplay stats will not be recorded on-chain');
+}
+
 // ─── CARD ENGINE ─────────────────────────────────────────────────────────────
 const SUITS = ["S","H","D","C"];
 const RANKS = ["2","3","4","5","6","7","8","9","T","J","Q","K","A"];
@@ -698,6 +755,16 @@ async function handleHandOver(t, result) {
   const base   = Math.floor(1000 / n);
   const shares = result.winners.map((_, i) => i === 0 ? base + (1000 - base * n) : base);
   const sig    = await t.signAndSettle(result.winners, shares);
+
+  // Accumulate gameplay stats in memory; flushed to HandHistory on-chain periodically.
+  const participantAddrs = result.results.map(r => r.p.addr);
+  const winningsByAddr   = new Map();
+  result.winners.forEach((addr, i) => {
+    const won = Math.floor(result.pot * (shares[i] / 1000));
+    winningsByAddr.set(addr, (winningsByAddr.get(addr) || 0n) + BigInt(won));
+  });
+  recordHandStatsLocally(participantAddrs, result.winners, winningsByAddr);
+
   broadcastToTable(t, {
     type:      'HAND_OVER',
     winners:   result.winners,

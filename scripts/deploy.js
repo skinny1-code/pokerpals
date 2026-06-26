@@ -139,6 +139,13 @@ async function main() {
   const liqPoolAddr = await liqPool.getAddress();
   console.log("✅ ChipsLiquidityPool:", liqPoolAddr);
 
+  // 13. HandHistory — batched on-chain gameplay stats (server flushes periodically)
+  const HandHistory = await ethers.getContractFactory("HandHistory");
+  const handHistory = await HandHistory.deploy(OPERATOR);
+  await handHistory.waitForDeployment();
+  const handHistoryAddr = await handHistory.getAddress();
+  console.log("✅ HandHistory:", handHistoryAddr);
+
   // ── STAKING POOL SEED ────────────────────────────────────────────────────
 
   const STAKING_POOL    = ethers.parseUnits("200000000", 18);  // 200M
@@ -247,6 +254,7 @@ async function main() {
         PromotionsPool:      promoPoolAddr,
         StablecoinPool:      stablePoolAddr,
         ChipsLiquidityPool:  liqPoolAddr,
+        HandHistory:         handHistoryAddr,
         ...(isTestnet ? { MockUSDC: usdcAddr } : { USDC: usdcAddr }),
       },
     }, null, 2)
@@ -266,6 +274,7 @@ async function main() {
     `NEXT_PUBLIC_PROMOTIONS_POOL=${promoPoolAddr}`,
     `NEXT_PUBLIC_STABLECOIN_POOL=${stablePoolAddr}`,
     `NEXT_PUBLIC_LIQUIDITY_POOL=${liqPoolAddr}`,
+    `NEXT_PUBLIC_HAND_HISTORY=${handHistoryAddr}`,
     ...(isTestnet ? [`NEXT_PUBLIC_MOCK_USDC=${usdcAddr}`] : [`NEXT_PUBLIC_USDC=${usdcAddr}`]),
   ].join(" ");
   try {
@@ -284,6 +293,7 @@ async function main() {
     console.log(`NEXT_PUBLIC_PROMOTIONS_POOL=${promoPoolAddr}`);
     console.log(`NEXT_PUBLIC_STABLECOIN_POOL=${stablePoolAddr}`);
     console.log(`NEXT_PUBLIC_LIQUIDITY_POOL=${liqPoolAddr}`);
+    console.log(`NEXT_PUBLIC_HAND_HISTORY=${handHistoryAddr}`);
     if (isTestnet) console.log(`NEXT_PUBLIC_MOCK_USDC=${usdcAddr}`);
     else console.log(`NEXT_PUBLIC_USDC=${usdcAddr}`);
   }
