@@ -446,7 +446,7 @@ function TablePageInner() {
   const address = mounted ? rawAddress : undefined;
   const [botCount, setBotCount] = useState(1);
 
-  const { buyIn, rebuy, cashOut, refund, status: escrowStatus, tableInfo } = useEscrow(id);
+  const { buyIn, rebuy, cashOut, refund, status: escrowStatus, tableInfo, rebuyError } = useEscrow(id);
   const { isHuman, refetchIsHuman } = useWallet();
 
   // URL params carry config immediately (before RPC loads) — prevents wrong-default-config bug
@@ -971,6 +971,9 @@ function TablePageInner() {
                   <button className="btn btn-ghost" onClick={() => setShowRebuy(false)}
                     style={{ padding:'6px 10px', fontSize:11 }}>✕</button>
                 </div>
+              )}
+              {rebuyError && (
+                <div style={{ fontSize:10, color:'#e0473b', marginTop:6 }}>{rebuyError}</div>
               )}
             </div>
           )}
