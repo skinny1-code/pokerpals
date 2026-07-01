@@ -559,6 +559,7 @@ export function useEscrow(tableId) {
   const publicClient           = usePublicClient();
   const [txHash, setTxHash]   = useState(null);
   const [status, setStatus]   = useState('idle'); // idle | approving | buying | settling | error
+  const [rebuyError, setRebuyError] = useState(null);
 
   const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -616,14 +617,50 @@ export function useEscrow(tableId) {
   // rebuy: approve + on-chain rebuy, then notify the game server
   const rebuy = useCallback(async (amount, notifyServer) => {
     if (!address || !tableId) return;
+    setRebuyError(null);
     try {
       const amountBN = parseUnits(Math.round(Number(amount)).toString(), 18);
+
+      // rebuy() reverts on-chain with "Not seated" if the caller has no deposit
+      // recorded for this table (e.g. a contract redeploy wiped prior state, or the
+      // player never called buyIn on the current escrow). A wallet can't estimate
+      // gas for a call that's guaranteed to revert, so instead of a clean error it
+      // shows a nonsensical multi-million-dollar fee — check first and never send
+      // a doomed tx.
+      const [deposit, roomId, seatFeeOnChain, balance] = await Promise.all([
+        publicClient.readContract({
+          address: ESCROW, abi: ESCROW_ABI, functionName: "getPlayerDeposit",
+          args: [BigInt(tableId), address],
+        }),
+        publicClient.readContract({
+          address: ESCROW, abi: ESCROW_ABI, functionName: "tableRoom", args: [BigInt(tableId)],
+        }),
+        publicClient.readContract({
+          address: ESCROW, abi: ESCROW_ABI, functionName: "seatFeeCHIPS", args: [],
+        }),
+        publicClient.readContract({
+          address: CHIPS, abi: CHIPS_ABI, functionName: "balanceOf", args: [address],
+        }),
+      ]);
+      if (deposit <= 0n) {
+        setRebuyError("You're not seated at this table on-chain — buy in instead of rebuying.");
+        setStatus('error');
+        return;
+      }
+      const fee = roomId !== 0n ? seatFeeOnChain / 2n : 0n;
+      const needed = amountBN + fee;
+      if (balance < needed) {
+        setRebuyError('Insufficient CHIPS balance for that rebuy amount.');
+        setStatus('error');
+        return;
+      }
+
       const feeOverrides = await safeFeeOverrides(publicClient);
-      if (!(await hasAllowance(publicClient, address, ESCROW, amountBN))) {
+      if (!(await hasAllowance(publicClient, address, ESCROW, needed))) {
         setStatus('approving');
         const approveTx = await writeContractAsync({
           address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
-          args: [ESCROW, amountBN], ...feeOverrides,
+          args: [ESCROW, needed], ...feeOverrides,
         });
         await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
       }
@@ -639,6 +676,7 @@ export function useEscrow(tableId) {
       return rebuyTx;
     } catch (e) {
       console.error("rebuy error:", e);
+      setRebuyError('Rebuy failed — please try again.');
       setStatus('error');
     }
   }, [address, tableId, writeContractAsync, publicClient]);
@@ -695,7 +733,7 @@ export function useEscrow(tableId) {
   // Keep seatFeeRef in sync so the buyIn callback always has the latest value
   useEffect(() => { seatFeeRef.current = seatFee; }, [seatFee]);
 
-  return { buyIn, rebuy, refund, cashOut, txHash, status, confirmed, tableInfo, isLeased, seatFee };
+  return { buyIn, rebuy, refund, cashOut, txHash, status, confirmed, tableInfo, isLeased, seatFee, rebuyError };
 }
 
 // ─── HOOK: LIQUIDITY POOL (CHIPS ⇄ USDC swap, used by the card-purchase flow) ──
