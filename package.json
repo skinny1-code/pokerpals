@@ -51,13 +51,5 @@
     "mocha": "^11.7.6",
     "solc": "^0.8.35",
     "typescript": "^6.0.3"
-  },
-  "overrides": {
-    "ws": "^8.21.0",
-    "postcss": "^8.5.15",
-    "uuid": "^14.0.0",
-    "tmp": "^0.2.7",
-    "diff": "^8.0.4",
-    "serialize-javascript": "^7.0.6"
   }
 }
