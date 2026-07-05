@@ -658,6 +658,15 @@ function HandlePageInner() {
         {/* Tab content */}
         {tab === 'overview' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 8 }}>
+              <StatCard label="CHIPS BALANCE" value={`◈ ${fmt(chipsBalance || 0)}`} />
+              <StatCard label="STAKED" value={`◈ ${fmt(stakedAmount)}`} color={tier.color} sub={`${tier.name} tier`} />
+              <StatCard label="HANDS WON" value={fmt(stats?.handsWon || 0)} />
+              <StatCard label="TABLES PLAYED" value={fmt(stats?.tablesPlayed || 0)} />
+              <StatCard label="TOURNEYS ENTERED" value={fmt(stats?.tournEntries || 0)} />
+              <StatCard label="TOURNEYS CASHED" value={fmt(stats?.tournCashes || 0)} />
+            </div>
+
             <div className="glass-strong" style={{ padding: 20 }}>
               <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 2, marginBottom: 14, fontWeight: 800 }}>LIFETIME BREAKDOWN</div>
               {[
@@ -698,6 +707,12 @@ function HandlePageInner() {
               </Link>
               <Link href="/buy" className="btn btn-emerald" style={{ textDecoration: 'none', padding: '14px', fontSize: 13 }}>
                 $ Buy CHIPS
+              </Link>
+              <button onClick={() => setTab('staking')} className="btn btn-ghost" style={{ padding: '14px', fontSize: 13 }}>
+                ◈ Stake
+              </button>
+              <Link href="/buy?tab=withdraw" className="btn btn-ghost" style={{ textDecoration: 'none', padding: '14px', fontSize: 13 }}>
+                ⬇ Withdraw
               </Link>
             </div>
           </div>

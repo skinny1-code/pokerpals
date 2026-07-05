@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import WalletBar from '../../components/WalletBar';
 import { useWallet, useLiquidityPool } from '../../hooks/usePokerWallet';
 import Link from 'next/link';
@@ -220,15 +221,118 @@ function CardOnRamp() {
   );
 }
 
+// ─── WITHDRAW — redeem CHIPS back to USDC via ChipsLiquidityPool ──────────────
+function WithdrawPanel() {
+  const { address, chipsBalance } = useWallet();
+  const {
+    paused, quoteUsdcOut, redeemChips,
+    status, confirmed, refetch,
+  } = useLiquidityPool();
+  const [amount, setAmount] = useState('');
+
+  const amountNum   = Number(amount) || 0;
+  const quotedUsdc  = quoteUsdcOut(amountNum);
+  const canRedeem   = !!address && amountNum > 0 && amountNum <= (chipsBalance || 0) && !paused && status === 'idle';
+
+  const handleRedeem = async () => {
+    if (!canRedeem) return;
+    const tx = await redeemChips(amountNum);
+    if (tx) { setAmount(''); refetch(); }
+  };
+
+  if (!address) {
+    return (
+      <div className="glass" style={{ padding: '13px 16px', fontSize: 11.5, color: 'var(--text-secondary)' }}>
+        Connect your wallet above to withdraw CHIPS.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+        Redeem <strong className="gold-text" style={{ fontWeight: 800 }}>CHIPS</strong> back to{' '}
+        <strong className="gold-text" style={{ fontWeight: 800 }}>USDC</strong> at the pool rate — paid out
+        directly to your wallet.
+      </div>
+
+      <div className="glass-strong" style={{ padding: '18px 20px' }}>
+        <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 12 }}>
+          Your CHIPS balance:{' '}
+          <span className="gold-text" style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>
+            ◈{(chipsBalance || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          </span>
+        </div>
+
+        {paused ? (
+          <div style={{ fontSize: 11.5, color: 'var(--orange)' }}>The swap pool is temporarily paused — try again later.</div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <input
+                type="number" min="0" step="any" placeholder="CHIPS amount"
+                value={amount} onChange={e => setAmount(e.target.value)}
+                className="input"
+                style={{
+                  flex: 1, padding: '12px 14px',
+                  fontFamily: "'JetBrains Mono',monospace", fontSize: 14,
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button onClick={() => setAmount(String(Math.floor(chipsBalance || 0)))} style={{
+                background: 'var(--bg-abyss)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
+                padding: '8px 14px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 10, fontWeight: 700, fontFamily: 'inherit',
+              }}>MAX</button>
+            </div>
+            {amountNum > 0 && (
+              <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                ≈{' '}
+                <span className="gold-text" style={{ fontWeight: 800, fontFamily: "'JetBrains Mono',monospace" }}>
+                  ${quotedUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </span>{' '}
+                USDC
+              </div>
+            )}
+            <button onClick={handleRedeem} disabled={!canRedeem} className="btn btn-gold" style={{
+              width: '100%', padding: '13px', fontSize: 13,
+              opacity: canRedeem ? 1 : .45,
+              cursor: canRedeem ? 'pointer' : 'not-allowed',
+            }}>
+              {status === 'approving' ? 'Approving CHIPS…'
+               : status === 'redeeming' ? 'Redeeming…'
+               : confirmed              ? '✓ Redeemed!'
+               : 'Redeem to USDC'}
+            </button>
+            {status === 'error' && (
+              <div style={{ fontSize: 11.5, color: 'var(--red)', marginTop: 8 }}>Something went wrong — try again.</div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="glass" style={{ padding: '13px 16px' }}>
+        <div style={{ fontSize: 9, color: 'var(--gold)', letterSpacing: 2.5, marginBottom: 7, fontWeight: 800 }}>
+          USDC LANDS ON ARBITRUM
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          USDC is paid out on Arbitrum One. Bridge or swap from there if you need it elsewhere.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const TABS = [
-  { id: 'swap',  label: '⇄  Swap Crypto' },
-  { id: 'card',  label: '💳  Buy with Card' },
+  { id: 'swap',     label: '⇄  Swap Crypto' },
+  { id: 'card',     label: '💳  Buy with Card' },
+  { id: 'withdraw', label: '⬇  Withdraw' },
   ...(IS_TESTNET ? [{ id: 'faucet', label: '🚰  Testnet Faucet' }] : []),
 ];
 
-export default function BuyPage() {
+function BuyPageInner() {
+  const searchParams = useSearchParams();
   const { address, chipsBalance } = useWallet();
-  const [tab, setTab] = useState('swap');
+  const [tab, setTab] = useState(() => searchParams.get('tab') || 'swap');
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -388,6 +492,9 @@ export default function BuyPage() {
         {/* Card tab */}
         {tab === 'card' && <CardOnRamp />}
 
+        {/* Withdraw tab */}
+        {tab === 'withdraw' && <WithdrawPanel />}
+
         {/* Testnet faucet tab */}
         {tab === 'faucet' && IS_TESTNET && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -435,5 +542,13 @@ export default function BuyPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function BuyPage() {
+  return (
+    <Suspense fallback={null}>
+      <BuyPageInner />
+    </Suspense>
   );
 }
