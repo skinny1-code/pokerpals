@@ -108,53 +108,6 @@ export default function WalletBar() {
         })}
       </nav>
 
-      {/* Mobile dropdown menu (full list + disconnect), driven by bottom-nav "More" */}
-      {isMobile && menuOpen && (
-        <>
-          <div onClick={() => setMenuOpen(false)}
-            style={{ position:'fixed', inset:0, zIndex:98, background:'rgba(0,0,0,.55)', backdropFilter:'blur(2px)' }} />
-          <div style={{
-            position:'fixed', left:10, right:10, bottom:'calc(74px + env(safe-area-inset-bottom))', zIndex:99,
-            background:'linear-gradient(180deg,#0c1a0d,#060e07)',
-            border:'1px solid var(--border-mid)', borderRadius:18,
-            boxShadow:'0 20px 50px rgba(0,0,0,.7)',
-            overflow:'hidden', animation:'pop-in .28s ease both',
-          }}>
-            {NAV_LINKS.map(({ href, label, icon }) => {
-              const on = isActive(href);
-              return (
-                <Link key={href} href={href}
-                  onClick={() => setMenuOpen(false)}
-                  style={{
-                    display:'flex', alignItems:'center', gap:14,
-                    padding:'15px 22px',
-                    borderBottom:'1px solid rgba(28,58,34,.6)',
-                    textDecoration:'none',
-                    color: on ? 'var(--gold)' : '#e8e0cc',
-                    background: on ? 'rgba(232,194,90,.06)' : 'transparent',
-                    fontSize:15, fontWeight:600,
-                  }}>
-                  <span style={MENU_ICON}>{icon}</span>
-                  {label}
-                </Link>
-              );
-            })}
-            {mounted && isConnected && (
-              <button onClick={() => { disconnect(); setMenuOpen(false); }} style={{
-                display:'flex', alignItems:'center', gap:14, width:'100%',
-                padding:'15px 22px',
-                background:'transparent', border:'none', cursor:'pointer',
-                color:'#e0473b', fontSize:15, fontWeight:600, fontFamily:'inherit',
-                textAlign:'left',
-              }}>
-                <span style={MENU_ICON}>⏻</span>
-                Disconnect
-              </button>
-            )}
-          </div>
-        </>
-      )}
-
       {/* Wallet section */}
       <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
 
@@ -279,6 +232,58 @@ export default function WalletBar() {
         )}
       </div>
     </header>
+
+    {/* Mobile dropdown menu (full list + disconnect), driven by bottom-nav "More".
+        Rendered as a sibling of <header>, NOT inside it — <header> has
+        backdrop-filter, which creates a new containing block for descendant
+        `position: fixed` elements per the CSS spec, so nesting this inside it
+        anchored the dropdown relative to the 60px header instead of the
+        viewport, pushing it off-screen. */}
+    {isMobile && menuOpen && (
+      <>
+        <div onClick={() => setMenuOpen(false)}
+          style={{ position:'fixed', inset:0, zIndex:98, background:'rgba(0,0,0,.55)', backdropFilter:'blur(2px)' }} />
+        <div style={{
+          position:'fixed', left:10, right:10, bottom:'calc(74px + env(safe-area-inset-bottom))', zIndex:99,
+          background:'linear-gradient(180deg,#0c1a0d,#060e07)',
+          border:'1px solid var(--border-mid)', borderRadius:18,
+          boxShadow:'0 20px 50px rgba(0,0,0,.7)',
+          overflow:'hidden', animation:'pop-in .28s ease both',
+        }}>
+          {NAV_LINKS.map(({ href, label, icon }) => {
+            const on = isActive(href);
+            return (
+              <Link key={href} href={href}
+                onClick={() => setMenuOpen(false)}
+                style={{
+                  display:'flex', alignItems:'center', gap:14,
+                  padding:'15px 22px',
+                  borderBottom:'1px solid rgba(28,58,34,.6)',
+                  textDecoration:'none',
+                  color: on ? 'var(--gold)' : '#e8e0cc',
+                  background: on ? 'rgba(232,194,90,.06)' : 'transparent',
+                  fontSize:15, fontWeight:600,
+                }}>
+                <span style={MENU_ICON}>{icon}</span>
+                {label}
+              </Link>
+            );
+          })}
+          {mounted && isConnected && (
+            <button onClick={() => { disconnect(); setMenuOpen(false); }} style={{
+              display:'flex', alignItems:'center', gap:14, width:'100%',
+              padding:'15px 22px',
+              background:'transparent', border:'none', cursor:'pointer',
+              color:'#e0473b', fontSize:15, fontWeight:600, fontFamily:'inherit',
+              textAlign:'left',
+            }}>
+              <span style={MENU_ICON}>⏻</span>
+              Disconnect
+            </button>
+          )}
+        </div>
+      </>
+    )}
 
     {/* ── Mobile bottom tab bar ─────────────────────────────── */}
     {isMobile && (
