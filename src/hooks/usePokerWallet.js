@@ -408,6 +408,75 @@ export function useWallet() {
   };
 }
 
+// ─── HOOK: FARCASTER MINI APP DETECTION + AUTO-CONNECT ───────────────────────
+// Shared by WalletBar and AuthGate so both agree on mini-app state and neither
+// duplicates the sdk import / auto-connect side effect.
+export function useMiniAppAutoConnect(connectFarcaster, isConnected) {
+  const [isInMiniApp, setIsInMiniApp] = useState(false);
+  useEffect(() => {
+    import('@farcaster/miniapp-sdk').then(async ({ sdk }) => {
+      const inFrame = await sdk.isInMiniApp();
+      if (inFrame) {
+        setIsInMiniApp(true);
+        if (!isConnected) connectFarcaster();
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return isInMiniApp;
+}
+
+// ─── HOOK: SITE-WIDE SIGN-IN GATE ─────────────────────────────────────────────
+// Distinct from the per-table "PVP-AUTH:<nonce>" signature (verified server-side
+// in server/index.js when joining a game) — this is a client-only UX gate that
+// blocks the whole site until the connected wallet has signed a site-level
+// message. Persists indefinitely per browser (localStorage) until the wallet
+// disconnects or a different address connects.
+const SITE_AUTH_KEY = 'pvp-site-auth';
+
+function getSiteAuthCache() {
+  try { return JSON.parse(localStorage.getItem(SITE_AUTH_KEY) || 'null'); }
+  catch { return null; }
+}
+
+export function useSiteAuth() {
+  const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
+  const [cached, setCached] = useState(null);
+  const [isChecking, setIsChecking] = useState(true);
+  const [status, setStatus] = useState('idle'); // idle | signing | error
+
+  useEffect(() => {
+    setCached(getSiteAuthCache());
+    setIsChecking(false);
+  }, []);
+
+  const isSignedIn = !isChecking && isConnected && !!address &&
+    cached?.address === address.toLowerCase();
+
+  const signIn = useCallback(async () => {
+    if (!address) return;
+    setStatus('signing');
+    try {
+      const message = `Sign in to PokerVsPlayer\n\nAddress: ${address}\nTimestamp: ${new Date().toISOString()}`;
+      const signature = await signMessageAsync({ message });
+      const entry = { address: address.toLowerCase(), signature, signedAt: Date.now() };
+      localStorage.setItem(SITE_AUTH_KEY, JSON.stringify(entry));
+      setCached(entry);
+      setStatus('idle');
+    } catch (e) {
+      console.error('site sign-in error:', e);
+      setStatus('error');
+    }
+  }, [address, signMessageAsync]);
+
+  const signOut = useCallback(() => {
+    localStorage.removeItem(SITE_AUTH_KEY);
+    setCached(null);
+  }, []);
+
+  return { isSignedIn, isChecking, status, signIn, signOut };
+}
+
 // ─── HOOK: STAKING ────────────────────────────────────────────────────────────
 export function useStaking() {
   const { address }            = useAccount();
@@ -1288,7 +1357,38 @@ export function useHandle() {
   };
 }
 
-// ─── HOOK: HANDLE MAP (batch lookup address → handle) ────────────────────────
+// ─── DISPLAY NAME (never show a raw wallet address to other players) ────────
+const NAME_ADJECTIVES = [
+  'Silver','Crimson','Golden','Shadow','Lucky','Iron','Velvet','Neon',
+  'Midnight','Rogue','Royal','Wild','Frozen','Blazing','Quiet','Savage',
+  'Electric','Amber','Cosmic','Rusty',
+];
+const NAME_NOUNS = [
+  'Shark','Ace','Bluff','Chip','Raider','Wolf','Falcon','Bandit',
+  'Cobra','Maverick','Grinder','Hustler','Viper','Rabbit','Ghost','Outlaw',
+  'Whale','Jackal','Panther','Rider',
+];
+
+// Deterministic djb2-style hash — same address always yields the same name,
+// on any device, with no persistence needed.
+function hashAddress(address) {
+  let h = 5381;
+  for (let i = 0; i < address.length; i++) h = ((h * 33) ^ address.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/** A free, deterministic display name for a wallet that hasn't minted a Poker
+ * Handle yet — e.g. "SilverShark482". Never returns a raw address. */
+export function generatedNameForAddress(address) {
+  if (!address) return 'Player';
+  const h = hashAddress(address.toLowerCase());
+  const adj = NAME_ADJECTIVES[h % NAME_ADJECTIVES.length];
+  const noun = NAME_NOUNS[(h >>> 8) % NAME_NOUNS.length];
+  const num = (h >>> 16) % 1000;
+  return `${adj}${noun}${num}`;
+}
+
+// ─── HOOK: HANDLE MAP (batch lookup address → handle, or a generated name) ──
 export function useHandleMap(addresses) {
   const cleaned = useMemo(() => (addresses || []).filter(Boolean), [addresses?.join(',')]);
   const { data } = useReadContracts({
@@ -1302,7 +1402,7 @@ export function useHandleMap(addresses) {
     const map = {};
     cleaned.forEach((addr, i) => {
       const h = data?.[i]?.result;
-      if (h) map[addr.toLowerCase()] = h;
+      map[addr.toLowerCase()] = h || generatedNameForAddress(addr);
     });
     return map;
   }, [data, cleaned]);

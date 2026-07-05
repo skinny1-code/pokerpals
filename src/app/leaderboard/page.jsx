@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import WalletBar from '../../components/WalletBar';
 import { useAccount } from 'wagmi';
-import { useLeaderboard } from '../../hooks/usePokerWallet';
+import { useLeaderboard, useHandle, generatedNameForAddress } from '../../hooks/usePokerWallet';
 
 const TIER_NAMES  = ['Standard','Bronze','Silver','Gold','Whale'];
 const TIER_COLORS = ['#6a9a6a','#cd7f32','#c0c0c0','#d4af37','#9b59b6'];
@@ -80,15 +80,11 @@ function LeaderRow({ entry, isHero }) {
           fontSize:14, color: entry.rank === 1 ? undefined : (isHero ? 'var(--gold-pale)' : '#d6cdb0'),
           fontWeight:800,
           overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-          {entry.handle || `${entry.addr.slice(0,10)}…`}
+          {entry.handle || generatedNameForAddress(entry.addr)}
           {isHero && <span style={{ fontSize:8, color:'var(--gold)', marginLeft:8, fontWeight:800,
             letterSpacing:1, border:'1px solid var(--border-gold)', borderRadius:5,
             padding:'2px 6px', verticalAlign:'middle',
             background:'rgba(232,194,90,.08)' }}>YOU</span>}
-        </span>
-        <span style={{ fontSize:9, color:'#3a6a3a', fontFamily:"'JetBrains Mono',monospace",
-          letterSpacing:.3 }}>
-          {entry.addr.slice(0,8)}…{entry.addr.slice(-4)}
         </span>
       </div>
 
@@ -128,6 +124,7 @@ function SkeletonRow() {
 
 export default function LeaderboardPage() {
   const { address } = useAccount();
+  const { myHandle } = useHandle();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -203,7 +200,7 @@ export default function LeaderboardPage() {
                     fontSize: isFirst ? 15 : 13, fontWeight:800, maxWidth:'100%',
                     color: isFirst ? undefined : medalColor,
                     overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textAlign:'center' }}>
-                    {e.handle || e.addr.slice(0,10)+'…'}
+                    {e.handle || generatedNameForAddress(e.addr)}
                   </div>
                   <div style={{ fontSize:11, fontWeight:700, color:'var(--gold)',
                     fontFamily:"'JetBrains Mono',monospace" }}>
@@ -286,7 +283,7 @@ export default function LeaderboardPage() {
               <div style={{ textAlign:'center', fontSize:12, color:'#5a8a5a', fontWeight:800 }}>—</div>
               <div style={{ minWidth:0 }}>
                 <div style={{ fontSize:13, color:'var(--gold-pale)', fontWeight:800 }}>
-                  {address.slice(0,10)}…
+                  {myHandle || generatedNameForAddress(address)}
                   <span style={{ fontSize:8, marginLeft:8, fontWeight:800, letterSpacing:1,
                     border:'1px solid var(--border-gold)', borderRadius:5, padding:'2px 6px',
                     color:'var(--gold)', background:'rgba(232,194,90,.08)' }}>YOU</span>

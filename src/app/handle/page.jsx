@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import WalletBar from '../../components/WalletBar';
 import VerifyHumanBanner from '../../components/VerifyHumanBanner';
 import {
@@ -539,9 +540,10 @@ function MintView({
 }
 
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
-export default function HandlePage() {
+function HandlePageInner() {
+  const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
-  const [tab, setTab] = useState('overview');
+  const [tab, setTab] = useState(() => searchParams.get('tab') || 'overview');
   useEffect(() => setMounted(true), []);
 
   const { address, chipsBalance, isHuman, refetchIsHuman } = useWallet();
@@ -734,5 +736,13 @@ export default function HandlePage() {
         </Link>
       </div>
     </div>
+  );
+}
+
+export default function HandlePage() {
+  return (
+    <Suspense fallback={null}>
+      <HandlePageInner />
+    </Suspense>
   );
 }

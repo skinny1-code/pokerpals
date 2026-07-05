@@ -880,7 +880,7 @@ function TablePageInner() {
                     }}>
                       {p.addr?.toLowerCase() === address?.toLowerCase()
                         ? 'You'
-                        : `${p.addr?.slice(0,8)}…`}
+                        : handleMap[p.addr?.toLowerCase()]}
                     </span>
                     {p.allIn && <span style={{ fontSize:7, color:'#f0902a',
                       border:'1px solid #f0902a44', borderRadius:2, padding:'0 3px' }}>AI</span>}

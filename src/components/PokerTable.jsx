@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Card, { EmptyCardSlot } from './Card';
 import PlayerSeat from './PlayerSeat';
+import { generatedNameForAddress } from '../hooks/usePokerWallet';
 
 const CHIP_DENOMS = [
   { bbMult: 1000, color: '#e8c25a', hi: '#f7e7a8' },
@@ -152,7 +153,7 @@ function WinnerBanner({ winners = [] }) {
       </div>
       {winners.map((w, i) => (
         <div key={i} style={{ fontSize: 16, color: '#e8c25a', fontWeight: 700 }}>
-          {w.handle || (w.address ? `${w.address.slice(0,8)}…` : 'Player')}
+          {w.handle || generatedNameForAddress(w.address)}
           <span style={{ fontSize: 11, marginLeft: 8, color: '#f7e7a8' }}>
             ◈ {w.amount?.toLocaleString()}
           </span>
