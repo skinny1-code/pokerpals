@@ -1,14 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useWallet, useHandle } from '../hooks/usePokerWallet';
+import { useWallet, useHandle, useMiniAppAutoConnect, generatedNameForAddress } from '../hooks/usePokerWallet';
 import { useAccount, useSwitchChain } from 'wagmi';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useIsMobile } from '../hooks/useIsMobile';
+import WalletPicker from './WalletPicker';
 
 const CHAIN_NAMES = { 421614: 'Arbitrum Sepolia', 42161: 'Arbitrum One' };
 const EXPECTED = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
-const HAS_WC = !!process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 
 const NAV_LINKS = [
   { href:'/',            label:'Lobby',        icon:'♠' },
@@ -17,7 +17,8 @@ const NAV_LINKS = [
   { href:'/stake',       label:'Stake',        icon:'◈' },
   { href:'/rooms',       label:'Rooms',        icon:'♛' },
   { href:'/buy',         label:'Buy CHIPS',    icon:'$' },
-  { href:'/handle',      label:'Handle',       icon:'@' },
+  { href:'/handle',      label:'Profile',      icon:'@' },
+  { href:'/handle?tab=settings', label:'Settings', icon:'⚙' },
 ];
 // Primary destinations surfaced in the mobile bottom tab bar (5th slot = More)
 const BOTTOM_LINKS = [
@@ -42,31 +43,17 @@ export default function WalletBar() {
   const [siteUrl, setSiteUrl]         = useState('');
   const [showPicker, setShowPicker]   = useState(false);
   const [menuOpen, setMenuOpen]       = useState(false);
-  const [isInMiniApp, setIsInMiniApp] = useState(false);
+  const isInMiniApp = useMiniAppAutoConnect(connectFarcaster, isConnected);
 
   useEffect(() => {
     setMounted(true);
     setHasInjected(!!window.ethereum);
     setSiteUrl(window.location.host);
+  }, []);
 
-    // Auto-connect when running inside a Farcaster / Base mini app
-    import('@farcaster/miniapp-sdk').then(async ({ sdk }) => {
-      const inFrame = await sdk.isInMiniApp();
-      if (inFrame) {
-        setIsInMiniApp(true);
-        if (!isConnected) connectFarcaster();
-      }
-    }).catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Don't close the picker on click — keep it open so the "Connecting…"/error
-  // state is visible. On a successful connect the whole block unmounts (isConnected).
-  function pick(fn) { fn(); }
-
-  const short = a => a ? `${a.slice(0,6)}…${a.slice(-4)}` : '';
   const wrongNet = mounted && isConnected && chainId && chainId !== EXPECTED;
   const chainName = CHAIN_NAMES[chainId] || `Chain ${chainId}`;
-  const displayName = myHandle || short(address);
+  const displayName = myHandle || generatedNameForAddress(address);
   const isActive = href => href === '/' ? pathname === '/' : pathname?.startsWith(href);
 
   return (
@@ -275,73 +262,16 @@ export default function WalletBar() {
                   position:'fixed', inset:0, zIndex:199,
                 }} />
                 <div style={{
-                  position:'absolute', top:'calc(100% + 10px)', right:0,
-                  background:'linear-gradient(180deg,#0c1a0d,#060e07)', border:'1px solid var(--border-mid)',
-                  borderRadius:14, padding:8, zIndex:200,
-                  minWidth:230, boxShadow:'0 18px 44px rgba(0,0,0,.7)',
-                  display:'flex', flexDirection:'column', gap:4,
+                  position:'absolute', top:'calc(100% + 10px)', right:0, zIndex:200,
                   animation:'pop-in .22s ease both',
                 }}>
-                  <div style={{ fontSize:9, color:'var(--text-muted)', letterSpacing:2.5,
-                    padding:'5px 10px', fontWeight:800 }}>CHOOSE WALLET</div>
-
-                  {/* Farcaster / Base Mini App — shown when inside the mini app */}
-                  {isInMiniApp && (
-                    <WalletOption
-                      icon="🟣"
-                      label="Farcaster Wallet"
-                      sub="Connected via Mini App"
-                      onClick={() => pick(connectFarcaster)}
-                    />
-                  )}
-
-                  {/* MetaMask / injected */}
-                  {!isInMiniApp && (
-                    <WalletOption
-                      icon="🦊"
-                      label="MetaMask"
-                      sub={hasInjected ? 'Detected' : 'Install →'}
-                      onClick={hasInjected
-                        ? () => pick(connectMetaMask)
-                        : () => { window.open(`https://metamask.app.link/dapp/${siteUrl}`,'_blank'); setShowPicker(false); }
-                      }
-                    />
-                  )}
-
-                  {/* WalletConnect — only shown when project ID is configured */}
-                  {HAS_WC && !isInMiniApp && (
-                    <WalletOption
-                      icon="🔗"
-                      label="WalletConnect"
-                      sub="Other wallets / mobile"
-                      onClick={() => pick(connectWalletConnect)}
-                    />
-                  )}
-
-                  {/* Connecting / error feedback — turns a silent failure into something visible */}
-                  {connectStatus === 'pending' && (
-                    <div style={{ display:'flex', alignItems:'center', gap:8,
-                      padding:'8px 12px', color:'var(--gold)', fontSize:11, fontWeight:600 }}>
-                      <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--gold)',
-                        animation:'live-dot 1s infinite' }} />
-                      Connecting… approve in your wallet
-                    </div>
-                  )}
-                  {connectStatus === 'error' && connectError && (
-                    <div style={{ padding:'8px 12px', color:'#e0473b', fontSize:11,
-                      lineHeight:1.4, wordBreak:'break-word' }}>
-                      {connectError.shortMessage || connectError.message || 'Connection failed'}
-                    </div>
-                  )}
-
-                  {/* Explain the missing option instead of silently omitting it */}
-                  {!HAS_WC && !isInMiniApp && (
-                    <div style={{ padding:'6px 12px', color:'var(--text-muted)', fontSize:9,
-                      letterSpacing:.3, lineHeight:1.4 }}>
-                      WalletConnect not configured — set NEXT_PUBLIC_WC_PROJECT_ID to enable
-                      mobile wallets.
-                    </div>
-                  )}
+                  <WalletPicker
+                    isInMiniApp={isInMiniApp} hasInjected={hasInjected} siteUrl={siteUrl}
+                    connectMetaMask={connectMetaMask} connectWalletConnect={connectWalletConnect}
+                    connectFarcaster={connectFarcaster}
+                    connectStatus={connectStatus} connectError={connectError}
+                    onPicked={() => setShowPicker(false)}
+                  />
                 </div>
               </>
             )}
@@ -371,27 +301,5 @@ export default function WalletBar() {
       </nav>
     )}
     </>
-  );
-}
-
-function WalletOption({ icon, label, sub, onClick }) {
-  const [hover, setHover] = useState(false);
-  return (
-    <button onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        background: hover ? 'rgba(16,185,129,.08)' : 'transparent',
-        border: `1px solid ${hover ? 'var(--border-gold)' : 'transparent'}`,
-        borderRadius:10, padding:'9px 12px', cursor:'pointer',
-        display:'flex', alignItems:'center', gap:11, width:'100%',
-        transition:'all .12s',
-      }}>
-      <span style={{ fontSize:21 }}>{icon}</span>
-      <div style={{ textAlign:'left' }}>
-        <div style={{ color:'var(--gold)', fontSize:13, fontWeight:700, fontFamily:'inherit' }}>{label}</div>
-        <div style={{ color:'var(--text-muted)', fontSize:10 }}>{sub}</div>
-      </div>
-    </button>
   );
 }
