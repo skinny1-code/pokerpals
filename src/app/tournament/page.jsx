@@ -24,7 +24,7 @@ function countdown(ts) {
   return `${m}m`;
 }
 
-function TournamentCard({ tourn, address, onRegister, regStatus }) {
+function TournamentCard({ tourn, address, onRegister, regStatus, isVerified }) {
   const [hov, setHov] = useState(false);
   const [now, setNow] = useState(Date.now());
 
@@ -142,6 +142,10 @@ function TournamentCard({ tourn, address, onRegister, regStatus }) {
             <div style={{ fontSize:11, color:'#3a6a3a' }}>Tournament full</div>
           ) : !address ? (
             <div style={{ fontSize:11, color:'#3a6a3a' }}>Connect wallet to register</div>
+          ) : !isVerified ? (
+            <div style={{ fontSize:11, color:'#8a6a2a' }}>
+              Mint a <a href="/handle" style={{ color:'#d4af37', fontWeight:700 }}>Poker Handle</a> to register — verified players only
+            </div>
           ) : (
             <button
               onClick={() => onRegister(tourn.id, tourn.entryFee)}
@@ -172,7 +176,7 @@ export default function TournamentPage() {
   useEffect(() => setMounted(true), []);
 
   const { tournaments, count } = useTournaments();
-  const { register, status: regStatus, confirmed } = useRegisterTournament();
+  const { register, status: regStatus, confirmed, isVerified } = useRegisterTournament();
 
   const [filter, setFilter] = useState('all');
 
@@ -236,6 +240,7 @@ export default function TournamentPage() {
                 address={mounted ? address : undefined}
                 onRegister={register}
                 regStatus={regStatus}
+                isVerified={isVerified}
               />
             ))}
           </div>

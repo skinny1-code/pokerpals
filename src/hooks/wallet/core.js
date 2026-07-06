@@ -18,6 +18,14 @@ export function safeWsUrl(url) {
   return url;
 }
 
+// The game server also answers plain HTTP requests on the same port (see
+// server/index.js's createServer) — /usernames and /claim-username for the free
+// display-name store. Reuses safeWsUrl's https-upgrade so it never mixed-content-blocks.
+export function wsHttpUrl() {
+  const ws = safeWsUrl(process.env.NEXT_PUBLIC_WS_URL);
+  return ws ? ws.replace(/^ws/, 'http') : null;
+}
+
 // ─── WAGMI CONFIG (export and wrap your app in <WagmiProvider config={wagmiConfig}>) ──
 const _wcProjectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 const _connectors = [

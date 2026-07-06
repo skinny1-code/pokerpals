@@ -7,7 +7,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicClient, useReadContract, useReadContracts } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { formatUnits } from "viem";
-import { wagmiConfig, safeFeeOverrides, hasAllowance, CHIPS_ABI, CHIPS, HANDLE_ABI, HANDLE } from "./core";
+import { wagmiConfig, safeFeeOverrides, hasAllowance, CHIPS_ABI, CHIPS, HANDLE_ABI, HANDLE, wsHttpUrl } from "./core";
 
 // ─── HOOK: POKER HANDLE NFT ───────────────────────────────────────────────────
 export function useHandle() {
@@ -173,7 +173,7 @@ export function generatedNameForAddress(address) {
   return `${adj}${noun}${num}`;
 }
 
-// ─── HOOK: HANDLE MAP (batch lookup address → handle, or a generated name) ──
+// ─── HOOK: HANDLE MAP (batch lookup address → handle, free username, or a generated name) ──
 export function useHandleMap(addresses) {
   const cleaned = useMemo(() => (addresses || []).filter(Boolean), [addresses?.join(',')]);
   const { data } = useReadContracts({
@@ -183,14 +183,30 @@ export function useHandleMap(addresses) {
     })),
     query: { enabled: !!HANDLE && cleaned.length > 0 },
   });
+
+  // Free, off-chain usernames (server/usernameStore.js) — the fallback between a
+  // minted PokerHandle NFT and the last-resort generated name.
+  const [usernames, setUsernames] = useState({});
+  useEffect(() => {
+    const base = wsHttpUrl();
+    if (!base || cleaned.length === 0) { setUsernames({}); return; }
+    let cancelled = false;
+    fetch(`${base}/usernames?addresses=${cleaned.join(',')}`)
+      .then(r => r.json())
+      .then(j => { if (!cancelled) setUsernames(j.usernames || {}); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [cleaned.join(',')]);
+
   return useMemo(() => {
     const map = {};
     cleaned.forEach((addr, i) => {
       const h = data?.[i]?.result;
-      map[addr.toLowerCase()] = h || generatedNameForAddress(addr);
+      const lc = addr.toLowerCase();
+      map[lc] = h || usernames[lc] || generatedNameForAddress(addr);
     });
     return map;
-  }, [data, cleaned]);
+  }, [data, cleaned, usernames]);
 }
 
 // ─── HOOK: HANDLE AVATARS (on-chain NFT image per address) ───────────────────

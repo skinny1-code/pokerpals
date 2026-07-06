@@ -5,7 +5,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { formatUnits, parseUnits } from "viem";
-import { wagmiConfig, safeFeeOverrides, hasAllowance, CHIPS_ABI, CHIPS, TOURNAMENT_ABI, TOURNAMENT } from "./core";
+import { wagmiConfig, safeFeeOverrides, hasAllowance, CHIPS_ABI, CHIPS, TOURNAMENT_ABI, TOURNAMENT, HANDLE_ABI, HANDLE } from "./core";
 
 // ─── HOOK: TOURNAMENTS ────────────────────────────────────────────────────────
 export function useTournaments() {
@@ -67,8 +67,17 @@ export function useRegisterTournament() {
 
   const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
+  // Tournaments/events require the paid PokerHandle NFT as a "verified" badge —
+  // the free sign-in username (useUsername.js) is not enough on its own.
+  const { data: myHandle } = useReadContract({
+    address: HANDLE, abi: HANDLE_ABI, functionName: "getHandleByAddress",
+    args: [address], query: { enabled: !!address && !!HANDLE },
+  });
+  const isVerified = !!myHandle;
+
   const register = useCallback(async (tournId, entryFee) => {
     if (!address || !TOURNAMENT || !CHIPS) return;
+    if (!isVerified) { setStatus('unverified'); return; }
     try {
       const feeBN = parseUnits(String(entryFee), 18);
       const feeOverrides = await safeFeeOverrides(publicClient);
@@ -92,7 +101,7 @@ export function useRegisterTournament() {
       console.error('register error:', e);
       setStatus('error');
     }
-  }, [address, writeContractAsync, publicClient]);
+  }, [address, isVerified, writeContractAsync, publicClient]);
 
-  return { register, status, txHash, confirmed };
+  return { register, status, txHash, confirmed, isVerified };
 }

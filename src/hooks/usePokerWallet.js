@@ -11,6 +11,7 @@ export * from './wallet/useEscrow';
 export * from './wallet/useStaking';
 export * from './wallet/useLiquidityPool';
 export * from './wallet/useHandle';
+export * from './wallet/useUsername';
 export * from './wallet/useTableSocket';
 export * from './wallet/useTournaments';
 export * from './wallet/useTableRegistry';
