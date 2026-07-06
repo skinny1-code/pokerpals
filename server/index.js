@@ -505,7 +505,10 @@ console.log(`[Server] Seeded ${SEED_TABLES.length} permanent tables`);
 const server = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
   // Public lobby/name data is open CORS; everything else is restricted to the frontend origin.
-  if (req.url === '/tables' || req.url?.startsWith('/usernames')) {
+  // /claim-username is also open — its actual security is the wallet-signature check
+  // below, not the origin, and it needs to work from every Vercel preview URL, not just
+  // one hardcoded production domain.
+  if (req.url === '/tables' || req.url?.startsWith('/usernames') || req.url === '/claim-username') {
     res.setHeader('Access-Control-Allow-Origin', '*');
   } else {
     res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_ORIGIN || '');
