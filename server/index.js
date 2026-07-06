@@ -10,6 +10,7 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { fullVerify, BehaviorMonitor } from "./antiBotOracle.js";
+import { getUsernames, claimUsername } from "./usernameStore.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -503,11 +504,18 @@ console.log(`[Server] Seeded ${SEED_TABLES.length} permanent tables`);
 
 const server = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
-  // Public lobby data is open CORS; everything else is restricted to the frontend origin.
-  if (req.url === '/tables') {
+  // Public lobby/name data is open CORS; everything else is restricted to the frontend origin.
+  if (req.url === '/tables' || req.url?.startsWith('/usernames')) {
     res.setHeader('Access-Control-Allow-Origin', '*');
   } else {
     res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_ORIGIN || '');
+  }
+  if (req.method === 'OPTIONS') {
+    // Preflight for the JSON POST below — browsers require this before /claim-username.
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.writeHead(204);
+    return res.end();
   }
   if (req.url === '/tables') {
     const list = [...tables.values()].map(t => ({
@@ -515,6 +523,33 @@ const server = createServer((req, res) => {
     }));
     res.writeHead(200);
     res.end(JSON.stringify({ tables: list }));
+  } else if (req.url?.startsWith('/usernames')) {
+    // Free, off-chain display names (see usernameStore.js) — batch address -> username
+    // lookup used by the frontend's useHandleMap/useUsername fallback chain.
+    const url = new URL(req.url, 'http://x');
+    const addrs = (url.searchParams.get('addresses') || '').split(',').map(s => s.trim()).filter(Boolean);
+    res.writeHead(200);
+    res.end(JSON.stringify({ usernames: getUsernames(addrs) }));
+  } else if (req.url === '/claim-username' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 10_000) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { address, signature, username } = JSON.parse(body);
+        if (!address || !signature || !username) {
+          res.writeHead(400); return res.end(JSON.stringify({ ok: false, error: 'Missing fields' }));
+        }
+        const recovered = ethers.verifyMessage(`PVP-CLAIM-USERNAME:${username}`, signature);
+        if (recovered.toLowerCase() !== String(address).toLowerCase()) {
+          res.writeHead(401); return res.end(JSON.stringify({ ok: false, error: 'Bad signature' }));
+        }
+        const result = claimUsername(address, username);
+        res.writeHead(result.ok ? 200 : 409);
+        res.end(JSON.stringify(result));
+      } catch (e) {
+        res.writeHead(400); res.end(JSON.stringify({ ok: false, error: 'Invalid request' }));
+      }
+    });
   } else if (req.url?.startsWith('/spawn-bot')) {
     const secret = req.headers['x-bot-secret'];
     if (!process.env.BOT_API_SECRET || secret !== process.env.BOT_API_SECRET) {

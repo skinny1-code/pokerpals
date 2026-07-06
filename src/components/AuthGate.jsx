@@ -1,11 +1,13 @@
 'use client';
-import { useWallet, useSiteAuth, useMiniAppAutoConnect } from '../hooks/usePokerWallet';
+import { useWallet, useSiteAuth, useMiniAppAutoConnect, useHandle, useUsername } from '../hooks/usePokerWallet';
 import { useEffect, useState } from 'react';
 import WalletPicker from './WalletPicker';
 
-// Blocks the whole app behind connect + sign-in. Rendered inside <Providers>
-// (needs wagmi context) around {children} in the root layout, so every page —
-// including WalletBar, which lives inside individual pages — is gated.
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+
+// Blocks the whole app behind connect + sign-in + a display name. Rendered inside
+// <Providers> (needs wagmi context) around {children} in the root layout, so every
+// page — including WalletBar, which lives inside individual pages — is gated.
 export default function AuthGate({ children }) {
   const {
     address, isConnected,
@@ -13,11 +15,14 @@ export default function AuthGate({ children }) {
     connectStatus, connectError,
   } = useWallet();
   const { isSignedIn, isChecking, status, signIn } = useSiteAuth();
+  const { hasHandle } = useHandle();
+  const { hasUsername, loading: usernameLoading, claim, status: claimStatus, error: claimError } = useUsername();
   const isInMiniApp = useMiniAppAutoConnect(connectFarcaster, isConnected);
 
   const [mounted, setMounted] = useState(false);
   const [hasInjected, setHasInjected] = useState(false);
   const [siteUrl, setSiteUrl] = useState('');
+  const [nameInput, setNameInput] = useState('');
   useEffect(() => {
     setMounted(true);
     setHasInjected(!!window.ethereum);
@@ -28,9 +33,68 @@ export default function AuthGate({ children }) {
   // hydration mismatch — wagmi's connection state is only known post-mount.
   if (!mounted || isChecking) return null;
 
-  if (isSignedIn) return children;
+  const hasDisplayName = hasHandle || hasUsername;
+
+  if (isSignedIn && hasDisplayName) return children;
+
+  // Signed in but still checking whether a name is already on file — avoid a
+  // flash of the "choose a name" screen for players who already have one.
+  if (isSignedIn && usernameLoading) return null;
 
   const short = address ? `${address.slice(0,6)}…${address.slice(-4)}` : '';
+  const nameValid = USERNAME_RE.test(nameInput.trim());
+
+  if (isSignedIn && !hasDisplayName) {
+    return (
+      <div style={{
+        position:'fixed', inset:0, zIndex:500,
+        background:'radial-gradient(circle at 50% 20%, #0e1f10, #05090500 60%), #050a05',
+        display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+        padding:20, gap:22,
+      }}>
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:28, fontWeight:900, color:'var(--gold)', letterSpacing:1,
+            fontFamily:"'JetBrains Mono',monospace" }}>♠ PokerVsPlayer</div>
+          <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:8 }}>
+            Choose a display name — free, no CHIPS required
+          </div>
+        </div>
+        <div style={{
+          background:'linear-gradient(180deg,#0c1a0d,#060e07)', border:'1px solid var(--border-mid)',
+          borderRadius:14, padding:20, minWidth:280,
+          display:'flex', flexDirection:'column', alignItems:'center', gap:12,
+        }}>
+          <input
+            value={nameInput}
+            onChange={e => setNameInput(e.target.value)}
+            placeholder="e.g. SilverShark482"
+            maxLength={20}
+            style={{
+              width:'100%', boxSizing:'border-box', padding:'10px 12px', fontSize:14,
+              background:'rgba(0,0,0,.3)', border:'1px solid var(--border-mid)', borderRadius:8,
+              color:'var(--gold-pale)', fontFamily:"'JetBrains Mono',monospace",
+            }}
+          />
+          <div style={{ fontSize:10, color:'var(--text-muted)', alignSelf:'flex-start' }}>
+            3–20 characters: letters, numbers, underscore
+          </div>
+          <button
+            onClick={() => claim(nameInput.trim())}
+            className="btn btn-gold"
+            disabled={!nameValid || claimStatus === 'claiming'}
+            style={{ padding:'9px 24px', fontSize:13, letterSpacing:.3, width:'100%' }}>
+            {claimStatus === 'claiming' ? 'Check your wallet…' : 'Claim Display Name'}
+          </button>
+          {claimStatus === 'error' && claimError && (
+            <div style={{ fontSize:11, color:'#e0473b', textAlign:'center' }}>{claimError}</div>
+          )}
+          <div style={{ fontSize:10, color:'var(--text-muted)', textAlign:'center' }}>
+            Already have a minted Poker Handle NFT? It'll be picked up automatically.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{

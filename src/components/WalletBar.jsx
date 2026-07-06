@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useWallet, useHandle, useMiniAppAutoConnect, generatedNameForAddress } from '../hooks/usePokerWallet';
+import { useWallet, useHandle, useUsername, useMiniAppAutoConnect, generatedNameForAddress } from '../hooks/usePokerWallet';
 import { useAccount, useSwitchChain } from 'wagmi';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -34,6 +34,7 @@ export default function WalletBar() {
           connectMetaMask, connectWalletConnect, connectFarcaster, disconnect,
           connectStatus, connectError } = useWallet();
   const { myHandle } = useHandle();
+  const { username } = useUsername();
   const { chainId, status: wagmiStatus } = useAccount();
   const { switchChain } = useSwitchChain();
   const isMobile = useIsMobile();
@@ -53,7 +54,7 @@ export default function WalletBar() {
 
   const wrongNet = mounted && isConnected && chainId && chainId !== EXPECTED;
   const chainName = CHAIN_NAMES[chainId] || `Chain ${chainId}`;
-  const displayName = myHandle || generatedNameForAddress(address);
+  const displayName = myHandle || username || generatedNameForAddress(address);
   const isActive = href => href === '/' ? pathname === '/' : pathname?.startsWith(href);
 
   return (
