@@ -881,6 +881,15 @@ wss.on('connection', (ws, req) => {
           send(ws, { type: 'AUTH_OK', address });
           console.log(`[WS] → AUTH_OK for ${address.slice(0,10)}`);
 
+          // Testnet: auto-verify immediately on auth so players never see or need
+          // the manual "Request Verification" gate while this flag is on — fire
+          // and forget so the mark-human tx doesn't block the auth handshake.
+          if (process.env.TESTNET_SKIP_HUMAN_CHECK === 'true') {
+            verifyHuman(address)
+              .then(result => send(ws, { type: 'VERIFY_RESULT', ...result }))
+              .catch(() => {});
+          }
+
           // Deliver any pending cashout from a prior disconnection
           for (const [, t] of tables) {
             const pending = t.pendingCashouts.get(address);
