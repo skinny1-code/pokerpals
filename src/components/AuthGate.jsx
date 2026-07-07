@@ -1,6 +1,7 @@
 'use client';
-import { useWallet, useSiteAuth, useMiniAppAutoConnect, useHandle, useUsername } from '../hooks/usePokerWallet';
-import { useEffect, useState } from 'react';
+import { useWallet, useSiteAuth, useMiniAppAutoConnect, useHandle, useUsername, EXPECTED_CHAIN } from '../hooks/usePokerWallet';
+import { useEffect, useRef, useState } from 'react';
+import { useSwitchChain } from 'wagmi';
 import WalletPicker from './WalletPicker';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
@@ -10,13 +11,14 @@ const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 // page — including WalletBar, which lives inside individual pages — is gated.
 export default function AuthGate({ children }) {
   const {
-    address, isConnected,
+    address, isConnected, chainId,
     connectMetaMask, connectWalletConnect, connectFarcaster,
     connectStatus, connectError,
   } = useWallet();
   const { isSignedIn, isChecking, status, signIn } = useSiteAuth();
   const { hasHandle } = useHandle();
   const { hasUsername, loading: usernameLoading, claim, status: claimStatus, error: claimError } = useUsername();
+  const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
   const isInMiniApp = useMiniAppAutoConnect(connectFarcaster, isConnected);
 
   const [mounted, setMounted] = useState(false);
@@ -28,6 +30,19 @@ export default function AuthGate({ children }) {
     setHasInjected(!!window.ethereum);
     setSiteUrl(window.location.host);
   }, []);
+
+  // Auto-switch to the expected chain as soon as a wrong-network wallet connects,
+  // instead of making the player hunt for a manual "switch network" button. Only
+  // attempted once per mismatch — if the wallet can't switch programmatically (or
+  // the player dismisses it), we don't keep re-prompting on every render.
+  const wrongNet = mounted && isConnected && chainId && chainId !== EXPECTED_CHAIN;
+  const switchAttempted = useRef(false);
+  useEffect(() => {
+    if (!wrongNet) { switchAttempted.current = false; return; }
+    if (switchAttempted.current) return;
+    switchAttempted.current = true;
+    switchChain?.({ chainId: EXPECTED_CHAIN });
+  }, [wrongNet, switchChain]);
 
   // Server and the very first client render must agree, or React throws a
   // hydration mismatch — wagmi's connection state is only known post-mount.
@@ -127,6 +142,19 @@ export default function AuthGate({ children }) {
           <div style={{ fontSize:11, color:'var(--text-muted)' }}>Connected as</div>
           <div style={{ fontSize:14, color:'var(--gold-pale)', fontWeight:700,
             fontFamily:"'JetBrains Mono',monospace" }}>{short}</div>
+          {wrongNet && (
+            <div style={{ fontSize:11, color:'#e07030', textAlign:'center' }}>
+              {isSwitchingChain ? 'Switching network — check your wallet…' : 'Wrong network detected'}
+              {!isSwitchingChain && (
+                <button onClick={() => switchChain?.({ chainId: EXPECTED_CHAIN })}
+                  style={{ display:'block', margin:'8px auto 0', background:'transparent',
+                    border:'1px solid #e0703088', borderRadius:6, padding:'5px 14px',
+                    color:'#e07030', fontSize:11, fontWeight:700, cursor:'pointer' }}>
+                  Switch Network
+                </button>
+              )}
+            </div>
+          )}
           <button onClick={signIn} className="btn btn-gold" disabled={status === 'signing'}
             style={{ padding:'9px 24px', fontSize:13, letterSpacing:.3, width:'100%' }}>
             {status === 'signing' ? 'Check your wallet…' : 'Sign Message to Continue'}
