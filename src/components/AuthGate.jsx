@@ -18,7 +18,7 @@ export default function AuthGate({ children }) {
   const { isSignedIn, isChecking, status, signIn } = useSiteAuth();
   const { hasHandle } = useHandle();
   const { hasUsername, loading: usernameLoading, claim, status: claimStatus, error: claimError } = useUsername();
-  const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
+  const { switchChain, isPending: isSwitchingChain, error: switchChainError } = useSwitchChain();
   const isInMiniApp = useMiniAppAutoConnect(connectFarcaster, isConnected);
 
   const [mounted, setMounted] = useState(false);
@@ -152,6 +152,17 @@ export default function AuthGate({ children }) {
                     color:'#e07030', fontSize:11, fontWeight:700, cursor:'pointer' }}>
                   Switch Network
                 </button>
+              )}
+              {switchChainError && !isSwitchingChain && (
+                <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:8, textAlign:'left' }}>
+                  Your wallet didn't switch automatically — some wallets (especially over
+                  WalletConnect) need the network added manually first:
+                  <div style={{ fontFamily:"'JetBrains Mono',monospace", marginTop:4, fontSize:9.5 }}>
+                    Network: Arbitrum Sepolia<br/>
+                    Chain ID: 421614<br/>
+                    RPC: https://sepolia-rollup.arbitrum.io/rpc
+                  </div>
+                </div>
               )}
             </div>
           )}
