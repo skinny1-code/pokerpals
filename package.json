@@ -23,6 +23,7 @@
     "setup:wallets": "node scripts/generateWallets.js",
     "setup:env": "node scripts/setupEnv.js",
     "faucet": "node scripts/faucet.js",
+    "fix:antibot-oracle": "node scripts/fixAntiBotOracle.js",
     "launch": "npm run server & npm run dev"
   },
   "dependencies": {
