@@ -636,6 +636,7 @@ function TablePageInner() {
           failures={verifyFailures}
           onVerify={sendVerifyHuman}
           onVerified={refetchIsHuman}
+          wsReady={wsStatus === 'authed'}
         />
       )}
 
