@@ -437,7 +437,7 @@ function SettingsPanel({ myHandle, mintCost, chipsBalance, changeHandle, status,
 function MintView({
   mounted, address, isHuman, chipsBalance, mintCost, currentTier,
   tierCostsCHIPS, TIER_LABELS, totalMinted, mint, status, confirmed, errorMsg,
-  verifyStatus, verifyFailures, sendVerifyHuman, refetchIsHuman,
+  verifyStatus, verifyFailures, sendVerifyHuman, refetchIsHuman, wsReady, wsError,
 }) {
   const [inputVal, setInputVal] = useState('');
   const canMint = mounted && isHuman && isValidHandle(inputVal) && chipsBalance >= mintCost && status === 'idle';
@@ -472,10 +472,15 @@ function MintView({
       {mounted && address && isHuman === false ? (
         <div className="glass-strong animate-up s3" style={{ borderRadius: 'var(--r-lg)', overflow: 'hidden', opacity: 0 }}>
           <VerifyHumanBanner status={verifyStatus} failures={verifyFailures}
-            onVerify={sendVerifyHuman} onVerified={refetchIsHuman} />
+            onVerify={sendVerifyHuman} onVerified={refetchIsHuman} wsReady={wsReady} />
           <div style={{ padding: '20px 24px', fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center' }}>
             Human verification is required before minting a handle.
           </div>
+          {wsError && (
+            <div style={{ padding: '0 24px 16px', fontSize: 10, color: '#e0473b', textAlign: 'center' }}>
+              ⚠ {wsError}
+            </div>
+          )}
         </div>
       ) : (
         <div className="glass-strong animate-up s3" style={{ borderRadius: 'var(--r-lg)', padding: 24, opacity: 0 }}>
@@ -552,7 +557,7 @@ function HandlePageInner() {
     tierCostsCHIPS, TIER_LABELS, totalMinted,
     mint, changeHandle, status, confirmed, errorMsg,
   } = useHandle();
-  const { verifyStatus, verifyFailures, sendVerifyHuman } = useTableSocket();
+  const { verifyStatus, verifyFailures, sendVerifyHuman, wsStatus, wsError } = useTableSocket();
   const { currentTier: stakeTier, stakedAmount } = useStaking();
   const { stats, activity, loading: statsLoading } = usePlayerStats(address);
 
@@ -573,6 +578,7 @@ function HandlePageInner() {
             mint={mint} status={status} confirmed={confirmed} errorMsg={errorMsg}
             verifyStatus={verifyStatus} verifyFailures={verifyFailures}
             sendVerifyHuman={sendVerifyHuman} refetchIsHuman={refetchIsHuman}
+            wsReady={wsStatus === 'authed'} wsError={wsError}
           />
         </div>
       </div>

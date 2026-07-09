@@ -4,7 +4,12 @@ import { useEffect, useRef } from 'react';
 // Shared banner for the real human-verification flow (antiBotOracle via the
 // VERIFY_HUMAN websocket round-trip). Purely presentational — driven by
 // useTableSocket()'s verifyStatus/verifyFailures/sendVerifyHuman.
-export default function VerifyHumanBanner({ status, failures, onVerify, onVerified }) {
+//
+// wsReady gates the button on the socket actually being authenticated first —
+// sendVerifyHuman() is a silent no-op over a closed/unauthenticated socket (see
+// useTableSocket.js), so without this the button looks broken (does nothing)
+// during the connect/auth window instead of showing it's still connecting.
+export default function VerifyHumanBanner({ status, failures, onVerify, onVerified, wsReady = true }) {
   const notifiedRef = useRef(false);
 
   useEffect(() => {
@@ -34,14 +39,14 @@ export default function VerifyHumanBanner({ status, failures, onVerify, onVerifi
       {!isDone && (
         <button
           onClick={onVerify}
-          disabled={isPending}
+          disabled={isPending || !wsReady}
           style={{
             background: 'transparent', border: '1px solid #c8793088',
-            borderRadius: 6, padding: '3px 12px', cursor: isPending ? 'not-allowed' : 'pointer',
+            borderRadius: 6, padding: '3px 12px', cursor: (isPending || !wsReady) ? 'not-allowed' : 'pointer',
             color: '#e07030', fontSize: 10, fontWeight: 700,
           }}
         >
-          {isPending ? 'Verifying…' : 'Request Verification'}
+          {!wsReady ? 'Connecting…' : isPending ? 'Verifying…' : 'Request Verification'}
         </button>
       )}
       {isError && failures?.length > 0 && (
