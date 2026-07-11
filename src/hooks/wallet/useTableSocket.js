@@ -81,8 +81,12 @@ export function useTableSocket(tableId, tableConfig) {
                   authCacheRef.current = { address, nonce: msg.nonce, signature };
                   ws.send(JSON.stringify({ type: 'AUTH', payload: { address, signature } }));
                 } else {
-                  authFailedRef.current = true;
-                  setWsError('Connection lost during sign — refresh to retry');
+                  // Socket died while the wallet app had focus — common on mobile,
+                  // where backgrounding the browser to sign can get the tab's
+                  // connection killed. Not a decline, so don't set authFailedRef
+                  // (that would block the automatic reconnect below); the fresh
+                  // connection will issue a new challenge and re-prompt to sign.
+                  setWsError('Connection dropped while signing — reconnecting…');
                 }
               })
               .catch(() => {
@@ -94,6 +98,7 @@ export function useTableSocket(tableId, tableConfig) {
           }
           case 'AUTH_OK':
             setWsStatus('authed');
+            setWsError(null);
             if (tableId) {
               // Always send JOIN_TABLE immediately; include config if available (server uses defaults otherwise)
               ws.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, config: tableConfigRef.current || undefined } }));
