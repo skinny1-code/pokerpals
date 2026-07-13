@@ -64,6 +64,7 @@ export function useRegisterTournament() {
   const publicClient           = usePublicClient();
   const [status, setStatus]    = useState('idle');
   const [txHash, setTxHash]    = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -78,6 +79,7 @@ export function useRegisterTournament() {
   const register = useCallback(async (tournId, entryFee) => {
     if (!address || !TOURNAMENT || !CHIPS) return;
     if (!isVerified) { setStatus('unverified'); return; }
+    setErrorMsg(null);
     try {
       const feeBN = parseUnits(String(entryFee), 18);
       const feeOverrides = await safeFeeOverrides(publicClient);
@@ -99,9 +101,10 @@ export function useRegisterTournament() {
       return tx;
     } catch (e) {
       console.error('register error:', e);
+      setErrorMsg(e?.shortMessage || e?.message || 'Registration failed — please try again.');
       setStatus('error');
     }
   }, [address, isVerified, writeContractAsync, publicClient]);
 
-  return { register, status, txHash, confirmed, isVerified };
+  return { register, status, txHash, confirmed, isVerified, errorMsg };
 }

@@ -279,7 +279,7 @@ const SEAT_POS = [
   { x: 0.26, y: 0.80 }, // 8 bottom-left
 ];
 
-function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, buyInAmount, onBuyInChange, minBuyIn, maxBuyIn, escrowStatus }) {
+function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, buyInAmount, onBuyInChange, minBuyIn, maxBuyIn, escrowStatus, escrowErrorMsg }) {
   const seats = SEAT_POS.slice(0, maxPlayers);
   const takenMap = Object.fromEntries((takenSeats || []).map(s => [s.seatIndex, s.addr]));
   const fmt = n => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M`
@@ -386,18 +386,22 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
             </div>
           )}
           <button
-            className={escrowStatus !== 'idle' ? 'btn btn-ghost' : 'btn btn-gold'}
+            className={(escrowStatus !== 'idle' && escrowStatus !== 'error') ? 'btn btn-ghost' : 'btn btn-gold'}
             onClick={() => onBuyIn(pendingSeat)}
-            disabled={escrowStatus !== 'idle'}
+            disabled={escrowStatus !== 'idle' && escrowStatus !== 'error'}
             style={{
-              padding:'10px 20px', cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer',
+              padding:'10px 20px', cursor: (escrowStatus !== 'idle' && escrowStatus !== 'error') ? 'not-allowed' : 'pointer',
               fontSize:12, fontFamily:'inherit', alignSelf:'flex-end',
             }}
           >
             {escrowStatus === 'approving' ? 'Approving…'
              : escrowStatus === 'buying'  ? 'Buying In…'
+             : escrowStatus === 'error'   ? 'Retry Buy In →'
              : 'Buy In →'}
           </button>
+          {escrowStatus === 'error' && escrowErrorMsg && (
+            <div style={{ fontSize:10, color:'#e0473b' }}>{escrowErrorMsg}</div>
+          )}
         </div>
       )}
     </div>
@@ -446,7 +450,7 @@ function TablePageInner() {
   const address = mounted ? rawAddress : undefined;
   const [botCount, setBotCount] = useState(1);
 
-  const { buyIn, rebuy, cashOut, refund, status: escrowStatus, tableInfo, rebuyError } = useEscrow(id);
+  const { buyIn, rebuy, cashOut, refund, status: escrowStatus, tableInfo, rebuyError, errorMsg: escrowErrorMsg } = useEscrow(id);
   const { isHuman, refetchIsHuman } = useWallet();
 
   // URL params carry config immediately (before RPC loads) — prevents wrong-default-config bug
@@ -591,7 +595,8 @@ function TablePageInner() {
 
   const handleCashOut = useCallback(async () => {
     if (!cashoutSig || !address) return;
-    await cashOut(address, cashoutSig.amount, cashoutSig.nonce, cashoutSig.sig);
+    const tx = await cashOut(address, cashoutSig.amount, cashoutSig.nonce, cashoutSig.sig);
+    if (!tx) return; // failed — keep cashoutSig so the player can retry instead of losing their payout
     setCashoutSig(null);
     router.push('/');
   }, [cashoutSig, address, cashOut, setCashoutSig, router]);
@@ -608,7 +613,8 @@ function TablePageInner() {
     // On testnet (no real on-chain deposit exists in SKIP_CHAIN_VERIFY mode), skip the refund call.
     const isTestnet = process.env.NEXT_PUBLIC_CHAIN_ID === '421614';
     if (!isTestnet) {
-      await refund();
+      const tx = await refund();
+      if (!tx) return; // failed — stay put so the player can retry instead of silently losing the deposit
     }
     router.push('/');
   }, [refund, router]);
@@ -618,7 +624,8 @@ function TablePageInner() {
       || tableConfig?.buyIn
       || (tableInfo?.buyInAmount ? Number(tableInfo.buyInAmount) / 1e18 : 0);
     if (!amount) return;
-    await buyIn(amount);
+    const tx = await buyIn(amount);
+    if (!tx) return; // failed — don't tell the server we're seated with no on-chain deposit
     joinWithSeat(seatIndex, amount);
   }, [buyIn, joinWithSeat, selectedBuyIn, tableConfig, tableInfo]);
 
@@ -785,6 +792,7 @@ function TablePageInner() {
               onBuyIn={handleBuyIn}
               buyInAmount={selectedBuyIn ?? seatPickerData.minBuyIn ?? tableConfig?.buyIn ?? 1000}
               onBuyInChange={setSelectedBuyIn}
+              escrowErrorMsg={escrowErrorMsg}
               minBuyIn={seatPickerData.minBuyIn}
               maxBuyIn={seatPickerData.maxBuyIn}
               escrowStatus={escrowStatus}
@@ -937,11 +945,17 @@ function TablePageInner() {
                 fontFamily:"'JetBrains Mono',monospace", marginBottom:8 }}>
                 ◈ {Number(cashoutSig.amount).toLocaleString()}
               </div>
-              <button className="btn btn-gold" onClick={handleCashOut} disabled={escrowStatus !== 'idle'}
+              <button className="btn btn-gold" onClick={handleCashOut}
+                disabled={escrowStatus !== 'idle' && escrowStatus !== 'error'}
                 style={{ width:'100%', padding:'10px', fontSize:11,
-                  cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer' }}>
-                {escrowStatus === 'cashout' ? 'Withdrawing…' : 'Claim Chips + Leave'}
+                  cursor: (escrowStatus !== 'idle' && escrowStatus !== 'error') ? 'not-allowed' : 'pointer' }}>
+                {escrowStatus === 'cashout' ? 'Withdrawing…'
+                 : escrowStatus === 'error' ? 'Retry — Claim Chips + Leave'
+                 : 'Claim Chips + Leave'}
               </button>
+              {escrowStatus === 'error' && escrowErrorMsg && (
+                <div style={{ fontSize:10, color:'#e0473b', marginTop:6 }}>{escrowErrorMsg}</div>
+              )}
             </div>
           )}
 
@@ -965,9 +979,10 @@ function TablePageInner() {
                     placeholder="Amount"
                     style={{ flex:1, padding:'6px 8px', color:'var(--gold)', fontSize:11,
                       fontFamily:"'JetBrains Mono',monospace", outline:'none' }} />
-                  <button className="btn btn-emerald" onClick={handleRebuy} disabled={escrowStatus !== 'idle'}
+                  <button className="btn btn-emerald" onClick={handleRebuy}
+                    disabled={escrowStatus !== 'idle' && escrowStatus !== 'error'}
                     style={{ padding:'6px 12px', fontSize:11 }}>
-                    {escrowStatus !== 'idle' ? '…' : 'OK'}
+                    {(escrowStatus !== 'idle' && escrowStatus !== 'error') ? '…' : 'OK'}
                   </button>
                   <button className="btn btn-ghost" onClick={() => setShowRebuy(false)}
                     style={{ padding:'6px 10px', fontSize:11 }}>✕</button>
@@ -995,12 +1010,18 @@ function TablePageInner() {
               <div style={{ fontSize:9, color:'#e8c25a99', letterSpacing:1, marginBottom:6 }}>
                 You left the waiting room
               </div>
-              <button className="btn btn-gold" onClick={handleRefund} disabled={escrowStatus !== 'idle'} style={{
+              <button className="btn btn-gold" onClick={handleRefund}
+                disabled={escrowStatus !== 'idle' && escrowStatus !== 'error'} style={{
                 width:'100%', padding:'8px', fontSize:11,
-                cursor: escrowStatus !== 'idle' ? 'not-allowed' : 'pointer',
+                cursor: (escrowStatus !== 'idle' && escrowStatus !== 'error') ? 'not-allowed' : 'pointer',
               }}>
-                {escrowStatus !== 'idle' ? 'Processing…' : 'Return to Lobby'}
+                {escrowStatus === 'error' ? 'Retry — Return to Lobby'
+                 : escrowStatus !== 'idle' ? 'Processing…'
+                 : 'Return to Lobby'}
               </button>
+              {escrowStatus === 'error' && escrowErrorMsg && (
+                <div style={{ fontSize:10, color:'#e0473b', marginTop:6 }}>{escrowErrorMsg}</div>
+              )}
             </div>
           )}
 

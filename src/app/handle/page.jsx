@@ -346,7 +346,7 @@ function EventsPanel({ address, isHuman }) {
 function SettingsPanel({ myHandle, mintCost, chipsBalance, changeHandle, status, errorMsg, address, avatar }) {
   const [renameVal, setRenameVal] = useState('');
   const [copied, setCopied] = useState(false);
-  const canRename = isValidHandle(renameVal) && chipsBalance >= mintCost && status === 'idle';
+  const canRename = isValidHandle(renameVal) && chipsBalance >= mintCost && (status === 'idle' || status === 'error');
 
   const onRename = async () => {
     if (!canRename) return;
@@ -440,7 +440,7 @@ function MintView({
   verifyStatus, verifyFailures, sendVerifyHuman, refetchIsHuman, wsReady, wsError,
 }) {
   const [inputVal, setInputVal] = useState('');
-  const canMint = mounted && isHuman && isValidHandle(inputVal) && chipsBalance >= mintCost && status === 'idle';
+  const canMint = mounted && isHuman && isValidHandle(inputVal) && chipsBalance >= mintCost && (status === 'idle' || status === 'error');
 
   return (
     <div style={{ maxWidth: 480, margin: '0 auto' }}>
