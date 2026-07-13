@@ -89,9 +89,23 @@ export function useTableSocket(tableId, tableConfig) {
                   setWsError('Connection dropped while signing — reconnecting…');
                 }
               })
-              .catch(() => {
-                authFailedRef.current = true;
-                setWsError('Wallet signature required — refresh to retry');
+              .catch((err) => {
+                // signMessageAsync rejects both for a genuine decline AND for a
+                // dropped WalletConnect session (e.g. the wallet app's session
+                // times out while the browser tab is backgrounded to sign) — the
+                // two look identical here without inspecting the error. Only a
+                // real EIP-1193 user rejection (code 4001 / "rejected") should
+                // stop auto-reconnect; anything else is more likely a transient
+                // session hiccup, so let the fresh connection re-prompt instead
+                // of dead-ending on a manual refresh.
+                const declined = err?.code === 4001 || err?.name === 'UserRejectedRequestError' ||
+                  /reject/i.test(err?.shortMessage || err?.message || '');
+                if (declined) {
+                  authFailedRef.current = true;
+                  setWsError('Signature declined — tap to retry');
+                } else {
+                  setWsError('Signature request failed — reconnecting…');
+                }
                 ws.close();
               });
             break;
