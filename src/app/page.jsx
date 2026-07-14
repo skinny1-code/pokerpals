@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import WalletBar from '../components/WalletBar';
 import { useAccount } from 'wagmi';
-import { useCreateTable } from '../hooks/usePokerWallet';
+import { useCreateTable, wsHttpUrl } from '../hooks/usePokerWallet';
 
 const GAME_LABEL = { 0:"No Limit Hold'em", 1:'Pot Limit Omaha' };
 
@@ -315,7 +315,7 @@ export default function LobbyPage() {
   const [showCreate,  setShowCreate]  = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  const serverBase = (process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000').replace(/^ws/, 'http');
+  const serverBase = wsHttpUrl();
   useEffect(() => {
     const poll = () =>
       fetch(`${serverBase}/tables`)
