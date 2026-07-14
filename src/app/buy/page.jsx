@@ -77,7 +77,7 @@ function CardOnRamp() {
   const configured   = !!TRANSAK_API_KEY;
   const amountNum    = Number(amount) || 0;
   const quotedChips  = quoteChipsOut(amountNum);
-  const canConvert   = !!address && amountNum > 0 && amountNum <= usdcBalance && !paused && status === 'idle';
+  const canConvert   = !!address && amountNum > 0 && amountNum <= usdcBalance && !paused && (status === 'idle' || status === 'error');
 
   const handleBuyCard = () => {
     if (!address || !configured) return;
@@ -232,7 +232,7 @@ function WithdrawPanel() {
 
   const amountNum   = Number(amount) || 0;
   const quotedUsdc  = quoteUsdcOut(amountNum);
-  const canRedeem   = !!address && amountNum > 0 && amountNum <= (chipsBalance || 0) && !paused && status === 'idle';
+  const canRedeem   = !!address && amountNum > 0 && amountNum <= (chipsBalance || 0) && !paused && (status === 'idle' || status === 'error');
 
   const handleRedeem = async () => {
     if (!canRedeem) return;

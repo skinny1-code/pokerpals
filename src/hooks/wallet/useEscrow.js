@@ -41,6 +41,7 @@ export function useEscrow(tableId) {
   const [txHash, setTxHash]   = useState(null);
   const [status, setStatus]   = useState('idle'); // idle | approving | buying | settling | error
   const [rebuyError, setRebuyError] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -49,6 +50,7 @@ export function useEscrow(tableId) {
 
   const buyIn = useCallback(async (buyInAmount) => {
     if (!address || !tableId) return;
+    setErrorMsg(null);
     try {
       const amountBN    = parseUnits(Math.round(Number(buyInAmount)).toString(), 18);
       const seatFeeAmt  = seatFeeRef.current; // 0 for open tables, >0 for leased tables
@@ -78,11 +80,13 @@ export function useEscrow(tableId) {
       return buyInTx;
     } catch (e) {
       console.error("buyIn error:", e);
+      setErrorMsg(e?.shortMessage || e?.message || 'Buy-in failed — please try again.');
       setStatus('error');
     }
   }, [address, tableId, writeContractAsync, publicClient]);
 
   const refund = useCallback(async () => {
+    setErrorMsg(null);
     try {
       setStatus('refunding');
       const tx = await writeContractAsync({
@@ -92,7 +96,10 @@ export function useEscrow(tableId) {
       setTxHash(tx);
       setStatus('idle');
       return tx;
-    } catch (e) { setStatus('error'); }
+    } catch (e) {
+      setErrorMsg(e?.shortMessage || e?.message || 'Refund failed — please try again.');
+      setStatus('error');
+    }
   }, [tableId, writeContractAsync]);
 
   // rebuy: approve + on-chain rebuy, then notify the game server
@@ -165,6 +172,7 @@ export function useEscrow(tableId) {
   // cashOut: submit an operator-signed cashout to the contract
   const cashOut = useCallback(async (player, amount, nonce, sig) => {
     if (!ESCROW) return;
+    setErrorMsg(null);
     try {
       setStatus('cashout');
       const args = [BigInt(tableId), player, BigInt(amount), BigInt(nonce), sig];
@@ -174,6 +182,7 @@ export function useEscrow(tableId) {
         });
       } catch (simErr) {
         console.error("cashOut simulate failed:", simErr.shortMessage || simErr.message);
+        setErrorMsg(simErr?.shortMessage || simErr?.message || 'Cash-out failed — please try again.');
         setStatus('error');
         return;
       }
@@ -186,6 +195,7 @@ export function useEscrow(tableId) {
       return tx;
     } catch (e) {
       console.error("cashOut error:", e);
+      setErrorMsg(e?.shortMessage || e?.message || 'Cash-out failed — please try again.');
       setStatus('error');
     }
   }, [tableId, writeContractAsync, publicClient]);
@@ -214,7 +224,7 @@ export function useEscrow(tableId) {
   // Keep seatFeeRef in sync so the buyIn callback always has the latest value
   useEffect(() => { seatFeeRef.current = seatFee; }, [seatFee]);
 
-  return { buyIn, rebuy, refund, cashOut, txHash, status, confirmed, tableInfo, isLeased, seatFee, rebuyError };
+  return { buyIn, rebuy, refund, cashOut, txHash, status, confirmed, tableInfo, isLeased, seatFee, rebuyError, errorMsg };
 }
 
 // ─── HOOK: CREATE TABLE ───────────────────────────────────────────────────────

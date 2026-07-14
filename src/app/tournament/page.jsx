@@ -24,7 +24,7 @@ function countdown(ts) {
   return `${m}m`;
 }
 
-function TournamentCard({ tourn, address, onRegister, regStatus, isVerified }) {
+function TournamentCard({ tourn, address, onRegister, regStatus, isVerified, regErrorMsg }) {
   const [hov, setHov] = useState(false);
   const [now, setNow] = useState(Date.now());
 
@@ -147,22 +147,28 @@ function TournamentCard({ tourn, address, onRegister, regStatus, isVerified }) {
               Mint a <a href="/handle" style={{ color:'#d4af37', fontWeight:700 }}>Poker Handle</a> to register — verified players only
             </div>
           ) : (
-            <button
-              onClick={() => onRegister(tourn.id, tourn.entryFee)}
-              disabled={regStatus !== 'idle'}
-              style={{
-                background: regStatus !== 'idle' ? '#0a160a' : 'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-                border:`1px solid ${regStatus !== 'idle' ? '#1a3a1a' : '#d4af37'}`,
-                borderRadius:8, padding:'9px 24px', cursor: regStatus !== 'idle' ? 'not-allowed' : 'pointer',
-                color: regStatus !== 'idle' ? '#3a6a3a' : '#d4af37',
-                fontSize:12, fontWeight:700, fontFamily:'inherit',
-                transition:'all .15s',
-              }}
-            >
-              {regStatus === 'approving'   ? 'Approving…'
-               : regStatus === 'registering' ? 'Registering…'
-               : `Register — ◈ ${fmt(tourn.entryFee)}`}
-            </button>
+            <div>
+              <button
+                onClick={() => onRegister(tourn.id, tourn.entryFee)}
+                disabled={regStatus !== 'idle' && regStatus !== 'error'}
+                style={{
+                  background: (regStatus !== 'idle' && regStatus !== 'error') ? '#0a160a' : 'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
+                  border:`1px solid ${(regStatus !== 'idle' && regStatus !== 'error') ? '#1a3a1a' : '#d4af37'}`,
+                  borderRadius:8, padding:'9px 24px', cursor: (regStatus !== 'idle' && regStatus !== 'error') ? 'not-allowed' : 'pointer',
+                  color: (regStatus !== 'idle' && regStatus !== 'error') ? '#3a6a3a' : '#d4af37',
+                  fontSize:12, fontWeight:700, fontFamily:'inherit',
+                  transition:'all .15s',
+                }}
+              >
+                {regStatus === 'approving'   ? 'Approving…'
+                 : regStatus === 'registering' ? 'Registering…'
+                 : regStatus === 'error' ? 'Retry Registration'
+                 : `Register — ◈ ${fmt(tourn.entryFee)}`}
+              </button>
+              {regStatus === 'error' && regErrorMsg && (
+                <div style={{ fontSize:10, color:'#e74c3c', marginTop:6 }}>{regErrorMsg}</div>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -176,7 +182,7 @@ export default function TournamentPage() {
   useEffect(() => setMounted(true), []);
 
   const { tournaments, count } = useTournaments();
-  const { register, status: regStatus, confirmed, isVerified } = useRegisterTournament();
+  const { register, status: regStatus, confirmed, isVerified, errorMsg: regErrorMsg } = useRegisterTournament();
 
   const [filter, setFilter] = useState('all');
 
@@ -241,6 +247,7 @@ export default function TournamentPage() {
                 onRegister={register}
                 regStatus={regStatus}
                 isVerified={isVerified}
+                regErrorMsg={regErrorMsg}
               />
             ))}
           </div>
