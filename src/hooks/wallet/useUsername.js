@@ -19,7 +19,7 @@ export function useUsername() {
 
   const refetch = useCallback(async () => {
     const base = wsHttpUrl();
-    if (!base || !address) { setLoading(false); return; }
+    if (!address) { setLoading(false); return; }
     setLoading(true);
     try {
       const res = await fetch(`${base}/usernames?addresses=${address}`);
@@ -36,7 +36,13 @@ export function useUsername() {
 
   const claim = useCallback(async (desired) => {
     const base = wsHttpUrl();
-    if (!base || !address) return;
+    if (!address) {
+      // Never fail silently here — this button is the only way past the sign-in
+      // gate for a new player, so a dead click must always explain itself.
+      setError('Wallet not connected — reconnect and try again.');
+      setStatus('error');
+      return;
+    }
     setError(null);
     setStatus('claiming');
     try {

@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAccount, useSignMessage } from "wagmi";
-import { safeWsUrl } from "./core";
+import { safeWsUrl, WS_URL } from "./core";
 
 // ─── AUTH CACHE (sessionStorage) ─────────────────────────────────────────────
 // Survives page navigation within the same tab so PVP-AUTH fires only once per session.
@@ -26,7 +26,7 @@ function clearAuthCache() {
 export function useTableSocket(tableId, tableConfig) {
   const { address }          = useAccount();
   const { signMessageAsync } = useSignMessage();
-  const serverUrl            = safeWsUrl(process.env.NEXT_PUBLIC_WS_URL);
+  const serverUrl            = safeWsUrl(WS_URL);
 
   const [gameState,       setGameState]       = useState(null);
   const [handOver,        setHandOver]        = useState(null);

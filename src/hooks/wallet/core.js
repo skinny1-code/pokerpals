@@ -18,12 +18,18 @@ export function safeWsUrl(url) {
   return url;
 }
 
+// Game-server URL, resolved once. The localhost fallback keeps local dev working
+// without configuration and — more importantly — turns a missing NEXT_PUBLIC_WS_URL
+// in a production build into a VISIBLE connection error instead of every WS/HTTP
+// consumer silently doing nothing (the username-claim gate used to dead-end with
+// zero feedback when this var was absent at build time).
+export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
+
 // The game server also answers plain HTTP requests on the same port (see
 // server/index.js's createServer) — /usernames and /claim-username for the free
 // display-name store. Reuses safeWsUrl's https-upgrade so it never mixed-content-blocks.
 export function wsHttpUrl() {
-  const ws = safeWsUrl(process.env.NEXT_PUBLIC_WS_URL);
-  return ws ? ws.replace(/^ws/, 'http') : null;
+  return safeWsUrl(WS_URL).replace(/^ws/, 'http');
 }
 
 // ─── WAGMI CONFIG (export and wrap your app in <WagmiProvider config={wagmiConfig}>) ──
