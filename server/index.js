@@ -27,7 +27,23 @@ const _depl = loadDeployment();
 
 const PORT         = process.env.PORT || 4000;
 const OPERATOR_KEY = process.env.OPERATOR_PRIVATE_KEY;
-const ESCROW_ADDR  = process.env.NEXT_PUBLIC_ESCROW || process.env.ESCROW_ADDRESS || _depl?.contracts?.PokerEscrow;
+
+// Contract addresses: the committed deployment manifest wins over env secrets.
+// Fly secrets are a snapshot from whenever `fly secrets set` last ran and rot
+// silently across contract redeploys — the manifest ships with every code
+// deploy and always matches what the frontend resolves to. (A stale
+// NEXT_PUBLIC_ESCROW secret once had this server calling markHuman on a
+// retired escrow generation for weeks: every verification reverted
+// "Unauthorized" while the fix had been applied to the current contract.)
+function resolveAddr(name, manifestValue, ...envValues) {
+  const envValue = envValues.find(Boolean);
+  if (manifestValue && envValue && manifestValue.toLowerCase() !== envValue.toLowerCase()) {
+    console.warn(`[Server] WARNING: ${name} env secret (${envValue}) differs from deployment manifest (${manifestValue}) — using the manifest. Remove or update the stale secret.`);
+  }
+  return manifestValue || envValue;
+}
+const ESCROW_ADDR  = resolveAddr('ESCROW', _depl?.contracts?.PokerEscrow,
+  process.env.NEXT_PUBLIC_ESCROW, process.env.ESCROW_ADDRESS);
 const RPC_URL      = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL || "https://arb1.arbitrum.io/rpc";
 
 if (!ESCROW_ADDR) { console.error('[Server] FATAL: ESCROW_ADDR not set — add NEXT_PUBLIC_ESCROW to secrets or deploy first'); process.exit(1); }
@@ -56,7 +72,8 @@ const ESCROW_ABI = [
 const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, operator);
 
 // ─── HAND HISTORY (batched on-chain gameplay stats) ─────────────────────────
-const HAND_HISTORY_ADDR = process.env.NEXT_PUBLIC_HAND_HISTORY || _depl?.contracts?.HandHistory;
+const HAND_HISTORY_ADDR = resolveAddr('HAND_HISTORY', _depl?.contracts?.HandHistory,
+  process.env.NEXT_PUBLIC_HAND_HISTORY);
 const HAND_HISTORY_FLUSH_MS = Number(process.env.HAND_HISTORY_FLUSH_MS) || 15 * 60 * 1000; // default 15 min
 const HAND_HISTORY_ABI = [
   "function recordBatch(address[],uint256[],uint256[],uint256[]) external",

@@ -30,10 +30,18 @@ function loadDeployedAddresses() {
 
 const deployed = loadDeployedAddresses();
 
-// Merge: .env values win if set, deployment JSON fills in the blanks
+// Merge: the committed deployment manifest wins; env values only fill blanks.
+// Env vars set in a hosting dashboard (Vercel) are a snapshot that rots
+// silently across contract redeploys — the manifest is updated by every
+// deploy script and committed, so it is always the current generation.
+// (Stale Vercel vars once had the live frontend reading balances and
+// humanVerified from a retired contract generation.)
 const env = {};
 for (const [k, v] of Object.entries(deployed)) {
-  env[k] = process.env[k] || v;
+  if (v && process.env[k] && process.env[k].toLowerCase() !== v.toLowerCase()) {
+    console.warn(`[next.config] WARNING: ${k} env (${process.env[k]}) differs from deployment manifest (${v}) — using the manifest. Remove or update the stale env var.`);
+  }
+  env[k] = v || process.env[k];
 }
 
 // MetaMask SDK and WalletConnect pull in React Native / Node-only modules.
