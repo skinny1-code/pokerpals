@@ -70,7 +70,7 @@ function HeroHandPanel({ cards = [], folded = false }) {
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
       margin: '20px auto 0', opacity: folded ? 0.45 : 1, transition: 'opacity .3s',
     }}>
-      <div style={{ fontSize: 9, color: '#e8c25a99', letterSpacing: 3 }}>YOUR HAND</div>
+      <div style={{ fontSize: 9, color: '#d9c08a99', letterSpacing: 3 }}>YOUR HAND</div>
       <div style={{ display: 'flex', gap: 10 }}>
         {cards.map((c, i) => {
           const cardStr = typeof c === 'string' ? c : c?.card;
@@ -121,27 +121,27 @@ function ChatPanel({ messages, onSend }) {
     <div className="glass" style={{ display:'flex', flexDirection:'column', height:'100%',
       overflow:'hidden' }}>
       <div style={{ padding:'8px 12px', borderBottom:'1px solid var(--border)',
-        fontSize:9, color:'#3a6a3a', letterSpacing:2, fontWeight:800 }}>TABLE LOG</div>
+        fontSize:9, color:'#57544b', letterSpacing:2, fontWeight:800 }}>TABLE LOG</div>
       <div style={{ flex:1, overflowY:'auto', padding:'8px 12px',
         display:'flex', flexDirection:'column', gap:2 }}>
         {messages.map((m,i) => (
           <div key={i} style={{
             fontSize:10, padding:'2px 0',
             borderBottom:'1px solid rgba(255,255,255,.03)',
-            color: m.type==='system' ? '#3a6a3a'
-                 : m.type==='action' ? '#e8c25a'
+            color: m.type==='system' ? '#57544b'
+                 : m.type==='action' ? '#d9c08a'
                  : m.type==='winner' ? '#10b981'
-                 : '#7a9a7a',
+                 : '#918b7e',
             fontFamily: m.type!=='chat' ? "'JetBrains Mono',monospace" : 'inherit',
           }}>
-            {m.handle && <span style={{ color:'#5a9a5a', marginRight:5 }}>{m.handle}:</span>}
+            {m.handle && <span style={{ color:'#807a6d', marginRight:5 }}>{m.handle}:</span>}
             {m.text}
           </div>
         ))}
         <div ref={endRef} />
       </div>
       {onSend && (
-        <div style={{ display:'flex', gap:6, padding:8, borderTop:'1px solid #1a3a1a' }}>
+        <div style={{ display:'flex', gap:6, padding:8, borderTop:'1px solid #232327' }}>
           <input
             value={draft}
             onChange={e => setDraft(e.target.value)}
@@ -149,8 +149,8 @@ function ChatPanel({ messages, onSend }) {
             maxLength={200}
             placeholder="Say something…"
             style={{
-              flex:1, background:'#0a160a', border:'1px solid #1a3a1a', borderRadius:6,
-              padding:'6px 10px', color:'#cfe8cf', fontSize:11,
+              flex:1, background:'#0f0f11', border:'1px solid #232327', borderRadius:6,
+              padding:'6px 10px', color:'#d9d4c7', fontSize:11,
               fontFamily:"'JetBrains Mono',monospace", outline:'none',
             }}
           />
@@ -198,7 +198,7 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
       <div className="glass-strong pop-in" style={{
         border:'1px solid var(--border-gold)',
         padding:'28px 36px', textAlign:'center',
-        boxShadow:'var(--shadow-md), 0 0 50px rgba(232,194,90,.22)',
+        boxShadow:'var(--shadow-md), 0 0 50px rgba(217,192,138,.22)',
         maxWidth: 480, width: '90vw',
       }} onClick={e => e.stopPropagation()}>
         <div className="gold-text" style={{ fontSize:9, letterSpacing:4, marginBottom:12, fontWeight:800 }}>HAND COMPLETE</div>
@@ -209,12 +209,12 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
           const displayName = handleMap[w?.toLowerCase()] || `${w.slice(0,8)}…`;
           return (
             <div key={i} style={{ marginBottom: losers.length ? 16 : 0 }}>
-              <div style={{ fontSize:20, color:'#e8c25a', fontWeight:700,
+              <div style={{ fontSize:20, color:'#d9c08a', fontWeight:700,
                 fontFamily:"'Playfair Display',serif" }}>
                 {displayName} wins
               </div>
               {res?.hand && (
-                <div style={{ fontSize:11, color:'#e8c25a99', letterSpacing:1, marginTop:2 }}>
+                <div style={{ fontSize:11, color:'#d9c08a99', letterSpacing:1, marginTop:2 }}>
                   {res.hand}
                 </div>
               )}
@@ -242,7 +242,7 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
               const displayName = handleMap[r.addr?.toLowerCase()] || `${r.addr?.slice(0,8)}…`;
               return (
                 <div key={i} style={{ marginBottom: i < losers.length-1 ? 10 : 0 }}>
-                  <div style={{ fontSize:10, color:'#5a7a5a', marginBottom:4 }}>
+                  <div style={{ fontSize:10, color:'#726d61', marginBottom:4 }}>
                     {displayName} · {r.hand}
                   </div>
                   <div style={{ display:'flex', gap:4, justifyContent:'center' }}>
@@ -258,7 +258,7 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
           </div>
         )}
 
-        <div style={{ fontSize:9, color:'#3a6a3a', marginTop:14, letterSpacing:1 }}>
+        <div style={{ fontSize:9, color:'#57544b', marginTop:14, letterSpacing:1 }}>
           Next hand in {Math.max(0, secs)}s · tap to skip
         </div>
       </div>
@@ -290,7 +290,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
       {/* Oval table background */}
       <div style={{
         position:'relative', width:'100%', paddingBottom:'70%',
-        background:'radial-gradient(ellipse at 45% 38%, #1c6440 0%, #134a2e 52%, #0a2c1c 100%)',
+        background:'radial-gradient(ellipse at 45% 38%, #1c1c21 0%, #141418 52%, #0e0e11 100%)',
         border:'2px solid var(--border-gold)', borderRadius:'50%',
         boxShadow:'0 0 40px rgba(16,185,129,.14), inset 0 0 60px rgba(0,0,0,.35)',
       }}>
@@ -299,13 +299,13 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
           position:'absolute', top:'50%', left:'50%',
           transform:'translate(-50%,-50%)', textAlign:'center',
         }}>
-          <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:2 }}>SELECT A SEAT</div>
+          <div style={{ fontSize:10, color:'#57544b', letterSpacing:2 }}>SELECT A SEAT</div>
           {minBuyIn != null && maxBuyIn != null && minBuyIn !== maxBuyIn ? (
-            <div style={{ fontSize:10, color:'#5a8a5a', marginTop:4 }}>
+            <div style={{ fontSize:10, color:'#7d786c', marginTop:4 }}>
               {fmt(minBuyIn)}–{fmt(maxBuyIn)} CHIPS
             </div>
           ) : (
-            <div style={{ fontSize:13, color:'#e8c25a', fontWeight:700,
+            <div style={{ fontSize:13, color:'#d9c08a', fontWeight:700,
               fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>
               {fmt(buyInAmount)} CHIPS
             </div>
@@ -327,26 +327,26 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
                 left:`${pos.x * 100}%`, top:`${pos.y * 100}%`,
                 transform:'translate(-50%,-50%)',
                 width:44, height:44, borderRadius:'50%',
-                background: isTaken ? '#1a3a1a'
-                  : isSelected ? 'linear-gradient(135deg,#1a4a1a,#0c2e0c)'
-                  : '#0c1e0c',
-                border: `2px solid ${isTaken ? '#2a5a2a' : isSelected ? '#e8c25a' : '#3a6a3a'}`,
+                background: isTaken ? '#232327'
+                  : isSelected ? 'linear-gradient(135deg,#2b2b31,#242428)'
+                  : '#121215',
+                border: `2px solid ${isTaken ? '#3a3a41' : isSelected ? '#d9c08a' : '#57544b'}`,
                 cursor: isTaken ? 'default' : 'pointer',
                 display:'flex', flexDirection:'column',
                 alignItems:'center', justifyContent:'center',
                 transition:'all .15s',
-                boxShadow: isSelected ? '0 0 14px rgba(232,194,90,.5)' : 'none',
+                boxShadow: isSelected ? '0 0 14px rgba(217,192,138,.5)' : 'none',
               }}
             >
               {isTaken ? (
                 <>
-                  <div style={{ fontSize:9, color:'#5a8a5a' }}>●</div>
-                  <div style={{ fontSize:7, color:'#3a6a3a', marginTop:1 }}>
+                  <div style={{ fontSize:9, color:'#7d786c' }}>●</div>
+                  <div style={{ fontSize:7, color:'#57544b', marginTop:1 }}>
                     {addr?.slice(2,6)}
                   </div>
                 </>
               ) : (
-                <div style={{ fontSize:11, color: isSelected ? '#e8c25a' : '#3a6a3a', fontWeight:700 }}>
+                <div style={{ fontSize:11, color: isSelected ? '#d9c08a' : '#57544b', fontWeight:700 }}>
                   {i+1}
                 </div>
               )}
@@ -361,7 +361,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
           marginTop:16, border:'1px solid var(--border-gold)',
           padding:'16px 20px', display:'flex', flexDirection:'column', gap:12,
         }}>
-          <div style={{ fontSize:10, color:'#3a6a3a', letterSpacing:1 }}>SEAT {pendingSeat + 1} — BUY IN</div>
+          <div style={{ fontSize:10, color:'#57544b', letterSpacing:1 }}>SEAT {pendingSeat + 1} — BUY IN</div>
           {minBuyIn != null && maxBuyIn != null && minBuyIn !== maxBuyIn && (
             <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
               <input
@@ -369,11 +369,11 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
                 min={minBuyIn} max={maxBuyIn} step={minBuyIn}
                 value={buyInAmount}
                 onChange={e => onBuyInChange(Number(e.target.value))}
-                style={{ accentColor:'#e8c25a', width:'100%' }}
+                style={{ accentColor:'#d9c08a', width:'100%' }}
               />
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#3a6a3a' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#57544b' }}>
                 <span>{fmt(minBuyIn)}</span>
-                <span style={{ color:'#e8c25a', fontWeight:700, fontFamily:"'JetBrains Mono',monospace", fontSize:13 }}>
+                <span style={{ color:'#d9c08a', fontWeight:700, fontFamily:"'JetBrains Mono',monospace", fontSize:13 }}>
                   {fmt(buyInAmount)} CHIPS
                 </span>
                 <span>{fmt(maxBuyIn)}</span>
@@ -381,7 +381,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
             </div>
           )}
           {(minBuyIn == null || minBuyIn === maxBuyIn) && (
-            <div style={{ fontSize:13, color:'#e8c25a', fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>
+            <div style={{ fontSize:13, color:'#d9c08a', fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>
               {fmt(buyInAmount)} CHIPS
             </div>
           )}
@@ -420,7 +420,7 @@ function ConfirmModal({ message, onConfirm, onCancel }) {
         padding:'24px 20px',
         width:'100%', maxWidth:340, textAlign:'center',
       }}>
-        <div style={{ fontSize:12, color:'#8aaa8a', lineHeight:1.6, marginBottom:20 }}>
+        <div style={{ fontSize:12, color:'#9d9789', lineHeight:1.6, marginBottom:20 }}>
           {message}
         </div>
         <div style={{ display:'flex', gap:10 }}>
@@ -650,7 +650,7 @@ function TablePageInner() {
       {/* Breadcrumb + status */}
       <div className="glass" style={{
         padding:'9px 16px', borderRadius:0, borderTop:'none', borderLeft:'none', borderRight:'none',
-        display:'flex', alignItems:'center', gap:8, fontSize:10, color:'#3a6a3a',
+        display:'flex', alignItems:'center', gap:8, fontSize:10, color:'#57544b',
       }}>
         <Link href="/" onClick={e => {
           // Block navigation while connecting/authing (heroPlayer may not be set yet)
@@ -658,9 +658,9 @@ function TablePageInner() {
             e.preventDefault();
             if (heroPlayer) setShowLeaveConfirm(true);
           }
-        }} style={{ color:'#3a6a3a', textDecoration:'none' }}>Lobby</Link>
+        }} style={{ color:'#57544b', textDecoration:'none' }}>Lobby</Link>
         <span>›</span>
-        <span style={{ color:'#6a9a6a' }}>
+        <span style={{ color:'#8a8478' }}>
           Table #{id}
           {gameState?.config && <span className="gold-text" style={{ fontWeight:700 }}> · {(gameState.config.bigBlind/2).toLocaleString()}/{gameState.config.bigBlind.toLocaleString()} CHIPS</span>}
         </span>
@@ -685,10 +685,10 @@ function TablePageInner() {
             <div className="pop-in" style={{
               position:'absolute', top:'50%', left:'50%',
               transform:'translate(-50%,-50%)',
-              textAlign:'center', color:'#3a6a3a', fontSize:12,
+              textAlign:'center', color:'#57544b', fontSize:12,
             }}>
               <div className="gold-text" style={{ fontSize:40, marginBottom:14,
-                filter:'drop-shadow(0 0 18px rgba(232,194,90,.35))' }}>♠</div>
+                filter:'drop-shadow(0 0 18px rgba(217,192,138,.35))' }}>♠</div>
               <div style={{ letterSpacing:1 }}>Connecting to game server…</div>
               {wsError && <div style={{ color:'#e0473b', marginTop:8, fontSize:11 }}>{wsError}</div>}
             </div>
@@ -705,7 +705,7 @@ function TablePageInner() {
                 fontFamily:"'Playfair Display',serif", marginBottom:6 }}>
                 You're at the table!
               </div>
-              <div style={{ fontSize:11, color:'#6a9a6a', marginBottom:12 }}>
+              <div style={{ fontSize:11, color:'#8a8478', marginBottom:12 }}>
                 {gameState.players.length < 2
                   ? `Waiting for ${2 - gameState.players.length} more player to start (${gameState.players.length}/${gameState.config?.maxPlayers || 2} seated)`
                   : `${gameState.players.length}/${gameState.config?.maxPlayers || 2} seated — starting soon…`}
@@ -776,7 +776,7 @@ function TablePageInner() {
                    : '+ Spawn Bots'}
                 </button>
               </div>
-              <div style={{ fontSize:9, color:'#3a6a3a', marginTop:10, letterSpacing:1 }}>
+              <div style={{ fontSize:9, color:'#57544b', marginTop:10, letterSpacing:1 }}>
                 The game starts automatically when 2+ players are seated
               </div>
             </div>
@@ -841,7 +841,7 @@ function TablePageInner() {
         <div className="table-side-panel" style={{
           display:'flex', flexDirection:'column', gap:8,
           padding:'16px 12px 16px 0',
-          borderLeft:'1px solid #1a3a1a',
+          borderLeft:'1px solid #232327',
           background:'rgba(0,0,0,.2)',
           overflowY:'auto',
           ...(isMobile ? {
@@ -850,7 +850,7 @@ function TablePageInner() {
             padding:'8px 12px calc(16px + env(safe-area-inset-bottom))',
             borderLeft:'none', borderTop:'1px solid var(--gold-dim)',
             borderRadius:'16px 16px 0 0',
-            background:'linear-gradient(160deg, rgba(20,34,22,.92), rgba(6,14,7,.96))',
+            background:'linear-gradient(160deg, rgba(22,22,26,.92), rgba(11,11,13,.96))',
             backdropFilter:'blur(18px)', WebkitBackdropFilter:'blur(18px)',
             boxShadow:'0 -8px 30px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04)',
             transform: drawerOpen ? 'translateY(0)' : 'translateY(100%)',
@@ -863,29 +863,29 @@ function TablePageInner() {
             <div onClick={() => setDrawerOpen(false)}
               style={{ flexShrink:0, padding:'2px 0 8px', cursor:'pointer' }}>
               <div style={{ width:40, height:4, borderRadius:2,
-                background:'#3a6a3a', margin:'0 auto' }} />
+                background:'#57544b', margin:'0 auto' }} />
             </div>
           )}
 
           {/* Player stacks */}
           <div className="glass" style={{ overflow:'hidden', flexShrink:0 }}>
             <div style={{ padding:'8px 12px', borderBottom:'1px solid var(--border)',
-              fontSize:9, color:'#3a6a3a', letterSpacing:2, fontWeight:800 }}>STACKS</div>
+              fontSize:9, color:'#57544b', letterSpacing:2, fontWeight:800 }}>STACKS</div>
             <div style={{ padding:'6px' }}>
               {(gameState?.players || []).map((p, i) => (
                 <div key={i} style={{
                   display:'flex', alignItems:'center', justifyContent:'space-between',
                   padding:'5px 8px', borderRadius:4,
-                  background: p.addr === gameState?.activeAddr ? 'rgba(232,194,90,.07)' : 'transparent',
+                  background: p.addr === gameState?.activeAddr ? 'rgba(217,192,138,.07)' : 'transparent',
                   opacity: p.folded ? 0.4 : 1,
                 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:5 }}>
                     <div style={{ width:8, height:8, borderRadius:'50%',
-                      background: p.addr === gameState?.activeAddr ? '#e8c25a' : '#1a3a1a' }} />
+                      background: p.addr === gameState?.activeAddr ? '#d9c08a' : '#232327' }} />
                     <span style={{
                       fontSize:10, maxWidth:100,
                       overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
-                      color: p.addr?.toLowerCase() === address?.toLowerCase() ? '#e8c25a' : '#8aaa8a',
+                      color: p.addr?.toLowerCase() === address?.toLowerCase() ? '#d9c08a' : '#9d9789',
                     }}>
                       {p.addr?.toLowerCase() === address?.toLowerCase()
                         ? 'You'
@@ -894,14 +894,14 @@ function TablePageInner() {
                     {p.allIn && <span style={{ fontSize:7, color:'#f0902a',
                       border:'1px solid #f0902a44', borderRadius:2, padding:'0 3px' }}>AI</span>}
                   </div>
-                  <span style={{ fontSize:10, color:'#e8c25a',
+                  <span style={{ fontSize:10, color:'#d9c08a',
                     fontFamily:"'JetBrains Mono',monospace" }}>
                     ◈{((p.chips||0)/1000).toFixed(1)}K
                   </span>
                 </div>
               ))}
               {(!gameState || !gameState.players?.length) && (
-                <div style={{ padding:'12px 8px', fontSize:10, color:'#1a3a1a', textAlign:'center' }}>
+                <div style={{ padding:'12px 8px', fontSize:10, color:'#232327', textAlign:'center' }}>
                   Waiting for players…
                 </div>
               )}
@@ -929,8 +929,8 @@ function TablePageInner() {
               padding:'8px 12px', display:'flex', justifyContent:'space-between',
               alignItems:'center',
             }}>
-              <span style={{ fontSize:9, color:'#3a6a3a', letterSpacing:1 }}>STREET</span>
-              <span style={{ fontSize:11, color:'#e8c25a', fontWeight:700, letterSpacing:2,
+              <span style={{ fontSize:9, color:'#57544b', letterSpacing:1 }}>STREET</span>
+              <span style={{ fontSize:11, color:'#d9c08a', fontWeight:700, letterSpacing:2,
                 fontFamily:"'JetBrains Mono',monospace" }}>
                 {gameState.phase.toUpperCase()}
               </span>
@@ -1007,7 +1007,7 @@ function TablePageInner() {
           {/* Refund available (table not yet active) */}
           {refundAvailable && !cashoutSig && (
             <div>
-              <div style={{ fontSize:9, color:'#e8c25a99', letterSpacing:1, marginBottom:6 }}>
+              <div style={{ fontSize:9, color:'#d9c08a99', letterSpacing:1, marginBottom:6 }}>
                 You left the waiting room
               </div>
               <button className="btn btn-gold" onClick={handleRefund}

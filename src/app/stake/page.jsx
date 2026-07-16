@@ -4,11 +4,11 @@ import WalletBar from '../../components/WalletBar';
 import { useWallet, useStaking } from '../../hooks/usePokerWallet';
 
 const TIERS = [
-  { id:0, name:'Standard', icon:'♠', stake:0,           rake:'1.5%', apr:'0%',  color:'#6fa074', border:'rgba(111,160,116,.3)', glow:'rgba(111,160,116,.25)' },
+  { id:0, name:'Standard', icon:'♠', stake:0,           rake:'1.5%', apr:'0%',  color:'#8d877a', border:'rgba(141,135,122,.3)', glow:'rgba(141,135,122,.25)' },
   { id:1, name:'Bronze',   icon:'◈', stake:25_000,      rake:'1.3%', apr:'5%',  color:'#cd7f32', border:'rgba(205,127,50,.35)', glow:'rgba(205,127,50,.3)' },
   { id:2, name:'Silver',   icon:'◈', stake:250_000,     rake:'1.1%', apr:'8%',  color:'#cdd3da', border:'rgba(205,211,218,.35)', glow:'rgba(205,211,218,.28)' },
-  { id:3, name:'Gold',     icon:'◈', stake:1_000_000,   rake:'0.9%', apr:'12%', color:'#e8c25a', border:'rgba(232,194,90,.4)',  glow:'rgba(232,194,90,.35)' },
-  { id:4, name:'Whale',    icon:'◈', stake:5_000_000,   rake:'0.6%', apr:'18%', color:'#f7e7a8', border:'rgba(247,231,168,.55)', glow:'rgba(232,194,90,.5)', luxe:true },
+  { id:3, name:'Gold',     icon:'◈', stake:1_000_000,   rake:'0.9%', apr:'12%', color:'#d9c08a', border:'rgba(217,192,138,.4)',  glow:'rgba(217,192,138,.35)' },
+  { id:4, name:'Whale',    icon:'◈', stake:5_000_000,   rake:'0.6%', apr:'18%', color:'#f0e6cf', border:'rgba(240,230,207,.55)', glow:'rgba(217,192,138,.5)', luxe:true },
 ];
 
 function fmt(v) {
@@ -51,10 +51,10 @@ function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake, isLocke
     <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
       position: 'relative', overflow: 'hidden',
       background: luxe
-        ? 'linear-gradient(160deg, rgba(40,32,14,.85), rgba(12,16,9,.9))'
+        ? 'linear-gradient(160deg, rgba(30,26,18,.85), rgba(12,16,9,.9))'
         : isCurrent
-          ? `linear-gradient(160deg, ${tier.color}1a, rgba(8,16,9,.85))`
-          : 'linear-gradient(160deg, rgba(18,32,20,.7), rgba(7,14,8,.82))',
+          ? `linear-gradient(160deg, ${tier.color}1a, rgba(14,14,16,.85))`
+          : 'linear-gradient(160deg, rgba(18,32,20,.7), rgba(11,11,13,.82))',
       border: `1px solid ${isCurrent ? tier.color : luxe ? tier.border : hov ? tier.border : 'var(--border)'}`,
       borderRadius: 'var(--r-lg)', padding: '22px 24px',
       display: 'flex', flexDirection: 'column', gap: 14,
@@ -64,7 +64,7 @@ function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake, isLocke
       boxShadow: isCurrent
         ? `0 0 34px ${tier.glow}, inset 0 1px 0 rgba(255,255,255,.05)`
         : luxe
-          ? `0 14px 40px rgba(0,0,0,.5), 0 0 30px ${tier.glow}, inset 0 1px 0 rgba(247,231,168,.12)`
+          ? `0 14px 40px rgba(0,0,0,.5), 0 0 30px ${tier.glow}, inset 0 1px 0 rgba(240,230,207,.12)`
           : hov
             ? `0 14px 34px rgba(0,0,0,.55), 0 0 0 1px ${tier.border}`
             : 'var(--shadow-sm)',
@@ -79,7 +79,7 @@ function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake, isLocke
       {luxe && (
         <div aria-hidden style={{
           position: 'absolute', right: -50, top: -50, width: 200, height: 200,
-          background: 'radial-gradient(circle, rgba(232,194,90,.14) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(217,192,138,.14) 0%, transparent 70%)',
           pointerEvents: 'none',
         }} />
       )}
@@ -101,7 +101,7 @@ function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake, isLocke
         <div className="pill" style={{
           position: 'absolute', top: 14, right: 14, padding: '4px 11px',
           fontSize: 8, letterSpacing: 2, color: 'var(--gold-pale)',
-          border: '1px solid var(--border-gold)', background: 'rgba(232,194,90,.1)',
+          border: '1px solid var(--border-gold)', background: 'rgba(217,192,138,.1)',
         }}>★ ELITE</div>
       )}
 
@@ -128,7 +128,7 @@ function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake, isLocke
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, position: 'relative' }}>
         {[{ label:'Rake Rate', value:tier.rake }, { label:'Staking APR', value:tier.apr }].map(({ label, value }) => (
           <div key={label} style={{
-            background: 'rgba(2,5,3,.5)', borderRadius: 'var(--r-sm)', padding: '11px 14px',
+            background: 'rgba(5,5,6,.5)', borderRadius: 'var(--r-sm)', padding: '11px 14px',
             border: '1px solid var(--border)',
           }}>
             <div style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: 1.5, marginBottom: 5, fontWeight: 800 }}>{label.toUpperCase()}</div>
@@ -271,10 +271,10 @@ export default function StakePage() {
             Stake CHIPS, Play Better Poker
           </h1>
           <p className="animate-up s3" style={{
-            fontSize:14.5, color:'#6fa074', maxWidth:520, lineHeight:1.7, opacity:0,
+            fontSize:14.5, color:'#8d877a', maxWidth:520, lineHeight:1.7, opacity:0,
           }}>
             Lock CHIPS to reduce your rake rate and earn passive yield.
-            <br/><span style={{ color:'#8fbf94' }}>Higher tier = less rake every hand.</span>
+            <br/><span style={{ color:'#a59f90' }}>Higher tier = less rake every hand.</span>
           </p>
         </div>
       </div>
@@ -286,7 +286,7 @@ export default function StakePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))',
             gap: 8, marginBottom: 24 }}>
             {[
-              { label: 'CHIPS Balance',  value: `◈ ${fmt(Math.floor(chipsBalance || 0))}`,  color: '#d4af37' },
+              { label: 'CHIPS Balance',  value: `◈ ${fmt(Math.floor(chipsBalance || 0))}`,  color: '#c9b075' },
               { label: 'Staked',         value: `◈ ${fmt(stakedAmount)}`,                    color: TIERS[currentTier].color },
               { label: 'Pending Yield',  value: `◈ ${fmt(pendingYield)}`,                   color: '#27ae60' },
               { label: 'Rakeback Owed',  value: `◈ ${fmt(rakebackOwed)}`,                   color: '#2980b9' },
@@ -335,7 +335,7 @@ export default function StakePage() {
                 Claim Yield
               </TxButton>
               <TxButton onClick={handleCompound} disabled={pendingYield < 0.01 || !isConnected || currentTier === 0}
-                loading={loading && status === 'compounding'} color="#e8c25a" wide>
+                loading={loading && status === 'compounding'} color="#d9c08a" wide>
                 ↻ Compound
               </TxButton>
             </div>
@@ -350,7 +350,7 @@ export default function StakePage() {
               ◈ {fmt(rakebackOwed)}
             </div>
             <TxButton onClick={handleClaimRakeback} disabled={rakebackOwed < 0.01 || !isConnected}
-              loading={loading && status === 'claiming'} color="#e8c25a" wide>
+              loading={loading && status === 'claiming'} color="#d9c08a" wide>
               Claim Rakeback
             </TxButton>
           </div>

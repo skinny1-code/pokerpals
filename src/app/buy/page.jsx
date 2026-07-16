@@ -358,7 +358,7 @@ function BuyPageInner() {
           </div>
           <h1 className="gold-text serif animate-up s2" style={{
             fontSize:46, fontWeight:900, marginBottom:10, opacity:0, lineHeight:1.05,
-            textShadow:'0 0 50px rgba(232,194,90,.25)',
+            textShadow:'0 0 50px rgba(217,192,138,.25)',
           }}>
             Buy CHIPS
           </h1>
@@ -409,7 +409,7 @@ function BuyPageInner() {
         {/* Tabs */}
         <div style={{
           display: 'flex', gap: 3, marginBottom: 22,
-          background: 'rgba(6,14,7,.8)', border: '1px solid var(--border)',
+          background: 'rgba(11,11,13,.8)', border: '1px solid var(--border)',
           borderRadius: 'var(--r-md)', padding: 4,
         }}>
           {TABS.map(t => (
@@ -510,7 +510,7 @@ function BuyPageInner() {
                 to receive test CHIPS — no real money involved.
               </div>
               <div style={{
-                background: '#060e06', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
+                background: '#0b0b0d', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
                 padding: '14px 16px', textAlign: 'left',
               }}>
                 <div style={{ fontSize: 9, color: 'var(--gold)', letterSpacing: 2.5, marginBottom: 7, fontWeight: 800 }}>

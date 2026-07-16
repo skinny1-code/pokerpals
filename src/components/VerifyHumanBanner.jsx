@@ -26,7 +26,7 @@ export default function VerifyHumanBanner({ status, failures, onVerify, onVerifi
 
   return (
     <div style={{
-      background: isDone ? '#0a1f0a' : '#1a0c04',
+      background: isDone ? '#121215' : '#1a0c04',
       borderBottom: `1px solid ${isDone ? '#27ae6055' : '#c8793055'}`,
       padding: '8px 16px',
       display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, flexWrap: 'wrap',

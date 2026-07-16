@@ -12,7 +12,7 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#060e06',
+  themeColor: '#0b0b0d',
 };
 
 export const metadata = {
@@ -35,7 +35,7 @@ export const metadata = {
           name: 'PokerVsPlayer',
           url: APP_URL || '',
           splashImageUrl: APP_URL ? `${APP_URL}/splash.png` : '',
-          splashBackgroundColor: '#0c1a0c',
+          splashBackgroundColor: '#111114',
         },
       },
     }),

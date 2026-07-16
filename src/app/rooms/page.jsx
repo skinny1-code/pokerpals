@@ -50,21 +50,21 @@ function RoomCard({ room, address }) {
         display:'flex', flexDirection:'column', gap:13,
         transition:'transform .22s ease, box-shadow .22s ease, border-color .22s ease',
         transform: hov ? 'translateY(-3px)' : 'none',
-        borderColor: hov ? 'var(--border-gold)' : (isMine ? 'rgba(232,194,90,.28)' : 'var(--border)'),
+        borderColor: hov ? 'var(--border-gold)' : (isMine ? 'rgba(217,192,138,.28)' : 'var(--border)'),
         boxShadow: hov
-          ? '0 18px 44px rgba(0,0,0,.6), 0 0 0 1px rgba(232,194,90,.16)'
-          : (isMine ? 'var(--shadow-md), 0 0 0 1px rgba(232,194,90,.1)' : 'var(--shadow-md)'),
+          ? '0 18px 44px rgba(0,0,0,.6), 0 0 0 1px rgba(217,192,138,.16)'
+          : (isMine ? 'var(--shadow-md), 0 0 0 1px rgba(217,192,138,.1)' : 'var(--shadow-md)'),
       }}
     >
       {/* Gold top hairline */}
       <div aria-hidden style={{
         position:'absolute', top:0, left:0, right:0, height:1,
-        background:'linear-gradient(90deg, transparent, rgba(232,194,90,.5), transparent)',
+        background:'linear-gradient(90deg, transparent, rgba(217,192,138,.5), transparent)',
       }} />
       {/* Corner glow */}
       <div aria-hidden style={{
         position:'absolute', right:-50, top:-50, width:180, height:180,
-        background:'radial-gradient(circle, rgba(232,194,90,.08) 0%, transparent 70%)',
+        background:'radial-gradient(circle, rgba(217,192,138,.08) 0%, transparent 70%)',
         pointerEvents:'none', opacity: hov ? 1 : .6, transition:'opacity .2s',
       }} />
 
@@ -73,11 +73,11 @@ function RoomCard({ room, address }) {
           {/* Crown emblem */}
           <div style={{
             width:42, height:42, borderRadius:11, flexShrink:0,
-            background:'linear-gradient(145deg, rgba(232,194,90,.16), rgba(232,194,90,.04))',
-            border:'1px solid rgba(232,194,90,.28)',
+            background:'linear-gradient(145deg, rgba(217,192,138,.16), rgba(217,192,138,.04))',
+            border:'1px solid rgba(217,192,138,.28)',
             display:'flex', alignItems:'center', justifyContent:'center',
             fontSize:20, color:'var(--gold)',
-            boxShadow: hov ? '0 0 14px rgba(232,194,90,.3)' : 'none', transition:'box-shadow .2s',
+            boxShadow: hov ? '0 0 14px rgba(217,192,138,.3)' : 'none', transition:'box-shadow .2s',
           }}>♛</div>
           <div style={{ minWidth:0 }}>
             <div className="serif" style={{ fontSize:16, fontWeight:700, color:'var(--gold-pale)', marginBottom:5 }}>
@@ -94,9 +94,9 @@ function RoomCard({ room, address }) {
               )}
               {isMine && (
                 <span style={{ fontSize:8, fontWeight:800, letterSpacing:.8, color:'var(--gold-pale)',
-                  background:'rgba(232,194,90,.1)', border:'1px solid rgba(232,194,90,.36)',
+                  background:'rgba(217,192,138,.1)', border:'1px solid rgba(217,192,138,.36)',
                   borderRadius:20, padding:'2px 8px',
-                  boxShadow:'0 0 10px rgba(232,194,90,.18)' }}>
+                  boxShadow:'0 0 10px rgba(217,192,138,.18)' }}>
                   ♛ YOURS
                 </span>
               )}
@@ -112,19 +112,19 @@ function RoomCard({ room, address }) {
       </div>
 
       <div style={{ position:'relative', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
-        <div style={{ background:'rgba(3,7,4,.6)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 12px' }}>
+        <div style={{ background:'rgba(7,7,8,.6)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 12px' }}>
           <div style={{ fontSize:8.5, color:'var(--text-muted)', letterSpacing:1.5, marginBottom:4, fontWeight:800 }}>SEATS</div>
           <div style={{ fontSize:14, color:'var(--text-secondary)', fontFamily:"'JetBrains Mono',monospace", fontWeight:700 }}>
             {room.maxPlayers}
           </div>
         </div>
-        <div style={{ background:'rgba(3,7,4,.6)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 12px' }}>
+        <div style={{ background:'rgba(7,7,8,.6)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 12px' }}>
           <div style={{ fontSize:8.5, color:'var(--text-muted)', letterSpacing:1.5, marginBottom:4, fontWeight:800 }}>MIN BUY-IN</div>
           <div className="gold-text" style={{ fontSize:14, fontFamily:"'JetBrains Mono',monospace", fontWeight:800 }}>
             {room.minBuyIn > 0 ? `◈ ${fmt(room.minBuyIn)}` : '—'}
           </div>
         </div>
-        <div style={{ background:'rgba(3,7,4,.6)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 12px' }}>
+        <div style={{ background:'rgba(7,7,8,.6)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 12px' }}>
           <div style={{ fontSize:8.5, color:'var(--text-muted)', letterSpacing:1.5, marginBottom:4, fontWeight:800 }}>MAX BUY-IN</div>
           <div className="gold-text" style={{ fontSize:14, fontFamily:"'JetBrains Mono',monospace", fontWeight:800 }}>
             {room.maxBuyIn > 0 ? `◈ ${fmt(room.maxBuyIn)}` : '—'}
@@ -190,14 +190,14 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
         animation:'pop-in .26s ease forwards',
       }} onClick={e => e.stopPropagation()}>
 
-        <div style={{ fontSize:9, color:'#6a9a5a', letterSpacing:3, marginBottom:5, fontWeight:800 }}>♛ LEASE A ROOM</div>
+        <div style={{ fontSize:9, color:'#87816f', letterSpacing:3, marginBottom:5, fontWeight:800 }}>♛ LEASE A ROOM</div>
         <div className="gold-text serif" style={{ fontSize:24, fontWeight:800, marginBottom:22 }}>
           New Private Room
         </div>
 
         {/* Name */}
         <div style={{ marginBottom:18 }}>
-          <div style={{ fontSize:9, color:'#4a7a4a', letterSpacing:2, marginBottom:9, fontWeight:800 }}>ROOM NAME</div>
+          <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>ROOM NAME</div>
           <input
             type="text" value={name} maxLength={40}
             onChange={e => setName(e.target.value)}
@@ -209,15 +209,15 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
 
         {/* Duration mode */}
         <div style={{ marginBottom:18 }}>
-          <div style={{ fontSize:9, color:'#4a7a4a', letterSpacing:2, marginBottom:9, fontWeight:800 }}>DURATION</div>
+          <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>DURATION</div>
           <div style={{ display:'flex', gap:8, marginBottom:10 }}>
             {[{v:'weeks',label:'Weekly'},{v:'months',label:'Monthly'}].map(o => (
               <button key={o.v} onClick={() => { setPeriodMode(o.v); setCount(1); setCustomCount(''); }} style={{
                 flex:1, padding:'11px 0', borderRadius:10, cursor:'pointer',
                 fontFamily:'inherit', fontSize:12, fontWeight:700,
-                background: periodMode===o.v ? 'linear-gradient(135deg,#1c4f1c,#0c2e0c)' : 'transparent',
+                background: periodMode===o.v ? 'linear-gradient(135deg,#26262c,#242428)' : 'transparent',
                 border:`1px solid ${periodMode===o.v ? 'var(--gold)' : 'var(--border)'}`,
-                color: periodMode===o.v ? 'var(--gold-pale)' : '#5a8a5a',
+                color: periodMode===o.v ? 'var(--gold-pale)' : '#7d786c',
                 transition:'all .15s',
               }}>{o.label}</button>
             ))}
@@ -227,9 +227,9 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
               <button key={n} onClick={() => { setCount(n); setCustomCount(''); }} style={{
                 padding:'8px 15px', borderRadius:8, cursor:'pointer',
                 fontFamily:"'JetBrains Mono',monospace", fontSize:12, fontWeight:700,
-                background: count===n && !customCount ? '#0e2e0e' : 'transparent',
+                background: count===n && !customCount ? '#18181c' : 'transparent',
                 border:`1px solid ${count===n && !customCount ? 'var(--gold)' : 'var(--border)'}`,
-                color: count===n && !customCount ? 'var(--gold-pale)' : '#5a8a5a',
+                color: count===n && !customCount ? 'var(--gold-pale)' : '#7d786c',
                 transition:'all .15s',
               }}>{n}</button>
             ))}
@@ -240,7 +240,7 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
               style={{
                 width:84, padding:'8px 11px', borderRadius:8,
                 background:'transparent', border:`1px solid ${customCount ? 'var(--gold)' : 'var(--border)'}`,
-                color: customCount ? 'var(--gold-pale)' : '#5a8a5a',
+                color: customCount ? 'var(--gold-pale)' : '#7d786c',
                 fontFamily:"'JetBrains Mono',monospace", fontSize:12,
                 outline:'none',
               }}
@@ -260,15 +260,15 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
 
         {/* Game type */}
         <div style={{ marginBottom:18 }}>
-          <div style={{ fontSize:9, color:'#4a7a4a', letterSpacing:2, marginBottom:9, fontWeight:800 }}>GAME TYPE</div>
+          <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>GAME TYPE</div>
           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
             {GAME_OPTIONS.map(o => (
               <button key={o.v} onClick={() => setGameType(o.v)} style={{
                 flex:'1 1 auto', padding:'10px 10px', borderRadius:9, cursor:'pointer',
                 fontFamily:'inherit', fontSize:11, fontWeight:700,
-                background: gameType===o.v ? 'linear-gradient(135deg,#1c4f1c,#0c2e0c)' : 'transparent',
+                background: gameType===o.v ? 'linear-gradient(135deg,#26262c,#242428)' : 'transparent',
                 border:`1px solid ${gameType===o.v ? 'var(--gold)' : 'var(--border)'}`,
-                color: gameType===o.v ? 'var(--gold-pale)' : '#5a8a5a',
+                color: gameType===o.v ? 'var(--gold-pale)' : '#7d786c',
                 transition:'all .15s',
               }}>{o.label}</button>
             ))}
@@ -277,15 +277,15 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
 
         {/* Max seats */}
         <div style={{ marginBottom:18 }}>
-          <div style={{ fontSize:9, color:'#4a7a4a', letterSpacing:2, marginBottom:9, fontWeight:800 }}>MAX SEATS</div>
+          <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>MAX SEATS</div>
           <div style={{ display:'flex', gap:6 }}>
             {[2,4,6,9].map(n => (
               <button key={n} onClick={() => setMaxPlayers(n)} style={{
                 flex:1, padding:'9px 0', borderRadius:8, cursor:'pointer',
                 fontFamily:"'JetBrains Mono',monospace", fontSize:13, fontWeight:700,
-                background: maxPlayers===n ? '#0e2e0e' : 'transparent',
+                background: maxPlayers===n ? '#18181c' : 'transparent',
                 border:`1px solid ${maxPlayers===n ? 'var(--gold)' : 'var(--border)'}`,
-                color: maxPlayers===n ? 'var(--gold-pale)' : '#5a8a5a',
+                color: maxPlayers===n ? 'var(--gold-pale)' : '#7d786c',
                 transition:'all .15s',
               }}>{n}</button>
             ))}
@@ -294,15 +294,15 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
 
         {/* Visibility */}
         <div style={{ marginBottom:18 }}>
-          <div style={{ fontSize:9, color:'#4a7a4a', letterSpacing:2, marginBottom:9, fontWeight:800 }}>VISIBILITY</div>
+          <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>VISIBILITY</div>
           <div style={{ display:'flex', gap:8 }}>
             {[{v:true,label:'Public'},{v:false,label:'Private / Invite'}].map(o => (
               <button key={String(o.v)} onClick={() => setIsPublic(o.v)} style={{
                 flex:1, padding:'10px 0', borderRadius:9, cursor:'pointer',
                 fontFamily:'inherit', fontSize:12, fontWeight:700,
-                background: isPublic===o.v ? 'linear-gradient(135deg,#1c4f1c,#0c2e0c)' : 'transparent',
+                background: isPublic===o.v ? 'linear-gradient(135deg,#26262c,#242428)' : 'transparent',
                 border:`1px solid ${isPublic===o.v ? 'var(--gold)' : 'var(--border)'}`,
-                color: isPublic===o.v ? 'var(--gold-pale)' : '#5a8a5a',
+                color: isPublic===o.v ? 'var(--gold-pale)' : '#7d786c',
                 transition:'all .15s',
               }}>{o.label}</button>
             ))}
@@ -312,7 +312,7 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
         {/* Buy-in range */}
         <div style={{ marginBottom:18, display:'flex', gap:10 }}>
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:9, color:'#4a7a4a', letterSpacing:2, marginBottom:9, fontWeight:800 }}>MIN BUY-IN</div>
+            <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>MIN BUY-IN</div>
             <input
               type="number" placeholder="0 = none" value={minBuyIn}
               onChange={e => setMinBuyIn(e.target.value)}
@@ -321,7 +321,7 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
             />
           </div>
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:9, color:'#4a7a4a', letterSpacing:2, marginBottom:9, fontWeight:800 }}>MAX BUY-IN</div>
+            <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>MAX BUY-IN</div>
             <input
               type="number" placeholder="0 = none" value={maxBuyIn}
               onChange={e => setMaxBuyIn(e.target.value)}
@@ -333,7 +333,7 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
 
         {/* NFT gate */}
         <div style={{ marginBottom:22 }}>
-          <div style={{ fontSize:9, color:'#4a7a4a', letterSpacing:2, marginBottom:9, fontWeight:800 }}>
+          <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>
             NFT GATE (OPTIONAL)
           </div>
           <input
@@ -408,7 +408,7 @@ export default function RoomsPage() {
         <div aria-hidden style={{
           position:'absolute', top:'50%', left:'50%',
           transform:'translate(-50%,-50%)',
-          fontSize:300, color:'rgba(232,194,90,.012)',
+          fontSize:300, color:'rgba(217,192,138,.012)',
           pointerEvents:'none', userSelect:'none', lineHeight:1, zIndex:0,
         }}>♛</div>
 
@@ -421,17 +421,17 @@ export default function RoomsPage() {
           <h1 className="gold-text serif animate-up s2" style={{
             fontSize:'min(48px,11vw)', fontWeight:900, lineHeight:1.05,
             margin:'0 auto 14px', opacity:0,
-            filter:'drop-shadow(0 0 40px rgba(232,194,90,.28))',
+            filter:'drop-shadow(0 0 40px rgba(217,192,138,.28))',
           }}>
             Private Rooms
           </h1>
 
           <p className="animate-up s3" style={{
-            fontSize:14.5, color:'#6fa074', letterSpacing:.2,
+            fontSize:14.5, color:'#8d877a', letterSpacing:.2,
             maxWidth:440, margin:'0 auto 30px', lineHeight:1.7, opacity:0,
           }}>
             Lease your own poker room with CHIPS.<br/>
-            <span style={{ color:'#8fbf94' }}>NFT-gate it for your community.</span>
+            <span style={{ color:'#a59f90' }}>NFT-gate it for your community.</span>
           </p>
 
           {/* Lease rate stat cards */}
@@ -448,7 +448,7 @@ export default function RoomsPage() {
                 }}>
                   {s.value}
                 </div>
-                <div style={{ fontSize:9, color:'#4a6a4a', letterSpacing:2, marginTop:6, fontWeight:800 }}>
+                <div style={{ fontSize:9, color:'#5c5950', letterSpacing:2, marginTop:6, fontWeight:800 }}>
                   {s.label.toUpperCase()}
                 </div>
               </div>
@@ -469,7 +469,7 @@ export default function RoomsPage() {
           </div>
 
           {!address && (
-            <p className="animate-up s6" style={{ fontSize:12, color:'#4a6a4a', letterSpacing:.5, marginTop:20, opacity:0 }}>
+            <p className="animate-up s6" style={{ fontSize:12, color:'#5c5950', letterSpacing:.5, marginTop:20, opacity:0 }}>
               Connect your wallet above to lease a room
             </p>
           )}
@@ -485,13 +485,13 @@ export default function RoomsPage() {
           marginBottom:18, gap:10, flexWrap:'wrap',
         }}>
           <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-            <span style={{ fontSize:10, color:'#4a6a4a', letterSpacing:3, fontWeight:800 }}>
+            <span style={{ fontSize:10, color:'#5c5950', letterSpacing:3, fontWeight:800 }}>
               ROOMS
             </span>
             {/* Filter tabs */}
             <div style={{
               display:'flex', gap:2,
-              background:'rgba(6,14,7,.8)', border:'1px solid var(--border)',
+              background:'rgba(11,11,13,.8)', border:'1px solid var(--border)',
               borderRadius:10, padding:3,
             }}>
               {[
@@ -503,7 +503,7 @@ export default function RoomsPage() {
                   className={`tab ${filter===f.id ? 'tab-active' : ''}`}
                   style={{
                     padding:'6px 13px', fontSize:11.5,
-                    color: filter===f.id ? undefined : '#5a8a5a',
+                    color: filter===f.id ? undefined : '#7d786c',
                   }}>{f.label}</button>
               ))}
             </div>

@@ -19,9 +19,9 @@ function StatusBadge({ phase }) {
   return (
     <span style={{
       fontSize: 8, fontWeight: 800, letterSpacing: 1,
-      color: active ? '#34d399' : '#e8c25a',
-      background: active ? 'rgba(16,185,129,.14)' : 'rgba(232,194,90,.1)',
-      border: `1px solid ${active ? 'rgba(16,185,129,.4)' : 'rgba(232,194,90,.32)'}`,
+      color: active ? '#34d399' : '#d9c08a',
+      background: active ? 'rgba(16,185,129,.14)' : 'rgba(217,192,138,.1)',
+      border: `1px solid ${active ? 'rgba(16,185,129,.4)' : 'rgba(217,192,138,.32)'}`,
       borderRadius: 20, padding: '2px 9px',
       flexShrink: 0,
       boxShadow: active ? '0 0 10px rgba(16,185,129,.25)' : 'none',
@@ -42,7 +42,7 @@ function TableCard({ table, preview }) {
   const isLive   = phase && phase !== 'waiting';
 
   const q = `?buyIn=${buyIn}&bigBlind=${bigBlind}&maxPlayers=${max}&gameType=${gameType}`;
-  const accentColor = isLive ? '#10b981' : gameType === 1 ? '#a06cd4' : '#2e8b4a';
+  const accentColor = isLive ? '#10b981' : gameType === 1 ? '#a06cd4' : '#73737f';
 
   const cardDiv = (
     <div
@@ -50,8 +50,8 @@ function TableCard({ table, preview }) {
       onMouseLeave={() => !preview && setHov(false)}
       style={{
         background: hov
-          ? 'linear-gradient(160deg,#11220f,#0a160b)'
-          : 'linear-gradient(160deg,#0b150b,#070d07)',
+          ? 'linear-gradient(160deg,#1d1d20,#0f0f11)'
+          : 'linear-gradient(160deg,#121214,#0b0b0c)',
         border: `1px solid ${hov ? 'var(--border-mid)' : 'var(--border)'}`,
         borderRadius: 14,
         overflow: 'hidden',
@@ -59,7 +59,7 @@ function TableCard({ table, preview }) {
         transition: 'transform .2s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease',
         transform: hov ? 'translateY(-3px)' : 'none',
         boxShadow: hov
-          ? '0 14px 34px rgba(0,0,0,.6), 0 0 0 1px rgba(232,194,90,.12)'
+          ? '0 14px 34px rgba(0,0,0,.6), 0 0 0 1px rgba(217,192,138,.12)'
           : '0 2px 10px rgba(0,0,0,.4)',
         display: 'flex',
         opacity: preview ? 0.55 : 1,
@@ -80,10 +80,10 @@ function TableCard({ table, preview }) {
           width: 48, height: 48, borderRadius: 12, flexShrink: 0,
           background: gameType === 1
             ? 'linear-gradient(145deg,rgba(160,108,212,.18),rgba(160,108,212,.05))'
-            : 'linear-gradient(145deg,rgba(16,185,129,.16),rgba(16,185,129,.04))',
-          border: `1px solid ${gameType === 1 ? 'rgba(160,108,212,.3)' : 'rgba(16,185,129,.25)'}`,
+            : 'linear-gradient(145deg,rgba(217,192,138,.14),rgba(217,192,138,.04))',
+          border: `1px solid ${gameType === 1 ? 'rgba(160,108,212,.3)' : 'rgba(217,192,138,.25)'}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 23, color: gameType === 1 ? '#c79bef' : '#34d399',
+          fontSize: 23, color: gameType === 1 ? '#c79bef' : '#d9c08a',
         }}>
           {gameType === 1 ? '♦' : '♠'}
         </div>
@@ -101,9 +101,9 @@ function TableCard({ table, preview }) {
             </span>
             <StatusBadge phase={phase} />
           </div>
-          <div style={{ display:'flex', gap:8, alignItems:'center', fontSize:11, color:'#5a8a5a' }}>
+          <div style={{ display:'flex', gap:8, alignItems:'center', fontSize:11, color:'#7d786c' }}>
             <span className="hide-mobile">{GAME_LABEL[gameType]}</span>
-            <span className="hide-mobile" style={{ color:'#23421f' }}>·</span>
+            <span className="hide-mobile" style={{ color:'#39393f' }}>·</span>
             <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>
               {fmt(bigBlind/2)}/{fmt(bigBlind)}
             </span>
@@ -129,12 +129,12 @@ function TableCard({ table, preview }) {
                 }} />
               ))}
             </div>
-            <span style={{ fontSize:10, color:'#4a6a4a', marginLeft:2, fontWeight:600 }}>
+            <span style={{ fontSize:10, color:'#5c5950', marginLeft:2, fontWeight:600 }}>
               {seated}/{max}
             </span>
           </div>
           {preview && (
-            <span style={{ fontSize:9, color:'#5a7a5a', letterSpacing:1 }}>SERVER OFFLINE — PREVIEW</span>
+            <span style={{ fontSize:9, color:'#726d61', letterSpacing:1 }}>SERVER OFFLINE — PREVIEW</span>
           )}
         </div>
       </div>
@@ -178,7 +178,7 @@ function CreateTableModal({ onClose }) {
   };
 
   const busy = status === 'pending';
-  const segActive = '#0e2e0e';
+  const segActive = '#18181c';
 
   return (
     <div style={{
@@ -194,22 +194,22 @@ function CreateTableModal({ onClose }) {
         animation:'pop-in .26s ease forwards',
       }} onClick={e => e.stopPropagation()}>
 
-        <div style={{ fontSize:9, color:'#5a8a5a', letterSpacing:3, marginBottom:5, fontWeight:800 }}>CREATE TABLE</div>
+        <div style={{ fontSize:9, color:'#7d786c', letterSpacing:3, marginBottom:5, fontWeight:800 }}>CREATE TABLE</div>
         <div className="gold-text serif" style={{ fontSize:24, fontWeight:800, marginBottom:22 }}>
           New Cash Game
         </div>
 
         {/* Game type */}
         <div style={{ marginBottom:18 }}>
-          <div style={{ fontSize:9, color:'#4a7a4a', letterSpacing:2, marginBottom:9, fontWeight:800 }}>GAME TYPE</div>
+          <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>GAME TYPE</div>
           <div style={{ display:'flex', gap:8 }}>
             {GAME_OPTIONS.map(o => (
               <button key={o.v} onClick={() => setGameType(o.v)} style={{
                 flex:1, padding:'11px 0', borderRadius:10, cursor:'pointer',
                 fontFamily:'inherit', fontSize:12, fontWeight:700,
-                background: gameType===o.v ? 'linear-gradient(135deg,#1c4f1c,#0c2e0c)' : 'transparent',
+                background: gameType===o.v ? 'linear-gradient(135deg,#26262c,#242428)' : 'transparent',
                 border:`1px solid ${gameType===o.v ? 'var(--gold)' : 'var(--border)'}`,
-                color: gameType===o.v ? 'var(--gold-pale)' : '#5a8a5a',
+                color: gameType===o.v ? 'var(--gold-pale)' : '#7d786c',
                 transition:'all .15s',
               }}>{o.label}</button>
             ))}
@@ -218,7 +218,7 @@ function CreateTableModal({ onClose }) {
 
         {/* Big Blind */}
         <div style={{ marginBottom:18 }}>
-          <div style={{ fontSize:9, color:'#4a7a4a', letterSpacing:2, marginBottom:9, fontWeight:800 }}>BIG BLIND</div>
+          <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>BIG BLIND</div>
           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
             {BLINDS_PRESETS.map(b => (
               <button key={b} onClick={() => { setBigBlind(b); setCustomBB(''); }} style={{
@@ -226,7 +226,7 @@ function CreateTableModal({ onClose }) {
                 fontFamily:"'JetBrains Mono',monospace", fontSize:12, fontWeight:700,
                 background: bigBlind===b && !customBB ? segActive : 'transparent',
                 border:`1px solid ${bigBlind===b && !customBB ? 'var(--gold)' : 'var(--border)'}`,
-                color: bigBlind===b && !customBB ? 'var(--gold-pale)' : '#5a8a5a',
+                color: bigBlind===b && !customBB ? 'var(--gold-pale)' : '#7d786c',
                 transition:'all .15s',
               }}>{b}</button>
             ))}
@@ -237,7 +237,7 @@ function CreateTableModal({ onClose }) {
               style={{
                 width:84, padding:'8px 11px', borderRadius:8,
                 background:'transparent', border:`1px solid ${customBB ? 'var(--gold)' : 'var(--border)'}`,
-                color: customBB ? 'var(--gold-pale)' : '#5a8a5a',
+                color: customBB ? 'var(--gold-pale)' : '#7d786c',
                 fontFamily:"'JetBrains Mono',monospace", fontSize:12,
                 outline:'none',
               }}
@@ -247,7 +247,7 @@ function CreateTableModal({ onClose }) {
 
         {/* Buy-in */}
         <div style={{ marginBottom:18 }}>
-          <div style={{ fontSize:9, color:'#4a7a4a', letterSpacing:2, marginBottom:9, fontWeight:800 }}>
+          <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>
             BUY-IN (CHIPS)
           </div>
           <input
@@ -256,14 +256,14 @@ function CreateTableModal({ onClose }) {
             className="input"
             style={{ width:'100%', padding:'11px 14px', boxSizing:'border-box', fontFamily:"'JetBrains Mono',monospace", fontSize:14 }}
           />
-          <div style={{ fontSize:9, color:'#4a7a4a', marginTop:6, fontFamily:"'JetBrains Mono',monospace" }}>
+          <div style={{ fontSize:9, color:'#645f54', marginTop:6, fontFamily:"'JetBrains Mono',monospace" }}>
             = {effectiveBB ? Math.round(buyIn / effectiveBB) : 0}× big blind
           </div>
         </div>
 
         {/* Max players */}
         <div style={{ marginBottom:22 }}>
-          <div style={{ fontSize:9, color:'#4a7a4a', letterSpacing:2, marginBottom:9, fontWeight:800 }}>MAX SEATS</div>
+          <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>MAX SEATS</div>
           <div style={{ display:'flex', gap:6 }}>
             {[2,4,6,9].map(n => (
               <button key={n} onClick={() => setMaxPlayers(n)} style={{
@@ -271,7 +271,7 @@ function CreateTableModal({ onClose }) {
                 fontFamily:"'JetBrains Mono',monospace", fontSize:13, fontWeight:700,
                 background: maxPlayers===n ? segActive : 'transparent',
                 border:`1px solid ${maxPlayers===n ? 'var(--gold)' : 'var(--border)'}`,
-                color: maxPlayers===n ? 'var(--gold-pale)' : '#5a8a5a',
+                color: maxPlayers===n ? 'var(--gold-pale)' : '#7d786c',
                 transition:'all .15s',
               }}>{n}</button>
             ))}
@@ -378,15 +378,15 @@ export default function LobbyPage() {
           <img src="/logo.png" alt="Poker Vs Player" className="animate-up s2" style={{
             width:'min(460px,84vw)', height:'auto',
             margin:'0 auto 16px', display:'block', opacity:0,
-            filter:'drop-shadow(0 0 70px rgba(232,194,90,.3))',
+            filter:'drop-shadow(0 0 70px rgba(217,192,138,.3))',
           }} />
 
           <p className="animate-up s3" style={{
-            fontSize:15, color:'#6fa074', letterSpacing:.2,
+            fontSize:15, color:'#8d877a', letterSpacing:.2,
             maxWidth:420, margin:'0 auto 36px', lineHeight:1.7, opacity:0,
           }}>
             Real players. Instant onchain settlement.<br/>
-            <span style={{ color:'#8fbf94' }}>No house edge. No bots.</span>
+            <span style={{ color:'#a59f90' }}>No house edge. No bots.</span>
           </p>
 
           {/* Stats */}
@@ -403,7 +403,7 @@ export default function LobbyPage() {
                 }}>
                   {serverOnline ? s.value : '—'}
                 </div>
-                <div style={{ fontSize:9, color:'#4a6a4a', letterSpacing:2, marginTop:6, fontWeight:800 }}>
+                <div style={{ fontSize:9, color:'#5c5950', letterSpacing:2, marginTop:6, fontWeight:800 }}>
                   {s.label.toUpperCase()}
                 </div>
               </div>
@@ -427,7 +427,7 @@ export default function LobbyPage() {
           </div>
 
           {(!mounted || !address) && (
-            <p className="animate-up s6" style={{ fontSize:12, color:'#4a6a4a', letterSpacing:.5, marginTop:22, opacity:0 }}>
+            <p className="animate-up s6" style={{ fontSize:12, color:'#5c5950', letterSpacing:.5, marginTop:22, opacity:0 }}>
               Connect your wallet above to join a table
             </p>
           )}
@@ -445,21 +445,21 @@ export default function LobbyPage() {
           marginBottom:18, gap:10, flexWrap:'wrap',
         }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <span style={{ fontSize:10, color:'#4a6a4a', letterSpacing:3, fontWeight:800 }}>
+            <span style={{ fontSize:10, color:'#5c5950', letterSpacing:3, fontWeight:800 }}>
               TABLES
             </span>
             {/* Filter tabs */}
             <div style={{
               display:'flex', gap:2,
-              background:'rgba(6,14,7,.8)', border:'1px solid var(--border)',
+              background:'rgba(11,11,13,.8)', border:'1px solid var(--border)',
               borderRadius:10, padding:3,
             }}>
               {filters.map(f => (
                 <button key={f.id} onClick={() => setFilter(f.id)} style={{
-                  background: filter===f.id ? 'linear-gradient(135deg,#173017,#0e220e)' : 'transparent',
-                  border: filter===f.id ? '1px solid rgba(232,194,90,.2)' : '1px solid transparent',
+                  background: filter===f.id ? 'linear-gradient(135deg,#1d1d21,#151518)' : 'transparent',
+                  border: filter===f.id ? '1px solid rgba(217,192,138,.2)' : '1px solid transparent',
                   borderRadius:8, padding:'6px 13px', cursor:'pointer',
-                  color: filter===f.id ? 'var(--gold-pale)' : '#5a8a5a',
+                  color: filter===f.id ? 'var(--gold-pale)' : '#7d786c',
                   fontSize:11.5, fontWeight:700, fontFamily:'inherit',
                   transition:'all .15s',
                 }}>{f.label}</button>
@@ -469,10 +469,10 @@ export default function LobbyPage() {
 
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             {/* Server status */}
-            <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:10, color:'#4a6a4a' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:10, color:'#5c5950' }}>
               <div style={{
                 width:6, height:6, borderRadius:'50%',
-                background: serverOnline ? '#10b981' : '#3a5a3a',
+                background: serverOnline ? '#10b981' : '#42424a',
                 boxShadow: serverOnline ? '0 0 7px #10b981' : 'none',
                 animation: serverOnline ? 'live-dot 2s infinite' : 'none',
               }} />
@@ -488,9 +488,9 @@ export default function LobbyPage() {
             ) : (
               <div style={{
                 borderRadius:8, padding:'8px 16px',
-                background:'rgba(26,74,26,.15)',
-                border:'1px solid rgba(232,194,90,.12)',
-                color:'rgba(232,194,90,.3)', fontSize:12, fontWeight:700,
+                background:'rgba(43,43,49,.15)',
+                border:'1px solid rgba(217,192,138,.12)',
+                color:'rgba(217,192,138,.3)', fontSize:12, fontWeight:700,
                 letterSpacing:.3, flexShrink:0, cursor:'default',
                 opacity: mounted ? 0 : 1, transition:'opacity .2s',
               }}>
@@ -509,7 +509,7 @@ export default function LobbyPage() {
               textAlign:'center', padding:'64px 24px',
             }}>
               <div style={{ fontSize:52, marginBottom:14, opacity:.22 }}>♠</div>
-              <div style={{ color:'#4a6a4a', fontSize:13, fontWeight:600 }}>
+              <div style={{ color:'#5c5950', fontSize:13, fontWeight:600 }}>
                 {!serverOnline ? 'No filter matches — try All' : 'No tables match this filter.'}
               </div>
             </div>
@@ -527,17 +527,17 @@ export default function LobbyPage() {
           <div aria-hidden style={{
             position:'absolute', right:-40, top:-40,
             width:200, height:200,
-            background:'radial-gradient(circle, rgba(232,194,90,.07) 0%, transparent 70%)',
+            background:'radial-gradient(circle, rgba(217,192,138,.07) 0%, transparent 70%)',
             pointerEvents:'none',
           }} />
           <div style={{ position:'relative' }}>
-            <div style={{ fontSize:10, color:'#6a9a5a', letterSpacing:2.5, fontWeight:800, marginBottom:5 }}>
+            <div style={{ fontSize:10, color:'#87816f', letterSpacing:2.5, fontWeight:800, marginBottom:5 }}>
               ♛ PRIVATE ROOMS
             </div>
             <div className="serif" style={{ fontSize:17, color:'var(--gold-pale)', fontWeight:700, marginBottom:6 }}>
               Host your own poker room
             </div>
-            <div style={{ fontSize:11.5, color:'#5a7a5a', maxWidth:380, lineHeight:1.6 }}>
+            <div style={{ fontSize:11.5, color:'#726d61', maxWidth:380, lineHeight:1.6 }}>
               33,500 CHIPS/week · 100,000 CHIPS/month · NFT-gate for your community
             </div>
           </div>

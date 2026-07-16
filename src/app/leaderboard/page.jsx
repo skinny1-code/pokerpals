@@ -5,10 +5,10 @@ import { useAccount } from 'wagmi';
 import { useLeaderboard, useHandle, useUsername, generatedNameForAddress } from '../../hooks/usePokerWallet';
 
 const TIER_NAMES  = ['Standard','Bronze','Silver','Gold','Whale'];
-const TIER_COLORS = ['#6a9a6a','#cd7f32','#c0c0c0','#d4af37','#9b59b6'];
+const TIER_COLORS = ['#8a8478','#cd7f32','#c0c0c0','#c9b075','#9b59b6'];
 
 // Gold / Silver / Bronze medal palette for the top 3
-const MEDAL_COLORS = ['#e8c25a','#cfd4dc','#d68a4a'];
+const MEDAL_COLORS = ['#d9c08a','#cfd4dc','#d68a4a'];
 
 // Podium columns render in 2nd/1st/3rd order
 const PODIUM_HEIGHTS = [88, 116, 74];
@@ -26,7 +26,7 @@ function RankMedal({ rank }) {
   if (rank === 1) return <span style={{ fontSize:18 }}>🥇</span>;
   if (rank === 2) return <span style={{ fontSize:18 }}>🥈</span>;
   if (rank === 3) return <span style={{ fontSize:18 }}>🥉</span>;
-  return <span style={{ fontSize:12, color:'#5a8a5a', fontWeight:800,
+  return <span style={{ fontSize:12, color:'#7d786c', fontWeight:800,
     fontFamily:"'JetBrains Mono',monospace",
     width:26, display:'inline-block', textAlign:'center' }}>#{rank}</span>;
 }
@@ -46,16 +46,16 @@ function LeaderRow({ entry, isHero }) {
         alignItems:'center', padding:'13px 16px', borderRadius:'var(--r-md)', gap:8,
         position:'relative', overflow:'hidden',
         background: isHero
-          ? 'linear-gradient(135deg, rgba(232,194,90,.10), rgba(232,194,90,.03))'
+          ? 'linear-gradient(135deg, rgba(217,192,138,.10), rgba(217,192,138,.03))'
           : isTop3
-            ? `linear-gradient(135deg, ${medalColor}14, rgba(8,16,9,.5))`
-            : hov ? 'rgba(255,255,255,.025)' : 'rgba(8,16,9,.35)',
+            ? `linear-gradient(135deg, ${medalColor}14, rgba(14,14,16,.5))`
+            : hov ? 'rgba(255,255,255,.025)' : 'rgba(14,14,16,.35)',
         border:`1px solid ${
           isHero ? 'var(--border-gold)'
           : isTop3 ? `${medalColor}3a`
           : hov ? 'var(--border-mid)' : 'var(--border)'}`,
         boxShadow: isHero
-          ? '0 0 22px rgba(232,194,90,.14)'
+          ? '0 0 22px rgba(217,192,138,.14)'
           : isTop3 ? `0 4px 18px ${medalColor}1a`
           : hov ? 'var(--shadow-sm)' : 'none',
         transform: hov ? 'translateY(-1px)' : 'none',
@@ -84,7 +84,7 @@ function LeaderRow({ entry, isHero }) {
           {isHero && <span style={{ fontSize:8, color:'var(--gold)', marginLeft:8, fontWeight:800,
             letterSpacing:1, border:'1px solid var(--border-gold)', borderRadius:5,
             padding:'2px 6px', verticalAlign:'middle',
-            background:'rgba(232,194,90,.08)' }}>YOU</span>}
+            background:'rgba(217,192,138,.08)' }}>YOU</span>}
         </span>
       </div>
 
@@ -111,7 +111,7 @@ function SkeletonRow() {
     <div style={{
       display:'grid', gridTemplateColumns:'46px 2fr 1fr 88px',
       alignItems:'center', padding:'13px 16px', borderRadius:'var(--r-md)', gap:8,
-      background:'rgba(8,16,9,.35)', border:'1px solid var(--border)',
+      background:'rgba(14,14,16,.35)', border:'1px solid var(--border)',
     }}>
       {[40, 160, 80, 70].map((w, i) => (
         <div key={i} className="skeleton" style={{
@@ -159,7 +159,7 @@ export default function LeaderboardPage() {
           <h1 className="gold-text serif animate-up s2" style={{
             fontSize:44, fontWeight:900, lineHeight:1.05,
             marginBottom:12, opacity:0,
-            textShadow:'0 0 50px rgba(232,194,90,.18)',
+            textShadow:'0 0 50px rgba(217,192,138,.18)',
           }}>
             Leaderboard
           </h1>
@@ -183,7 +183,7 @@ export default function LeaderboardPage() {
             <div aria-hidden style={{
               position:'absolute', top:0, left:'50%', transform:'translateX(-50%)',
               width:360, height:120,
-              background:'radial-gradient(ellipse at 50% 0%, rgba(232,194,90,.10), transparent 70%)',
+              background:'radial-gradient(ellipse at 50% 0%, rgba(217,192,138,.10), transparent 70%)',
               pointerEvents:'none',
             }} />
             {[top3[1], top3[0], top3[2]].map((e, i) => {
@@ -277,23 +277,23 @@ export default function LeaderboardPage() {
           <div className="glass-strong" style={{
             marginTop:14, padding:'14px 16px',
             border:'1px solid var(--border-gold)',
-            boxShadow:'0 0 22px rgba(232,194,90,.10)',
+            boxShadow:'0 0 22px rgba(217,192,138,.10)',
           }}>
             <div style={{ display:'grid', gridTemplateColumns:'46px 2fr 1fr 88px',
               alignItems:'center', gap:8 }}>
-              <div style={{ textAlign:'center', fontSize:12, color:'#5a8a5a', fontWeight:800 }}>—</div>
+              <div style={{ textAlign:'center', fontSize:12, color:'#7d786c', fontWeight:800 }}>—</div>
               <div style={{ minWidth:0 }}>
                 <div style={{ fontSize:13, color:'var(--gold-pale)', fontWeight:800 }}>
                   {myHandle || username || generatedNameForAddress(address)}
                   <span style={{ fontSize:8, marginLeft:8, fontWeight:800, letterSpacing:1,
                     border:'1px solid var(--border-gold)', borderRadius:5, padding:'2px 6px',
-                    color:'var(--gold)', background:'rgba(232,194,90,.08)' }}>YOU</span>
+                    color:'var(--gold)', background:'rgba(217,192,138,.08)' }}>YOU</span>
                 </div>
                 <div style={{ fontSize:9, color:'var(--text-muted)', marginTop:3 }}>
                   Mint a handle to join the leaderboard
                 </div>
               </div>
-              <div style={{ fontSize:13, color:'#6a9a6a', fontWeight:700,
+              <div style={{ fontSize:13, color:'#8a8478', fontWeight:700,
                 fontFamily:"'JetBrains Mono',monospace" }}>◈ —</div>
               <div style={{ display:'flex', justifyContent:'flex-end' }}>
                 <div style={{ fontSize:8, color:TIER_COLORS[0], border:`1px solid ${TIER_COLORS[0]}55`,

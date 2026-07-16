@@ -11,14 +11,14 @@ import Link from 'next/link';
 
 // ─── shared formatting / tier config ──────────────────────────────────────────
 const TIERS = [
-  { id:0, name:'Standard', stake:0,         rake:'1.5%', apr:'0%',  color:'#6a9a6a' },
+  { id:0, name:'Standard', stake:0,         rake:'1.5%', apr:'0%',  color:'#8a8478' },
   { id:1, name:'Bronze',   stake:25_000,    rake:'1.3%', apr:'5%',  color:'#cd7f32' },
   { id:2, name:'Silver',   stake:250_000,   rake:'1.1%', apr:'8%',  color:'#c0c0c0' },
-  { id:3, name:'Gold',     stake:1_000_000, rake:'0.9%', apr:'12%', color:'#d4af37' },
+  { id:3, name:'Gold',     stake:1_000_000, rake:'0.9%', apr:'12%', color:'#c9b075' },
   { id:4, name:'Whale',    stake:5_000_000, rake:'0.6%', apr:'18%', color:'#9b59b6' },
 ];
 const TOURN_STATUS_LABEL = ['Registration','Running','Settled','Cancelled'];
-const TOURN_STATUS_COLOR = ['#27ae60','#e67e22','#6a9a6a','#e74c3c'];
+const TOURN_STATUS_COLOR = ['#27ae60','#e67e22','#8a8478','#e74c3c'];
 const GAME_LABEL = { 0:'NLH', 1:'PLO' };
 
 function fmt(v) {
@@ -41,7 +41,7 @@ function HandlePreview({ handle }) {
   return (
     <div style={{
       position: 'relative', overflow: 'hidden',
-      background: 'radial-gradient(ellipse 120% 90% at 50% -10%, rgba(232,194,90,.1), transparent 60%), linear-gradient(160deg, #122014, #050a06)',
+      background: 'radial-gradient(ellipse 120% 90% at 50% -10%, rgba(217,192,138,.1), transparent 60%), linear-gradient(160deg, #161619, #09090a)',
       border: '1px solid var(--border-gold)', borderRadius: 'var(--r-lg)',
       width: 180, height: 180, margin: '0 auto',
       display: 'flex', flexDirection: 'column',
@@ -91,7 +91,7 @@ function TabButton({ active, onClick, children }) {
   );
 }
 
-function TxButton({ onClick, disabled, loading, color = '#e8c25a', children, full }) {
+function TxButton({ onClick, disabled, loading, color = '#d9c08a', children, full }) {
   const [hov, setHov] = useState(false);
   return (
     <button onClick={onClick} disabled={disabled || loading}
@@ -114,13 +114,13 @@ const FEED_META = {
   buyin:    { icon: '↳', color: '#e67e22', label: 'Bought in',          sign: -1 },
   rebuy:    { icon: '↻', color: '#e67e22', label: 'Re-bought',          sign: -1 },
   cashout:  { icon: '↰', color: '#27ae60', label: 'Cashed out',         sign: +1 },
-  handwin:  { icon: '♠', color: '#d4af37', label: 'Won hand',           sign: +1 },
+  handwin:  { icon: '♠', color: '#c9b075', label: 'Won hand',           sign: +1 },
   tournreg: { icon: '🏆', color: '#2980b9', label: 'Registered',        sign: -1 },
-  tournwin: { icon: '🏆', color: '#d4af37', label: 'Tournament cash',   sign: +1 },
+  tournwin: { icon: '🏆', color: '#c9b075', label: 'Tournament cash',   sign: +1 },
 };
 
 function ActivityRow({ ev }) {
-  const m = FEED_META[ev.kind] || { icon: '•', color: '#6a9a6a', label: ev.kind, sign: 0 };
+  const m = FEED_META[ev.kind] || { icon: '•', color: '#8a8478', label: ev.kind, sign: 0 };
   const where = ev.table != null ? `Table #${ev.table}` : ev.tourn != null ? `Tournament #${ev.tourn}` : '';
   const place = ev.place ? ` · ${ev.place}${['','st','nd','rd'][ev.place] || 'th'}` : '';
   return (
@@ -283,7 +283,7 @@ function EventsPanel({ address, isHuman }) {
         const isOpen = t.status === 0;
         const isFull = t.entrantCount >= t.maxPlayers;
         const canRegister = isOpen && !t.isRegistered && !isFull && !!address && isHuman;
-        const sColor = TOURN_STATUS_COLOR[t.status] || '#6a9a6a';
+        const sColor = TOURN_STATUS_COLOR[t.status] || '#8a8478';
         const prize = t.guaranteed && t.guaranteedPrize > t.prizePool ? t.guaranteedPrize : t.prizePool;
         return (
           <div key={t.id} className="card-elevated" style={{
@@ -410,7 +410,7 @@ function SettingsPanel({ myHandle, mintCost, chipsBalance, changeHandle, status,
         )}
 
         <TxButton onClick={onRename} disabled={!canRename}
-          loading={status === 'approving' || status === 'changing'} color="#e8c25a" full>
+          loading={status === 'approving' || status === 'changing'} color="#d9c08a" full>
           {status === 'approving' ? 'Approving CHIPS…'
            : status === 'changing' ? 'Changing…'
            : `Burn ${fmt(mintCost)} CHIPS & Rename`}
@@ -603,14 +603,14 @@ function HandlePageInner() {
         }}>
           <div aria-hidden style={{
             position: 'absolute', right: -50, top: -50, width: 220, height: 220,
-            background: 'radial-gradient(circle, rgba(232,194,90,.1) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(217,192,138,.1) 0%, transparent 70%)',
             pointerEvents: 'none',
           }} />
           {myAvatar
             ? <img src={myAvatar} alt={`@${myHandle}`} width={84} height={84}
                 style={{ width: 84, height: 84, borderRadius: 'var(--r-md)', border: '1px solid var(--border-gold)', boxShadow: 'var(--shadow-glow-gold)', position: 'relative' }} />
             : <div style={{ width: 84, height: 84, borderRadius: 'var(--r-md)',
-                background: 'radial-gradient(ellipse 120% 90% at 50% -10%, rgba(232,194,90,.12), transparent 60%), linear-gradient(160deg,#122014,#050a06)',
+                background: 'radial-gradient(ellipse 120% 90% at 50% -10%, rgba(217,192,138,.12), transparent 60%), linear-gradient(160deg,#161619,#09090a)',
                 border: '1px solid var(--border-gold)', display: 'flex', position: 'relative',
                 alignItems: 'center', justifyContent: 'center', fontSize: 36 }} className="gold-text">♠</div>}
           <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>

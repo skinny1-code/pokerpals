@@ -5,7 +5,7 @@ import PlayerSeat from './PlayerSeat';
 import { generatedNameForAddress } from '../hooks/usePokerWallet';
 
 const CHIP_DENOMS = [
-  { bbMult: 1000, color: '#e8c25a', hi: '#f7e7a8' },
+  { bbMult: 1000, color: '#d9c08a', hi: '#f0e6cf' },
   { bbMult: 500,  color: '#a06cd4', hi: '#b985e0' },
   { bbMult: 100,  color: '#1a1a1a', hi: '#555'    },
   { bbMult: 25,   color: '#1a6b32', hi: '#10b981' },
@@ -95,14 +95,14 @@ function PotDisplay({ pot, sidePots = [], bigBlind = 100 }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
-        background: 'rgba(0,0,0,.55)', border: '1px solid #e8c25a33',
+        background: 'rgba(0,0,0,.55)', border: '1px solid #d9c08a33',
         borderRadius: 20, padding: '6px 14px',
       }}>
         <PotChips amount={pot} bigBlind={bigBlind} />
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
-          <span style={{ fontSize: 9, color: '#3a6a3a', letterSpacing: 1 }}>POT</span>
+          <span style={{ fontSize: 9, color: '#57544b', letterSpacing: 1 }}>POT</span>
           <span style={{
-            fontSize: 14, color: '#e8c25a', fontWeight: 700,
+            fontSize: 14, color: '#d9c08a', fontWeight: 700,
             fontFamily: "'JetBrains Mono', monospace",
           }}>◈ {fmt(pot)}</span>
         </div>
@@ -112,10 +112,10 @@ function PotDisplay({ pot, sidePots = [], bigBlind = 100 }) {
         <div style={{ display: 'flex', gap: 6 }}>
           {sidePots.map((sp, i) => (
             <div key={i} style={{
-              fontSize: 9, color: '#6a9a6a',
+              fontSize: 9, color: '#8a8478',
               fontFamily: "'JetBrains Mono', monospace",
               background: 'rgba(0,0,0,.4)', borderRadius: 8,
-              padding: '2px 8px', border: '1px solid #1a3a1a',
+              padding: '2px 8px', border: '1px solid #232327',
             }}>
               SIDE {i+1}: ◈{fmt(sp)}
             </div>
@@ -132,7 +132,7 @@ function StreetLabel({ street }) {
   return (
     <div style={{
       position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
-      fontSize: 9, color: '#e8c25aaa', letterSpacing: 3, fontWeight: 700,
+      fontSize: 9, color: '#d9c08aaa', letterSpacing: 3, fontWeight: 700,
     }}>{labels[street] || street.toUpperCase()}</div>
   );
 }
@@ -143,24 +143,24 @@ function WinnerBanner({ winners = [] }) {
     <div style={{
       position: 'absolute', top: '35%', left: '50%',
       transform: 'translate(-50%, -50%)',
-      background: 'rgba(0,0,0,.85)', border: '1px solid #e8c25a',
+      background: 'rgba(0,0,0,.85)', border: '1px solid #d9c08a',
       borderRadius: 12, padding: '10px 24px',
       textAlign: 'center', zIndex: 50,
       animation: 'fade-in .4s ease forwards',
     }}>
-      <div style={{ fontSize: 10, color: '#e8c25aaa', letterSpacing: 3, marginBottom: 4 }}>
+      <div style={{ fontSize: 10, color: '#d9c08aaa', letterSpacing: 3, marginBottom: 4 }}>
         WINNER
       </div>
       {winners.map((w, i) => (
-        <div key={i} style={{ fontSize: 16, color: '#e8c25a', fontWeight: 700 }}>
+        <div key={i} style={{ fontSize: 16, color: '#d9c08a', fontWeight: 700 }}>
           {w.handle || generatedNameForAddress(w.address)}
-          <span style={{ fontSize: 11, marginLeft: 8, color: '#f7e7a8' }}>
+          <span style={{ fontSize: 11, marginLeft: 8, color: '#f0e6cf' }}>
             ◈ {w.amount?.toLocaleString()}
           </span>
         </div>
       ))}
       {winners[0]?.hand && (
-        <div style={{ fontSize: 10, color: '#e8c25a77', marginTop: 4, letterSpacing: 1 }}>
+        <div style={{ fontSize: 10, color: '#d9c08a77', marginTop: 4, letterSpacing: 1 }}>
           {winners[0].hand}
         </div>
       )}
@@ -216,15 +216,15 @@ export default function PokerTable({
       {/* ── Outer rail ── */}
       <div style={{
         position: 'absolute', inset: 0, borderRadius: '50%',
-        background: 'radial-gradient(ellipse at center, #43291a 0%, #2c1a0e 58%, #160c05 100%)',
+        background: 'radial-gradient(ellipse at center, #26262b 0%, #1a1a1f 58%, #0e0e11 100%)',
         boxShadow: '0 12px 44px rgba(0,0,0,.85), inset 0 2px 10px rgba(255,255,255,.06)',
       }} />
 
       {/* ── Gold rim light between rail and felt ── */}
       <div aria-hidden style={{
         position: 'absolute', inset: '3.4%', borderRadius: '50%',
-        border: '1.5px solid rgba(232,194,90,.32)',
-        boxShadow: '0 0 18px rgba(232,194,90,.16), inset 0 0 14px rgba(232,194,90,.08)',
+        border: '1.5px solid rgba(217,192,138,.32)',
+        boxShadow: '0 0 18px rgba(217,192,138,.16), inset 0 0 14px rgba(217,192,138,.08)',
         pointerEvents: 'none',
       }} />
 
@@ -233,14 +233,15 @@ export default function PokerTable({
         position: 'absolute',
         inset: '5%',
         borderRadius: '50%',
-        background: 'radial-gradient(ellipse at 45% 38%, #1c6440 0%, #134a2e 52%, #0a2c1c 100%)',
-        boxShadow: 'inset 0 4px 24px rgba(0,0,0,.55), inset 0 0 60px rgba(16,185,129,.05)',
+        background: 'radial-gradient(ellipse at 45% 38%, #1c1c21 0%, #141418 52%, #0e0e11 100%)',
+        boxShadow: 'inset 0 4px 24px rgba(0,0,0,.55), inset 0 0 60px rgba(217,192,138,.04)',
         overflow: 'hidden',
       }}>
-        {/* subtle felt texture */}
+        {/* whisper-fine dot grid in place of felt weave */}
         <div style={{
           position: 'absolute', inset: 0, borderRadius: '50%',
-          background: 'repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,.005) 2px, rgba(255,255,255,.005) 4px)',
+          background: 'radial-gradient(rgba(240,235,223,.04) 0.5px, transparent 0.5px)',
+          backgroundSize: '20px 20px',
           pointerEvents: 'none',
         }} />
 
@@ -274,12 +275,12 @@ export default function PokerTable({
             display: 'flex', gap: 12, alignItems: 'center',
           }}>
             {tableInfo.name && (
-              <span style={{ fontSize: 9, color: '#6a9a6a', letterSpacing: 1 }}>
+              <span style={{ fontSize: 9, color: '#8a8478', letterSpacing: 1 }}>
                 {tableInfo.name}
               </span>
             )}
             {tableInfo.bigBlind && (
-              <span style={{ fontSize: 9, color: '#3a6a3a',
+              <span style={{ fontSize: 9, color: '#57544b',
                 fontFamily: "'JetBrains Mono', monospace" }}>
                 {(tableInfo.bigBlind/2).toLocaleString()}/{tableInfo.bigBlind.toLocaleString()} CHIPS
               </span>
