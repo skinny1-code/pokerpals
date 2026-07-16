@@ -51,16 +51,16 @@ function CardBack({ width = 72, height = 100 }) {
   return (
     <svg width={width} height={height} viewBox="0 0 72 100"
       style={{ display: 'block', borderRadius: 6, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,.5))' }}>
-      {/* Card body — brand emerald felt with gold trim */}
-      <rect x="0" y="0" width="72" height="100" rx="6" fill="#0d3a26"/>
-      <rect x="3" y="3" width="66" height="94" rx="4" fill="none" stroke="#e8c25a" strokeWidth="1" opacity=".55"/>
-      {/* Diamond pattern */}
+      {/* Card body — obsidian with champagne trim */}
+      <rect x="0" y="0" width="72" height="100" rx="6" fill="#131316"/>
+      <rect x="3" y="3" width="66" height="94" rx="4" fill="none" stroke="#d9c08a" strokeWidth="1" opacity=".5"/>
+      {/* Fine diamond lattice */}
       <pattern id="bp" width="8" height="8" patternUnits="userSpaceOnUse">
-        <path d="M4 0L8 4L4 8L0 4Z" fill="none" stroke="#1f6e4a" strokeWidth=".5"/>
+        <path d="M4 0L8 4L4 8L0 4Z" fill="none" stroke="#2b2b31" strokeWidth=".5"/>
       </pattern>
-      <rect x="4" y="4" width="64" height="92" rx="3" fill="url(#bp)" opacity=".7"/>
+      <rect x="4" y="4" width="64" height="92" rx="3" fill="url(#bp)" opacity=".8"/>
       {/* Center spade */}
-      <text x="36" y="58" textAnchor="middle" fontSize="24" fill="#e8c25a" opacity=".85">♠</text>
+      <text x="36" y="58" textAnchor="middle" fontSize="24" fill="#d9c08a" opacity=".8">♠</text>
     </svg>
   );
 }
@@ -141,7 +141,7 @@ export function EmptyCardSlot({ width = 72, height = 100 }) {
     <svg width={width} height={height} viewBox="0 0 72 100"
       style={{ display: 'block', borderRadius: 6 }}>
       <rect x="0" y="0" width="72" height="100" rx="6"
-        fill="none" stroke="rgba(232,194,90,.18)" strokeWidth="1.5" strokeDasharray="4 3"/>
+        fill="none" stroke="rgba(217,192,138,.18)" strokeWidth="1.5" strokeDasharray="4 3"/>
     </svg>
   );
 }

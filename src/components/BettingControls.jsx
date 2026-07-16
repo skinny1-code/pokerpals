@@ -5,11 +5,11 @@ function ActionButton({ label, sub, onClick, disabled, variant = 'default', wide
   const colors = {
     fold:    { bg: 'linear-gradient(135deg,#3a1210,#1a0807)', border: '#e0473b', color: '#f0675a', hover: '#e0473b' },
     check:   { bg: 'linear-gradient(135deg,#0d2438,#091626)', border: '#2f93d8', color: '#86c2e8', hover: '#2f93d8' },
-    call:    { bg: 'linear-gradient(135deg,#0a3018,#06190d)', border: '#10b981', color: '#34d399', hover: '#10b981' },
-    raise:   { bg: 'linear-gradient(135deg,#322207,#1c1303)', border: '#e8c25a', color: '#f7e7a8', hover: '#f7e7a8' },
-    bet:     { bg: 'linear-gradient(135deg,#322207,#1c1303)', border: '#e8c25a', color: '#f7e7a8', hover: '#f7e7a8' },
-    'all-in':{ bg: 'linear-gradient(135deg,#321a00,#1c0f00)', border: '#f0902a', color: '#f8b15a', hover: '#f0902a' },
-    extend:  { bg: 'linear-gradient(135deg,#1c2407,#0f1403)', border: '#8a9a4a', color: '#c8d88a', hover: '#8a9a4a' },
+    call:    { bg: 'linear-gradient(135deg,#26262a,#141416)', border: '#10b981', color: '#34d399', hover: '#10b981' },
+    raise:   { bg: 'linear-gradient(135deg,#242013,#171410)', border: '#d9c08a', color: '#f0e6cf', hover: '#f0e6cf' },
+    bet:     { bg: 'linear-gradient(135deg,#242013,#171410)', border: '#d9c08a', color: '#f0e6cf', hover: '#f0e6cf' },
+    'all-in':{ bg: 'linear-gradient(135deg,#321a00,#1c0f00)', border: '#f0902a', color: '#e8d5a8', hover: '#f0902a' },
+    extend:  { bg: 'linear-gradient(135deg,#1e1c14,#121210)', border: '#8d8768', color: '#ccc4a5', hover: '#8d8768' },
     default: { bg: 'linear-gradient(135deg,#121,#0a0a0a)',    border: '#333',    color: '#aaa',    hover: '#555'    },
   };
   const s = colors[variant] || colors.default;
@@ -65,14 +65,14 @@ function BetSlider({ min, max, value, onChange, bigBlind }) {
             <button key={p.label}
               onClick={() => v !== null && onChange(Math.max(min, Math.min(max, v)))}
               style={{
-                flex: 1, background: '#0c1e0c', border: '1px solid #1a3a1a',
+                flex: 1, background: '#121215', border: '1px solid #232327',
                 borderRadius: 4, padding: '3px 0', cursor: 'pointer',
-                color: '#6a9a6a', fontSize: 9, fontWeight: 700, letterSpacing: .5,
+                color: '#8a8478', fontSize: 9, fontWeight: 700, letterSpacing: .5,
                 fontFamily: "'JetBrains Mono', monospace",
                 transition: 'all .1s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#f7e7a8'; e.currentTarget.style.borderColor = '#e8c25a55'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#6a9a6a'; e.currentTarget.style.borderColor = '#1a3a1a'; }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#f0e6cf'; e.currentTarget.style.borderColor = '#d9c08a55'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#8a8478'; e.currentTarget.style.borderColor = '#232327'; }}
             >{p.label}</button>
           );
         })}
@@ -82,12 +82,12 @@ function BetSlider({ min, max, value, onChange, bigBlind }) {
       <div style={{ position: 'relative', height: 20, display: 'flex', alignItems: 'center' }}>
         <div style={{
           width: '100%', height: 4, borderRadius: 2,
-          background: '#0c1e0c', border: '1px solid #1a3a1a',
+          background: '#121215', border: '1px solid #232327',
           position: 'relative', overflow: 'hidden',
         }}>
           <div style={{
             position: 'absolute', left: 0, top: 0, height: '100%',
-            width: `${pct}%`, background: 'linear-gradient(90deg, #10b981, #e8c25a)',
+            width: `${pct}%`, background: 'linear-gradient(90deg, #10b981, #d9c08a)',
             borderRadius: 2, transition: 'width .05s',
           }} />
         </div>
@@ -100,27 +100,27 @@ function BetSlider({ min, max, value, onChange, bigBlind }) {
         {/* thumb indicator */}
         <div style={{
           position: 'absolute', left: `${pct}%`, width: 16, height: 16,
-          background: 'radial-gradient(circle at 35% 30%, #f7e7a8, #e8c25a 70%)',
+          background: 'radial-gradient(circle at 35% 30%, #f0e6cf, #d9c08a 70%)',
           borderRadius: '50%', transform: 'translateX(-50%)',
-          border: '2px solid #050a06', boxShadow: '0 0 8px #e8c25a88',
+          border: '2px solid #09090a', boxShadow: '0 0 8px #d9c08a88',
           pointerEvents: 'none', transition: 'left .05s',
         }} />
       </div>
 
       {/* value display */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 9, color: '#8aaa8a', fontFamily: "'JetBrains Mono', monospace" }}>
+        <span style={{ fontSize: 9, color: '#9d9789', fontFamily: "'JetBrains Mono', monospace" }}>
           MIN {fmt(min)}
         </span>
         <div style={{
-          background: '#0c1e0c', border: '1px solid #d4af3744',
+          background: '#121215', border: '1px solid #c9b07544',
           borderRadius: 6, padding: '2px 12px',
-          fontSize: 13, color: '#d4af37', fontWeight: 700,
+          fontSize: 13, color: '#c9b075', fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace",
         }}>
           ◈ {fmt(value)}
         </div>
-        <span style={{ fontSize: 9, color: '#8aaa8a', fontFamily: "'JetBrains Mono', monospace" }}>
+        <span style={{ fontSize: 9, color: '#9d9789', fontFamily: "'JetBrains Mono', monospace" }}>
           MAX {fmt(max)}
         </span>
       </div>
@@ -171,15 +171,15 @@ export default function BettingControls({
       <div className="betting-controls betting-controls-bar" style={{
         position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
         width: '100%', maxWidth: 640,
-        background: 'linear-gradient(0deg, rgba(6,14,6,.98) 0%, rgba(6,14,6,.7) 100%)',
+        background: 'linear-gradient(0deg, rgba(11,11,13,.98) 0%, rgba(11,11,13,.7) 100%)',
         padding: '12px 20px 20px', zIndex: 100,
         display: 'flex', justifyContent: 'center', gap: 8,
       }}>
         {['FOLD', 'CHECK', 'RAISE'].map(label => (
           <div key={label} style={{
-            background: '#060e06', border: '1px solid #0a150a',
+            background: '#0b0b0d', border: '1px solid #121214',
             borderRadius: 8, padding: '10px 16px',
-            color: '#0f1f0f', fontSize: 13, fontWeight: 700,
+            color: '#1a1a1d', fontSize: 13, fontWeight: 700,
             fontFamily: "'JetBrains Mono', monospace",
             minWidth: 80, textAlign: 'center', userSelect: 'none',
           }}>{label}</div>
@@ -196,14 +196,14 @@ export default function BettingControls({
     <div className="betting-controls betting-controls-bar" style={{
       position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
       width: '100%', maxWidth: 640,
-      background: 'linear-gradient(0deg, rgba(6,14,6,.98) 0%, rgba(6,14,6,.85) 80%, transparent 100%)',
+      background: 'linear-gradient(0deg, rgba(11,11,13,.98) 0%, rgba(11,11,13,.85) 80%, transparent 100%)',
       padding: '16px 20px 20px',
       zIndex: 100,
     }}>
       {/* pot odds hint */}
       {potOdds && (
         <div style={{ textAlign: 'center', marginBottom: 8 }}>
-          <span style={{ fontSize: 9, color: '#8aaa8a', letterSpacing: 1,
+          <span style={{ fontSize: 9, color: '#9d9789', letterSpacing: 1,
             fontFamily: "'JetBrains Mono', monospace" }}>
             POT ODDS  {potOdds}  •  TO CALL  ◈ {callAmount.toLocaleString()}  •  POT  ◈ {pot.toLocaleString()}
           </span>
@@ -217,12 +217,12 @@ export default function BettingControls({
             onClick={onExtendTurn}
             disabled={disabled || turnExtended}
             style={{
-              background: turnExtended ? '#111' : 'linear-gradient(135deg,#1c2407,#0f1403)',
-              border: `1px solid ${turnExtended ? '#222' : '#8a9a4a'}`,
+              background: turnExtended ? '#111' : 'linear-gradient(135deg,#1e1c14,#121210)',
+              border: `1px solid ${turnExtended ? '#222' : '#8d8768'}`,
               borderRadius: 20,
               padding: '5px 16px',
               cursor: turnExtended || disabled ? 'not-allowed' : 'pointer',
-              color: turnExtended ? '#444' : '#c8d88a',
+              color: turnExtended ? '#444' : '#ccc4a5',
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10.5, fontWeight: 700, letterSpacing: .5,
             }}
@@ -236,7 +236,7 @@ export default function BettingControls({
       {showRaise && (
         <div style={{ marginBottom: 12, padding: '12px 16px',
           background: 'rgba(0,0,0,.6)', borderRadius: 10,
-          border: '1px solid #1a3a1a' }}>
+          border: '1px solid #232327' }}>
           <BetSlider
             min={minRaise}
             max={maxRaise || playerChips}

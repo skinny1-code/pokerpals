@@ -11,18 +11,18 @@ export function GET() {
           width: '100%', height: '100%',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          background: 'linear-gradient(135deg, #0c1a0c 0%, #0f2a0f 50%, #0a1a0a 100%)',
+          background: 'linear-gradient(135deg, #111114 0%, #222225 50%, #151517 100%)',
           fontFamily: 'serif',
         }}
       >
         <div style={{ fontSize: 120, lineHeight: 1 }}>♠</div>
         <div style={{
-          fontSize: 64, fontWeight: 'bold', color: '#d4af37',
+          fontSize: 64, fontWeight: 'bold', color: '#c9b075',
           marginTop: 16, letterSpacing: '-1px',
         }}>
           PokerVsPlayer
         </div>
-        <div style={{ fontSize: 28, color: '#7ab87a', marginTop: 12 }}>
+        <div style={{ fontSize: 28, color: '#9b9585', marginTop: 12 }}>
           Real PvP poker · Onchain settlement
         </div>
         <div style={{

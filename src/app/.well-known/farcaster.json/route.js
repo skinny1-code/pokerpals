@@ -18,7 +18,7 @@ export function GET() {
       homeUrl:              base || 'https://pokervsplayer.xyz',
       imageUrl:             `${base}/og.png`,
       splashImageUrl:       `${base}/splash.png`,
-      splashBackgroundColor:'#0c1a0c',
+      splashBackgroundColor:'#111114',
       webhookUrl:           `${base}/api/miniapp-webhook`,
     },
   });

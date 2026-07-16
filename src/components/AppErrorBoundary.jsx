@@ -71,7 +71,7 @@ export default class AppErrorBoundary extends Component {
       <div
         style={{
           minHeight: '100vh',
-          backgroundColor: '#060e06',
+          backgroundColor: '#0b0b0d',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -90,7 +90,7 @@ export default class AppErrorBoundary extends Component {
             style={{
               fontSize: '22px',
               fontWeight: 700,
-              color: '#d4af37', // gold
+              color: '#c9b075', // gold
               letterSpacing: '0.5px',
             }}
           >
@@ -127,8 +127,8 @@ export default class AppErrorBoundary extends Component {
         <button
           onClick={() => this.handleReload()}
           style={{
-            backgroundColor: '#d4af37',
-            color: '#060e06',
+            backgroundColor: '#c9b075',
+            color: '#0b0b0d',
             border: 'none',
             borderRadius: '8px',
             padding: '12px 32px',

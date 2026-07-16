@@ -5,7 +5,7 @@ import { useAccount } from 'wagmi';
 import { useTournaments, useRegisterTournament } from '../../hooks/usePokerWallet';
 
 const STATUS_LABEL = ['Registration','Running','Settled','Cancelled'];
-const STATUS_COLOR = ['#27ae60','#e67e22','#6a9a6a','#e74c3c'];
+const STATUS_COLOR = ['#27ae60','#e67e22','#8a8478','#e74c3c'];
 const GAME_LABEL   = { 0:"NLH", 1:'PLO' };
 
 function fmt(v) {
@@ -34,7 +34,7 @@ function TournamentCard({ tourn, address, onRegister, regStatus, isVerified, reg
     return () => clearInterval(t);
   }, [tourn.status]);
 
-  const statusColor = STATUS_COLOR[tourn.status] || '#6a9a6a';
+  const statusColor = STATUS_COLOR[tourn.status] || '#8a8478';
   const isOpen      = tourn.status === 0;
   const isFull      = tourn.entrantCount >= tourn.maxPlayers;
   const canRegister = isOpen && !tourn.isRegistered && !isFull && !!address;
@@ -48,8 +48,8 @@ function TournamentCard({ tourn, address, onRegister, regStatus, isVerified, reg
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        background: hov ? '#0d1f0d' : '#0c1a0c',
-        border:`1px solid ${hov ? '#2a4a2a' : '#1a3a1a'}`,
+        background: hov ? '#141417' : '#111114',
+        border:`1px solid ${hov ? '#303036' : '#232327'}`,
         borderRadius:12, padding:'20px 20px',
         display:'flex', flexDirection:'column', gap:12,
         transition:'all .15s',
@@ -70,7 +70,7 @@ function TournamentCard({ tourn, address, onRegister, regStatus, isVerified, reg
             }}>
               {STATUS_LABEL[tourn.status] || 'Unknown'}
             </span>
-            <span style={{ fontSize:10, color:'#5a8a5a' }}>
+            <span style={{ fontSize:10, color:'#7d786c' }}>
               {GAME_LABEL[tourn.gameType] || 'NLH'}
             </span>
             {tourn.guaranteed && (
@@ -83,33 +83,33 @@ function TournamentCard({ tourn, address, onRegister, regStatus, isVerified, reg
         </div>
 
         <div style={{ textAlign:'right', flexShrink:0 }}>
-          <div style={{ fontSize:18, color:'#d4af37', fontWeight:700,
+          <div style={{ fontSize:18, color:'#c9b075', fontWeight:700,
             fontFamily:"'JetBrains Mono',monospace" }}>
             ◈ {fmt(prize)}
           </div>
-          <div style={{ fontSize:9, color:'#3a6a3a', marginTop:2 }}>PRIZE POOL</div>
+          <div style={{ fontSize:9, color:'#57544b', marginTop:2 }}>PRIZE POOL</div>
         </div>
       </div>
 
       {/* Details grid */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
-        <div style={{ background:'#060e06', border:'1px solid #1a3a1a', borderRadius:8, padding:'8px 10px' }}>
-          <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:1, marginBottom:3 }}>ENTRY</div>
-          <div style={{ fontSize:13, color:'#d4af37', fontFamily:"'JetBrains Mono',monospace", fontWeight:700 }}>
+        <div style={{ background:'#0b0b0d', border:'1px solid #232327', borderRadius:8, padding:'8px 10px' }}>
+          <div style={{ fontSize:9, color:'#57544b', letterSpacing:1, marginBottom:3 }}>ENTRY</div>
+          <div style={{ fontSize:13, color:'#c9b075', fontFamily:"'JetBrains Mono',monospace", fontWeight:700 }}>
             ◈ {fmt(tourn.entryFee)}
           </div>
         </div>
-        <div style={{ background:'#060e06', border:'1px solid #1a3a1a', borderRadius:8, padding:'8px 10px' }}>
-          <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:1, marginBottom:3 }}>PLAYERS</div>
-          <div style={{ fontSize:13, color:'#8aaa8a', fontFamily:"'JetBrains Mono',monospace", fontWeight:700 }}>
+        <div style={{ background:'#0b0b0d', border:'1px solid #232327', borderRadius:8, padding:'8px 10px' }}>
+          <div style={{ fontSize:9, color:'#57544b', letterSpacing:1, marginBottom:3 }}>PLAYERS</div>
+          <div style={{ fontSize:13, color:'#9d9789', fontFamily:"'JetBrains Mono',monospace", fontWeight:700 }}>
             {tourn.entrantCount} / {tourn.maxPlayers}
           </div>
         </div>
-        <div style={{ background:'#060e06', border:'1px solid #1a3a1a', borderRadius:8, padding:'8px 10px' }}>
-          <div style={{ fontSize:9, color:'#3a6a3a', letterSpacing:1, marginBottom:3 }}>
+        <div style={{ background:'#0b0b0d', border:'1px solid #232327', borderRadius:8, padding:'8px 10px' }}>
+          <div style={{ fontSize:9, color:'#57544b', letterSpacing:1, marginBottom:3 }}>
             {isOpen ? 'STARTS IN' : 'STARTED'}
           </div>
-          <div style={{ fontSize:13, color:'#8aaa8a', fontFamily:"'JetBrains Mono',monospace", fontWeight:700 }}>
+          <div style={{ fontSize:13, color:'#9d9789', fontFamily:"'JetBrains Mono',monospace", fontWeight:700 }}>
             {isOpen ? countdown(tourn.startTime) : new Date(tourn.startTime*1000).toLocaleDateString()}
           </div>
         </div>
@@ -118,14 +118,14 @@ function TournamentCard({ tourn, address, onRegister, regStatus, isVerified, reg
       {/* Seat bar */}
       {isOpen && (
         <div>
-          <div style={{ height:4, background:'#1a3a1a', borderRadius:2, overflow:'hidden' }}>
+          <div style={{ height:4, background:'#232327', borderRadius:2, overflow:'hidden' }}>
             <div style={{
               height:'100%', borderRadius:2, transition:'width .4s',
               background:'linear-gradient(90deg,#27ae60,#2ecc71)',
               width:`${Math.min(100, (tourn.entrantCount / tourn.maxPlayers) * 100)}%`,
             }} />
           </div>
-          <div style={{ fontSize:9, color:'#3a6a3a', marginTop:3 }}>
+          <div style={{ fontSize:9, color:'#57544b', marginTop:3 }}>
             {tourn.maxPlayers - tourn.entrantCount} seat{tourn.maxPlayers - tourn.entrantCount !== 1 ? 's' : ''} remaining
           </div>
         </div>
@@ -139,12 +139,12 @@ function TournamentCard({ tourn, address, onRegister, regStatus, isVerified, reg
               ✓ Registered
             </div>
           ) : isFull ? (
-            <div style={{ fontSize:11, color:'#3a6a3a' }}>Tournament full</div>
+            <div style={{ fontSize:11, color:'#57544b' }}>Tournament full</div>
           ) : !address ? (
-            <div style={{ fontSize:11, color:'#3a6a3a' }}>Connect wallet to register</div>
+            <div style={{ fontSize:11, color:'#57544b' }}>Connect wallet to register</div>
           ) : !isVerified ? (
-            <div style={{ fontSize:11, color:'#8a6a2a' }}>
-              Mint a <a href="/handle" style={{ color:'#d4af37', fontWeight:700 }}>Poker Handle</a> to register — verified players only
+            <div style={{ fontSize:11, color:'#7d7050' }}>
+              Mint a <a href="/handle" style={{ color:'#c9b075', fontWeight:700 }}>Poker Handle</a> to register — verified players only
             </div>
           ) : (
             <div>
@@ -152,10 +152,10 @@ function TournamentCard({ tourn, address, onRegister, regStatus, isVerified, reg
                 onClick={() => onRegister(tourn.id, tourn.entryFee)}
                 disabled={regStatus !== 'idle' && regStatus !== 'error'}
                 style={{
-                  background: (regStatus !== 'idle' && regStatus !== 'error') ? '#0a160a' : 'linear-gradient(135deg,#1a4a1a,#0c2e0c)',
-                  border:`1px solid ${(regStatus !== 'idle' && regStatus !== 'error') ? '#1a3a1a' : '#d4af37'}`,
+                  background: (regStatus !== 'idle' && regStatus !== 'error') ? '#0f0f11' : 'linear-gradient(135deg,#2b2b31,#242428)',
+                  border:`1px solid ${(regStatus !== 'idle' && regStatus !== 'error') ? '#232327' : '#c9b075'}`,
                   borderRadius:8, padding:'9px 24px', cursor: (regStatus !== 'idle' && regStatus !== 'error') ? 'not-allowed' : 'pointer',
-                  color: (regStatus !== 'idle' && regStatus !== 'error') ? '#3a6a3a' : '#d4af37',
+                  color: (regStatus !== 'idle' && regStatus !== 'error') ? '#57544b' : '#c9b075',
                   fontSize:12, fontWeight:700, fontFamily:'inherit',
                   transition:'all .15s',
                 }}
@@ -204,14 +204,14 @@ export default function TournamentPage() {
         {/* Header */}
         <div style={{ marginBottom:24, display:'flex', alignItems:'flex-end', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
           <div>
-            <div style={{ fontSize:11, color:'#3a6a3a', letterSpacing:3, marginBottom:8 }}>
+            <div style={{ fontSize:11, color:'#57544b', letterSpacing:3, marginBottom:8 }}>
               SCHEDULED EVENTS
             </div>
-            <h1 style={{ fontSize:28, color:'#d4af37', fontWeight:700,
+            <h1 style={{ fontSize:28, color:'#c9b075', fontWeight:700,
               fontFamily:"'Playfair Display',serif", marginBottom:4 }}>
               Tournaments
             </h1>
-            <div style={{ fontSize:11, color:'#5a8a5a' }}>
+            <div style={{ fontSize:11, color:'#7d786c' }}>
               {count === 0 ? 'No tournaments yet' : `${count} tournament${count !== 1 ? 's' : ''} · ${openCount} open`}
             </div>
           </div>
@@ -226,10 +226,10 @@ export default function TournamentPage() {
             { id:'past', label:'Past' },
           ].map(f => (
             <button key={f.id} onClick={() => setFilter(f.id)} style={{
-              background: filter===f.id ? '#0c1e0c' : 'transparent',
-              border:`1px solid ${filter===f.id ? '#d4af3744' : '#1a3a1a'}`,
+              background: filter===f.id ? '#121215' : 'transparent',
+              border:`1px solid ${filter===f.id ? '#c9b07544' : '#232327'}`,
               borderRadius:6, padding:'5px 14px', cursor:'pointer',
-              color: filter===f.id ? '#d4af37' : '#6a9a6a',
+              color: filter===f.id ? '#c9b075' : '#8a8478',
               fontSize:11, fontWeight:700, fontFamily:'inherit',
               transition:'all .15s',
             }}>{f.label}</button>
@@ -257,14 +257,14 @@ export default function TournamentPage() {
         {count === 0 && (
           <div style={{
             textAlign:'center', padding:'56px 24px',
-            background:'#0c1a0c', border:'1px solid #1a3a1a',
+            background:'#111114', border:'1px solid #232327',
             borderRadius:12,
           }}>
             <div style={{ fontSize:36, marginBottom:12, opacity:.4 }}>🏆</div>
-            <div style={{ fontSize:13, color:'#3a6a3a', fontWeight:500, marginBottom:4 }}>
+            <div style={{ fontSize:13, color:'#57544b', fontWeight:500, marginBottom:4 }}>
               No tournaments scheduled yet
             </div>
-            <div style={{ fontSize:10, color:'#1a3a1a' }}>
+            <div style={{ fontSize:10, color:'#232327' }}>
               Check back soon — events are posted by the operator
             </div>
           </div>
@@ -273,9 +273,9 @@ export default function TournamentPage() {
         {count > 0 && filtered.length === 0 && (
           <div style={{
             textAlign:'center', padding:'40px 24px',
-            background:'#0c1a0c', border:'1px solid #1a3a1a', borderRadius:12,
+            background:'#111114', border:'1px solid #232327', borderRadius:12,
           }}>
-            <div style={{ fontSize:11, color:'#3a6a3a' }}>No tournaments in this category</div>
+            <div style={{ fontSize:11, color:'#57544b' }}>No tournaments in this category</div>
           </div>
         )}
 
@@ -283,7 +283,7 @@ export default function TournamentPage() {
         {confirmed && (
           <div style={{
             position:'fixed', bottom:24, right:24,
-            background:'linear-gradient(135deg,#0a1f0a,#060e06)',
+            background:'linear-gradient(135deg,#121215,#0b0b0d)',
             border:'1px solid #27ae6066', borderRadius:10,
             padding:'12px 20px', color:'#27ae60', fontSize:12, fontWeight:700,
             boxShadow:'0 0 20px rgba(39,174,96,.2)',

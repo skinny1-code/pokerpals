@@ -37,7 +37,7 @@ export default function WalletPicker({
 
   return (
     <div style={{
-      background:'linear-gradient(180deg,#0c1a0d,#060e07)', border:'1px solid var(--border-mid)',
+      background:'linear-gradient(180deg,#111114,#0b0b0d)', border:'1px solid var(--border-mid)',
       borderRadius:14, padding:8,
       minWidth:230, boxShadow:'0 18px 44px rgba(0,0,0,.7)',
       display:'flex', flexDirection:'column', gap:4,

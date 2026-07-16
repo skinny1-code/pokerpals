@@ -11,13 +11,13 @@ export function GET() {
           width: '100%', height: '100%',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          background: '#0c1a0c',
+          background: '#111114',
         }}
       >
         <div style={{ fontSize: 120 }}>♠</div>
         <div style={{
           fontSize: 28, fontWeight: 'bold',
-          color: '#d4af37', marginTop: 8, fontFamily: 'serif',
+          color: '#c9b075', marginTop: 8, fontFamily: 'serif',
         }}>
           PokerVsPlayer
         </div>

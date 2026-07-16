@@ -55,18 +55,18 @@ const STAKING_YIELD_ABI = [
 
 const fmt   = n  => typeof n === 'bigint' ? Number(formatUnits(n, 18)).toLocaleString(undefined,{maximumFractionDigits:1}) : n;
 const chips = n  => `◈ ${fmt(n)} CHIPS`;
-const gold  = '#d4af37';
+const gold  = '#c9b075';
 const green = '#4caf50';
 
 function StatCard({ label, value, sub, color = gold, icon }) {
   return (
     <div style={{
-      background:'#08140888', border:`1px solid ${color}22`,
+      background:'#0d0d0f88', border:`1px solid ${color}22`,
       borderRadius:10, padding:'16px 18px', minWidth:140,
     }}>
-      <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:2,marginBottom:6}}>{icon} {label}</div>
+      <div style={{fontSize:10,color:'#57544b',letterSpacing:2,marginBottom:6}}>{icon} {label}</div>
       <div style={{fontSize:22,fontWeight:700,color,fontFamily:'monospace',letterSpacing:.5}}>{value}</div>
-      {sub && <div style={{fontSize:10,color:'#3a5a3a',marginTop:4}}>{sub}</div>}
+      {sub && <div style={{fontSize:10,color:'#42424a',marginTop:4}}>{sub}</div>}
     </div>
   );
 }
@@ -76,10 +76,10 @@ function Bar({ label, value, max, color = gold }) {
   return (
     <div style={{marginBottom:10}}>
       <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
-        <span style={{fontSize:11,color:'#6a8a6a'}}>{label}</span>
+        <span style={{fontSize:11,color:'#847e71'}}>{label}</span>
         <span style={{fontSize:11,color,fontFamily:'monospace'}}>{fmt(value)} CHIPS</span>
       </div>
-      <div style={{height:4,background:'#0d1a0d',borderRadius:2}}>
+      <div style={{height:4,background:'#111114',borderRadius:2}}>
         <div style={{height:'100%',width:`${pct}%`,background:`linear-gradient(90deg,${color}66,${color})`,borderRadius:2,transition:'width .5s'}}/>
       </div>
     </div>
@@ -150,23 +150,23 @@ export default function RevenueDashboard({ address: ownerAddr }) {
   const stakingPool = stakingYield || 0n;
 
   const TIERS = ['Standard','Bronze','Silver','Gold','Whale'];
-  const TIER_COLORS = ['#4a7a4a','#cd7f32','#aaa','#ffd700','#00e5ff'];
+  const TIER_COLORS = ['#645f54','#cd7f32','#aaa','#d9c08a','#00e5ff'];
 
   const TABS = ['overview','streams','pools','staking','referrals'];
 
   return (
     <div style={{
-      background:'#040a04', color:'#ddd4b8', minHeight:'100vh',
+      background:'#080809', color:'#ddd4b8', minHeight:'100vh',
       fontFamily:"'Book Antiqua','Palatino Linotype',serif",
     }}>
       <style>{`@keyframes ppulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
 
       {/* Header */}
-      <div style={{background:'#06100688',borderBottom:'1px solid #122012',padding:'14px 20px',
+      <div style={{background:'#0d0d0e88',borderBottom:'1px solid #1c1c1f',padding:'14px 20px',
         display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
         <div>
           <div style={{fontSize:18,color:gold,fontWeight:700,letterSpacing:2}}>♠ Revenue Dashboard</div>
-          <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:3}}>POKERVSPLAYER™ OPERATOR VIEW</div>
+          <div style={{fontSize:10,color:'#57544b',letterSpacing:3}}>POKERVSPLAYER™ OPERATOR VIEW</div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
           <div style={{width:6,height:6,borderRadius:'50%',background:green,
@@ -176,12 +176,12 @@ export default function RevenueDashboard({ address: ownerAddr }) {
       </div>
 
       {/* Tabs */}
-      <div style={{display:'flex',gap:4,padding:'12px 20px',borderBottom:'1px solid #0e1e0e',overflowX:'auto'}}>
+      <div style={{display:'flex',gap:4,padding:'12px 20px',borderBottom:'1px solid #19191c',overflowX:'auto'}}>
         {TABS.map(t => (
           <button key={t} onClick={()=>setTab(t)} style={{
-            background:tab===t?'#0c1e0c':'transparent',
-            border:`1px solid ${tab===t?gold+'44':'#1a2a1a'}`,
-            color:tab===t?gold:'#4a7a4a', padding:'6px 16px', borderRadius:6,
+            background:tab===t?'#121215':'transparent',
+            border:`1px solid ${tab===t?gold+'44':'#1a1a1f'}`,
+            color:tab===t?gold:'#645f54', padding:'6px 16px', borderRadius:6,
             fontSize:11, fontWeight:700, letterSpacing:1, cursor:'pointer',
             textTransform:'uppercase', fontFamily:'inherit',
           }}>{t}</button>
@@ -203,18 +203,18 @@ export default function RevenueDashboard({ address: ownerAddr }) {
             </div>
 
             {/* Revenue timeline (simulated — wire to Alchemy events in prod) */}
-            <div style={{background:'#08140888',border:'1px solid #162a16',borderRadius:10,
+            <div style={{background:'#0d0d0f88',border:'1px solid #191920',borderRadius:10,
               padding:'16px 18px',marginBottom:16}}>
-              <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:2,marginBottom:14}}>REVENUE BREAKDOWN</div>
+              <div style={{fontSize:10,color:'#57544b',letterSpacing:2,marginBottom:14}}>REVENUE BREAKDOWN</div>
               <Bar label="Cash Game Rake (1.5%)" value={rake} max={cashTotal} color={gold}/>
               <Bar label="Seat Fees (2 CHIPS/seat)" value={seats} max={cashTotal} color='#29b6f6'/>
               <Bar label="Tournament Rake (10%)" value={tournRevenue||0n} max={cashTotal} color='#ff9800'/>
             </div>
 
             {/* Revenue stream math */}
-            <div style={{background:'#08140888',border:'1px solid #162a16',borderRadius:10,
+            <div style={{background:'#0d0d0f88',border:'1px solid #191920',borderRadius:10,
               padding:'16px 18px'}}>
-              <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:2,marginBottom:14}}>PROJECTED EARNINGS</div>
+              <div style={{fontSize:10,color:'#57544b',letterSpacing:2,marginBottom:14}}>PROJECTED EARNINGS</div>
               {[
                 ['50 tables × 30 hands/hr × avg 1k CHIPS pot × 1.5%', '22,500 CHIPS/hr'],
                 ['50 tables × 5 players × 2 CHIPS seat fee',           '500 CHIPS/hr'],
@@ -222,8 +222,8 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                 ['CHIPS token appreciation (500M float)',               'variable'],
               ].map(([calc,val])=>(
                 <div key={calc} style={{display:'flex',justifyContent:'space-between',
-                  padding:'7px 0',borderBottom:'1px solid #0d1a0d',gap:12}}>
-                  <span style={{fontSize:11,color:'#4a7a4a'}}>{calc}</span>
+                  padding:'7px 0',borderBottom:'1px solid #111114',gap:12}}>
+                  <span style={{fontSize:11,color:'#645f54'}}>{calc}</span>
                   <span style={{fontSize:11,color:gold,fontFamily:'monospace',flexShrink:0}}>{val}</span>
                 </div>
               ))}
@@ -279,14 +279,14 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                   ['Governance','Lock CHIPS for voting rights → future feature'],
                 ]},
             ].map(({icon,title,color,lines})=>(
-              <div key={title} style={{background:'#08140888',border:`1px solid ${color}22`,
+              <div key={title} style={{background:'#0d0d0f88',border:`1px solid ${color}22`,
                 borderRadius:10,padding:'14px 18px'}}>
                 <div style={{fontSize:13,color,fontWeight:700,marginBottom:12}}>{icon} {title}</div>
                 {lines.map(([k,v])=>(
                   <div key={k} style={{display:'flex',gap:12,padding:'5px 0',
-                    borderBottom:'1px solid #0d1a0d',justifyContent:'space-between'}}>
-                    <span style={{fontSize:10,color:'#3a6a3a',letterSpacing:.5,flexShrink:0}}>{k}</span>
-                    <span style={{fontSize:11,color:'#8aaa6a',textAlign:'right'}}>{v}</span>
+                    borderBottom:'1px solid #111114',justifyContent:'space-between'}}>
+                    <span style={{fontSize:10,color:'#57544b',letterSpacing:.5,flexShrink:0}}>{k}</span>
+                    <span style={{fontSize:11,color:'#9a9280',textAlign:'right'}}>{v}</span>
                   </div>
                 ))}
               </div>
@@ -299,7 +299,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
               <StatCard icon="♠" label="KING OF SPADES POOL" value={chips(kingsChips)}
-                sub="Ops expenses (100M seeded + 10% rake)" color='#d4af37'/>
+                sub="Ops expenses (100M seeded + 10% rake)" color='#c9b075'/>
               <StatCard icon="🎯" label="PROMOTIONS POOL" value={chips(promoChips)}
                 sub="Contests, airdrops, tournaments" color='#ab47bc'/>
               <StatCard icon="💎" label="CHIPS LIQUIDITY POOL" value={chips(liqChips)}
@@ -309,12 +309,12 @@ export default function RevenueDashboard({ address: ownerAddr }) {
               <StatCard icon="⛏" label="STAKING YIELD POOL" value={chips(stakingPool)}
                 sub="200M seeded + 45% rake — earns APR for stakers" color='#ab47bc'/>
             </div>
-            <div style={{background:'#08140888',border:'1px solid #162a16',borderRadius:10,
+            <div style={{background:'#0d0d0f88',border:'1px solid #191920',borderRadius:10,
               padding:'16px 18px',marginTop:4}}>
-              <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:2,marginBottom:12}}>RAKE FLOW</div>
+              <div style={{fontSize:10,color:'#57544b',letterSpacing:2,marginBottom:12}}>RAKE FLOW</div>
               <Bar label="Burn (15%)"              value={escrowSummary?.[1]||0n} max={rake||1n} color='#ef5350'/>
               <Bar label="Staking yield (45%)"     value={escrowSummary?.[2]||0n} max={rake||1n} color='#ab47bc'/>
-              <Bar label="King of Spades (10%)"    value={(rake * 1000n / 10000n)} max={rake||1n} color='#d4af37'/>
+              <Bar label="King of Spades (10%)"    value={(rake * 1000n / 10000n)} max={rake||1n} color='#c9b075'/>
               <Bar label="Treasury — owner (20%)"  value={(rake * 2000n / 10000n)} max={rake||1n} color='#4caf50'/>
               <Bar label="Referrals (10%)"         value={escrowSummary?.[4]||0n} max={rake||1n} color='#29b6f6'/>
             </div>
@@ -327,24 +327,24 @@ export default function RevenueDashboard({ address: ownerAddr }) {
             <StatCard icon="⛏" label="TOTAL CHIPS STAKED" value={chips(totalStaked||0n)} color='#ab47bc'
               sub="Locked by VIP players"/>
             <div style={{height:12}}/>
-            <div style={{background:'#08140888',border:'1px solid #162a16',borderRadius:10,
+            <div style={{background:'#0d0d0f88',border:'1px solid #191920',borderRadius:10,
               padding:'16px 18px'}}>
-              <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:2,marginBottom:14}}>TIER DISTRIBUTION</div>
+              <div style={{fontSize:10,color:'#57544b',letterSpacing:2,marginBottom:14}}>TIER DISTRIBUTION</div>
               {TIERS.map((name,i)=>{
                 const count = tierStats?.[2]?.[i] || 0n;
                 const apr   = tierStats?.[1]?.[i] || 0n;
                 const thresh = tierStats?.[0]?.[i] || 0n;
                 return (
                   <div key={name} style={{display:'flex',alignItems:'center',gap:12,
-                    padding:'10px 0',borderBottom:'1px solid #0d1a0d',flexWrap:'wrap',gap:8}}>
+                    padding:'10px 0',borderBottom:'1px solid #111114',flexWrap:'wrap',gap:8}}>
                     <div style={{width:6,height:6,borderRadius:'50%',background:TIER_COLORS[i],flexShrink:0}}/>
                     <div style={{flex:1,minWidth:80}}>
                       <div style={{fontSize:12,color:TIER_COLORS[i],fontWeight:700}}>{name}</div>
-                      <div style={{fontSize:9,color:'#3a5a3a'}}>≥ {fmt(thresh)} CHIPS · {Number(apr)/100}% APR</div>
+                      <div style={{fontSize:9,color:'#42424a'}}>≥ {fmt(thresh)} CHIPS · {Number(apr)/100}% APR</div>
                     </div>
                     <div style={{textAlign:'right'}}>
-                      <div style={{fontSize:12,color:'#8aaa6a',fontFamily:'monospace'}}>{fmt(count)}</div>
-                      <div style={{fontSize:9,color:'#3a5a3a'}}>CHIPS locked</div>
+                      <div style={{fontSize:12,color:'#9a9280',fontFamily:'monospace'}}>{fmt(count)}</div>
+                      <div style={{fontSize:9,color:'#42424a'}}>CHIPS locked</div>
                     </div>
                   </div>
                 );
@@ -355,30 +355,30 @@ export default function RevenueDashboard({ address: ownerAddr }) {
 
         {/* ── REFERRALS ── */}
         {tab==='referrals' && (
-          <div style={{background:'#08140888',border:'1px solid #162a16',borderRadius:10,padding:'16px 18px'}}>
-            <div style={{fontSize:10,color:'#3a6a3a',letterSpacing:2,marginBottom:14}}>TOP REFERRERS</div>
+          <div style={{background:'#0d0d0f88',border:'1px solid #191920',borderRadius:10,padding:'16px 18px'}}>
+            <div style={{fontSize:10,color:'#57544b',letterSpacing:2,marginBottom:14}}>TOP REFERRERS</div>
             {(leaderboard?.[0]||Array(10).fill(null)).map((addr,i)=>{
               const earned   = leaderboard?.[1]?.[i] || 0n;
               const referred = leaderboard?.[2]?.[i] || 0n;
               if (!addr || addr === '0x0000000000000000000000000000000000000000') return null;
               return (
                 <div key={i} style={{display:'flex',alignItems:'center',gap:12,
-                  padding:'10px 0',borderBottom:'1px solid #0d1a0d'}}>
-                  <div style={{width:24,height:24,borderRadius:'50%',background:'#0c1e0c',
-                    border:`1px solid ${i===0?gold:i===1?'#aaa':i===2?'#cd7f32':'#1a3a1a'}`,
+                  padding:'10px 0',borderBottom:'1px solid #111114'}}>
+                  <div style={{width:24,height:24,borderRadius:'50%',background:'#121215',
+                    border:`1px solid ${i===0?gold:i===1?'#aaa':i===2?'#cd7f32':'#232327'}`,
                     display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:11,color:i===0?gold:'#4a7a4a',fontWeight:700,flexShrink:0}}>
+                    fontSize:11,color:i===0?gold:'#645f54',fontWeight:700,flexShrink:0}}>
                     {i+1}
                   </div>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:11,color:'#a8c888',fontFamily:'monospace'}}>
+                    <div style={{fontSize:11,color:'#b0a890',fontFamily:'monospace'}}>
                       {addr.slice(0,8)}…{addr.slice(-6)}
                     </div>
-                    <div style={{fontSize:9,color:'#3a5a3a'}}>{Number(referred)} players referred</div>
+                    <div style={{fontSize:9,color:'#42424a'}}>{Number(referred)} players referred</div>
                   </div>
                   <div style={{textAlign:'right'}}>
                     <div style={{fontSize:12,color:gold,fontFamily:'monospace'}}>◈ {fmt(earned)}</div>
-                    <div style={{fontSize:9,color:'#3a5a3a'}}>CHIPS earned</div>
+                    <div style={{fontSize:9,color:'#42424a'}}>CHIPS earned</div>
                   </div>
                 </div>
               );

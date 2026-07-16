@@ -60,7 +60,7 @@ export default function WalletBar() {
   return (
     <>
     <header style={{
-      background: 'linear-gradient(180deg,#0a160b 0%,rgba(5,10,6,.94) 100%)',
+      background: 'linear-gradient(180deg,#0f0f11 0%,rgba(9,9,10,.94) 100%)',
       borderBottom: '1px solid var(--border)',
       boxShadow: '0 1px 28px rgba(0,0,0,.55)',
       padding: '0 18px',
@@ -78,14 +78,14 @@ export default function WalletBar() {
       {/* gold hairline under the bar */}
       <div aria-hidden style={{
         position:'absolute', left:0, right:0, bottom:-1, height:1,
-        background:'linear-gradient(90deg, transparent, rgba(232,194,90,.35), transparent)',
+        background:'linear-gradient(90deg, transparent, rgba(217,192,138,.35), transparent)',
       }} />
 
       {/* Logo */}
       <Link href="/" style={{ textDecoration:'none', display:'flex', alignItems:'center', flexShrink:0, color:'var(--cream)' }}>
         <img src="/logo.png" alt="Poker Vs Player" style={{
           height:30, width:'auto', display:'block',
-          filter:'drop-shadow(0 0 14px rgba(232,194,90,.25))',
+          filter:'drop-shadow(0 0 14px rgba(217,192,138,.25))',
         }} />
       </Link>
 
@@ -95,14 +95,14 @@ export default function WalletBar() {
           const on = isActive(href);
           return (
             <Link key={href} href={href} style={{
-              color: on ? 'var(--gold)' : '#6fa074', fontSize:12.5, fontWeight:600, letterSpacing:.2,
+              color: on ? 'var(--gold)' : '#8d877a', fontSize:12.5, fontWeight:600, letterSpacing:.2,
               padding:'6px 12px', borderRadius:8, position:'relative',
-              border:`1px solid ${on ? 'rgba(232,194,90,.25)' : 'transparent'}`,
-              background: on ? 'rgba(232,194,90,.07)' : 'transparent',
+              border:`1px solid ${on ? 'rgba(217,192,138,.25)' : 'transparent'}`,
+              background: on ? 'rgba(217,192,138,.07)' : 'transparent',
               textDecoration:'none', transition:'all .15s', whiteSpace:'nowrap',
             }}
-            onMouseEnter={e => { if(!on){ e.currentTarget.style.color='var(--gold)'; e.currentTarget.style.borderColor='rgba(232,194,90,.18)'; } }}
-            onMouseLeave={e => { if(!on){ e.currentTarget.style.color='#6fa074'; e.currentTarget.style.borderColor='transparent'; } }}>
+            onMouseEnter={e => { if(!on){ e.currentTarget.style.color='var(--gold)'; e.currentTarget.style.borderColor='rgba(217,192,138,.18)'; } }}
+            onMouseLeave={e => { if(!on){ e.currentTarget.style.color='#8d877a'; e.currentTarget.style.borderColor='transparent'; } }}>
               {label}
             </Link>
           );
@@ -147,7 +147,7 @@ export default function WalletBar() {
 
             {/* CHIPS balance — hidden on mobile to save space */}
             <div className="hide-mobile" style={{
-              background:'linear-gradient(135deg,#0e220f,#0a180b)', border:'1px solid var(--border-gold)',
+              background:'linear-gradient(135deg,#151518,#101013)', border:'1px solid var(--border-gold)',
               borderRadius:9, padding:'6px 13px',
               display:'flex', alignItems:'center', gap:6,
               boxShadow:'inset 0 1px 0 rgba(255,255,255,.04)',
@@ -178,7 +178,7 @@ export default function WalletBar() {
             {/* Handle/Address + disconnect — desktop only; mobile uses bottom-nav menu */}
             {!isMobile && (
               <button onClick={disconnect} style={{
-                background:'linear-gradient(135deg,#0e220f,#0a180b)', border:'1px solid var(--border)',
+                background:'linear-gradient(135deg,#151518,#101013)', border:'1px solid var(--border)',
                 borderRadius:9, padding:'6px 13px', cursor:'pointer',
                 color:'var(--text-secondary)', fontSize:11.5, fontFamily:'inherit', fontWeight:700,
                 display:'flex', alignItems:'center', gap:7,
@@ -195,7 +195,7 @@ export default function WalletBar() {
 
         {mounted && !isConnected && wagmiStatus === 'reconnecting' && (
           <div style={{
-            background:'#0c1e0c', border:'1px solid var(--border)',
+            background:'#121215', border:'1px solid var(--border)',
             borderRadius:9, padding:'8px 20px',
             color:'var(--text-muted)', fontSize:12, fontWeight:600,
           }}>…</div>
@@ -246,7 +246,7 @@ export default function WalletBar() {
           style={{ position:'fixed', inset:0, zIndex:98, background:'rgba(0,0,0,.55)', backdropFilter:'blur(2px)' }} />
         <div style={{
           position:'fixed', left:10, right:10, bottom:'calc(74px + env(safe-area-inset-bottom))', zIndex:99,
-          background:'linear-gradient(180deg,#0c1a0d,#060e07)',
+          background:'linear-gradient(180deg,#111114,#0b0b0d)',
           border:'1px solid var(--border-mid)', borderRadius:18,
           boxShadow:'0 20px 50px rgba(0,0,0,.7)',
           overflow:'hidden', animation:'pop-in .28s ease both',
@@ -259,10 +259,10 @@ export default function WalletBar() {
                 style={{
                   display:'flex', alignItems:'center', gap:14,
                   padding:'15px 22px',
-                  borderBottom:'1px solid rgba(28,58,34,.6)',
+                  borderBottom:'1px solid rgba(35,35,39,.6)',
                   textDecoration:'none',
                   color: on ? 'var(--gold)' : '#e8e0cc',
-                  background: on ? 'rgba(232,194,90,.06)' : 'transparent',
+                  background: on ? 'rgba(217,192,138,.06)' : 'transparent',
                   fontSize:15, fontWeight:600,
                 }}>
                 <span style={MENU_ICON}>{icon}</span>

@@ -63,7 +63,7 @@ export default function AuthGate({ children }) {
     return (
       <div style={{
         position:'fixed', inset:0, zIndex:500,
-        background:'radial-gradient(circle at 50% 20%, #0e1f10, #05090500 60%), #050a05',
+        background:'radial-gradient(circle at 50% 20%, #131316, #09090a00 60%), #09090a',
         display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
         padding:20, gap:22,
       }}>
@@ -75,7 +75,7 @@ export default function AuthGate({ children }) {
           </div>
         </div>
         <div style={{
-          background:'linear-gradient(180deg,#0c1a0d,#060e07)', border:'1px solid var(--border-mid)',
+          background:'linear-gradient(180deg,#111114,#0b0b0d)', border:'1px solid var(--border-mid)',
           borderRadius:14, padding:20, minWidth:280,
           display:'flex', flexDirection:'column', alignItems:'center', gap:12,
         }}>
@@ -114,7 +114,7 @@ export default function AuthGate({ children }) {
   return (
     <div style={{
       position:'fixed', inset:0, zIndex:500,
-      background:'radial-gradient(circle at 50% 20%, #0e1f10, #05090500 60%), #050a05',
+      background:'radial-gradient(circle at 50% 20%, #131316, #09090a00 60%), #09090a',
       display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
       padding:20, gap:22,
     }}>
@@ -135,7 +135,7 @@ export default function AuthGate({ children }) {
         />
       ) : (
         <div style={{
-          background:'linear-gradient(180deg,#0c1a0d,#060e07)', border:'1px solid var(--border-mid)',
+          background:'linear-gradient(180deg,#111114,#0b0b0d)', border:'1px solid var(--border-mid)',
           borderRadius:14, padding:20, minWidth:260,
           display:'flex', flexDirection:'column', alignItems:'center', gap:14,
         }}>
