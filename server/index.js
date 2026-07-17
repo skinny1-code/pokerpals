@@ -10,7 +10,7 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { fullVerify, BehaviorMonitor } from "./antiBotOracle.js";
-import { getUsernames, claimUsername } from "./usernameStore.js";
+import { getUsernames, claimUsername, storeStatus } from "./usernameStore.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -56,6 +56,42 @@ const SCORER_ID    = process.env.GITCOIN_SCORER_ID;
 // ─── CHAIN SETUP ─────────────────────────────────────────────────────────────
 const provider   = new ethers.JsonRpcProvider(RPC_URL);
 const operator   = new ethers.Wallet(OPERATOR_KEY, provider);
+
+// ─── OPERATOR GAS WATCHDOG ───────────────────────────────────────────────────
+// The operator wallet pays gas for markHuman / settle-adjacent txs. When it runs
+// dry every verification fails silently from the player's point of view — this
+// happened in production and went unnoticed for weeks. Check at boot and on an
+// interval, complain loudly, and expose the state via /health.
+const MIN_OPERATOR_ETH = ethers.parseEther(process.env.MIN_OPERATOR_ETH || '0.005');
+const health = {
+  startedAt: Date.now(),
+  operator: { address: operator.address, balanceEth: null, lowGas: null, checkedAt: null },
+  rpc: { ok: null, blockNumber: null, checkedAt: null },
+  lastMarkHuman: null, // { ok, address?, error?, at }
+};
+
+async function checkOperatorGas() {
+  try {
+    const [bal, block] = await Promise.all([
+      provider.getBalance(operator.address),
+      provider.getBlockNumber(),
+    ]);
+    health.rpc = { ok: true, blockNumber: block, checkedAt: Date.now() };
+    health.operator.balanceEth = ethers.formatEther(bal);
+    health.operator.lowGas = bal < MIN_OPERATOR_ETH;
+    health.operator.checkedAt = Date.now();
+    if (health.operator.lowGas) {
+      console.error(`[Server] ⚠️  OPERATOR WALLET LOW ON GAS: ${operator.address} has ` +
+        `${health.operator.balanceEth} ETH (< ${ethers.formatEther(MIN_OPERATOR_ETH)}). ` +
+        `Verifications and on-chain writes WILL FAIL. Fund it: npm run faucet -- ${operator.address}`);
+    }
+  } catch (e) {
+    health.rpc = { ok: false, blockNumber: null, checkedAt: Date.now() };
+    console.error('[Server] gas watchdog RPC check failed:', e.message);
+  }
+}
+checkOperatorGas();
+setInterval(checkOperatorGas, Number(process.env.GAS_CHECK_INTERVAL_MS) || 10 * 60 * 1000);
 
 // ─── IN-PROCESS BOT ──────────────────────────────────────────────────────────
 const BOT_KEY  = process.env.OPS_WALLET_KEY;
@@ -212,9 +248,11 @@ async function verifyHuman(address) {
       const tx = await escrow.markHuman(address, true);
       await tx.wait();
       console.log(`[AntiBot] Testnet bypass: marked ${address} as human`);
+      health.lastMarkHuman = { ok: true, address, at: Date.now() };
       return { pass: true, failures: [] };
     } catch (e) {
       console.error("markHuman (testnet bypass) error:", e.message);
+      health.lastMarkHuman = { ok: false, address, error: e.shortMessage || e.message, at: Date.now() };
       return { pass: false, failures: [e.message] };
     }
   }
@@ -569,7 +607,7 @@ const server = createServer((req, res) => {
   // /claim-username is also open — its actual security is the wallet-signature check
   // below, not the origin, and it needs to work from every Vercel preview URL, not just
   // one hardcoded production domain.
-  if (req.url === '/tables' || req.url?.startsWith('/usernames') || req.url === '/claim-username') {
+  if (req.url === '/tables' || req.url?.startsWith('/usernames') || req.url === '/claim-username' || req.url === '/health') {
     res.setHeader('Access-Control-Allow-Origin', '*');
   } else {
     res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_ORIGIN || '');
@@ -580,6 +618,36 @@ const server = createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     res.writeHead(204);
     return res.end();
+  }
+  if (req.url === '/health') {
+    // Always HTTP 200 — Fly's health check restarts "unhealthy" machines, and a
+    // degraded chain state (low gas, RPC blip) must not cause a restart loop.
+    // Consumers read `status` / the detail fields instead.
+    const degraded = [];
+    if (health.rpc.ok === false)        degraded.push('rpc-unreachable');
+    if (health.operator.lowGas)         degraded.push('operator-low-gas');
+    if (health.lastMarkHuman && !health.lastMarkHuman.ok) degraded.push('last-markhuman-failed');
+    res.writeHead(200);
+    return res.end(JSON.stringify({
+      status: degraded.length ? 'degraded' : 'ok',
+      degraded,
+      uptimeSec: Math.floor((Date.now() - health.startedAt) / 1000),
+      escrow: {
+        address: ESCROW_ADDR,
+        matchesManifest: !_depl?.contracts?.PokerEscrow ||
+          ESCROW_ADDR.toLowerCase() === _depl.contracts.PokerEscrow.toLowerCase(),
+      },
+      operator: { ...health.operator, minEth: ethers.formatEther(MIN_OPERATOR_ETH) },
+      rpc: health.rpc,
+      lastMarkHuman: health.lastMarkHuman,
+      usernameStore: storeStatus(),
+      flags: {
+        skipHumanCheck: process.env.TESTNET_SKIP_HUMAN_CHECK === 'true',
+        skipChainVerify: process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true',
+      },
+      tables: tables.size,
+      connectedClients: clients.size,
+    }, null, 2));
   }
   if (req.url === '/tables') {
     const list = [...tables.values()].map(t => ({

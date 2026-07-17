@@ -4,13 +4,32 @@
 // (contracts/PokerHandle.sol), which remains the "verified" badge required for
 // tournaments/events — see useHandle.js / useRegisterTournament().
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR  = join(__dirname, "data");
-const DATA_FILE = join(DATA_DIR, "usernames.json");
+
+// DATA_DIR should point at durable storage (the Fly volume mounts at /data —
+// see fly.toml [mounts]). Without it, the store falls back to server/data,
+// which on Fly is EPHEMERAL: every deploy replaces the machine's disk and
+// wipes all claimed usernames.
+const LEGACY_DIR = join(__dirname, "data");
+const DATA_DIR   = process.env.DATA_DIR || LEGACY_DIR;
+const DATA_FILE  = join(DATA_DIR, "usernames.json");
+
+// One-time migration: if the durable location is empty but the old in-repo
+// location has data (e.g. first boot after the volume was added), carry it over.
+try {
+  const legacyFile = join(LEGACY_DIR, "usernames.json");
+  if (DATA_DIR !== LEGACY_DIR && !existsSync(DATA_FILE) && existsSync(legacyFile)) {
+    mkdirSync(DATA_DIR, { recursive: true });
+    copyFileSync(legacyFile, DATA_FILE);
+    console.log(`[usernameStore] migrated usernames from ${legacyFile} to ${DATA_FILE}`);
+  }
+} catch (e) {
+  console.error('[usernameStore] migration failed:', e.message);
+}
 
 // Same shape as the on-chain PokerHandle rules: 3-20 chars, alphanumeric + underscore.
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
@@ -32,6 +51,15 @@ function persist() {
   } catch (e) {
     console.error('[usernameStore] persist failed:', e.message);
   }
+}
+
+// For the server's /health endpoint.
+export function storeStatus() {
+  return {
+    file: DATA_FILE,
+    durable: DATA_DIR !== LEGACY_DIR,
+    usernames: Object.keys(store).length,
+  };
 }
 
 export function getUsername(address) {

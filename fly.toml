@@ -11,6 +11,13 @@ primary_region = 'iad'
 [env]
   NODE_ENV = 'production'
   PORT = '4000'
+  DATA_DIR = '/data'
+
+# Durable storage for claimed usernames — without this, every deploy wipes them.
+# Create once with: fly volumes create pvp_data --region iad --size 1
+[mounts]
+  source = 'pvp_data'
+  destination = '/data'
 
 [processes]
   app = 'node server/index.js'
@@ -28,7 +35,7 @@ primary_region = 'iad'
     timeout = '10s'
     grace_period = '30s'
     method = 'GET'
-    path = '/tables'
+    path = '/health'
 
 [[vm]]
   size = 'shared-cpu-1x'
