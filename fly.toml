@@ -4,7 +4,9 @@
 #
 
 app = 'pokerpals-server'
-primary_region = 'iad'
+# NOTE: the app's machines actually run in ams — keep this aligned so volumes
+# and new machines land in the same region.
+primary_region = 'ams'
 
 [build]
 
