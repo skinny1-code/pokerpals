@@ -29,6 +29,9 @@ npm run faucet -- 0xADDR             # send 10,000 CHIPS to 0xADDR (+ gas ETH to
 npm run faucet -- 0xADDR 50000       # send 50,000 CHIPS to 0xADDR
 FAUCET_ETH=0 npm run faucet -- 0xADDR   # skip the automatic gas-ETH top-up
 FAUCET_TO=0xADDR FAUCET_AMOUNT=50000 npm run faucet  # legacy env-var form still works
+
+npm run setup:profit-split -- 0xADDR   # deploy ProfitSplitter + route ALL owner income to it (owner key required)
+npm run distribute-profits             # harvest yield/vest then split splitter balance (default 50% payout / 50% staked)
 ```
 
 ### First-time testnet setup
@@ -61,6 +64,7 @@ The system has three independent runtime layers:
 - `StablecoinPool` — on-network USDC reserve. Funded by USDC proceeds from chip purchases. ChipsLiquidityPool is authorized to call `notifyDeposit()` and `authorizedPayout()`.
 - `ChipsLiquidityPool` — 500M CHIPS CHIPS↔USDC swap pool at a fixed owner-set peg. Player USDC flows directly to StablecoinPool; player receives CHIPS from this pool. `rateUsdcPerChip` = USDC-wei per 1e18 CHIPS (default 1000 = $0.001/CHIP).
 - `MockUSDC` — testnet USDC stand-in (6 decimals). Mainnet uses `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`.
+- `ProfitSplitter` — optional owner-income router (deployed by `npm run setup:profit-split -- 0xADDR`, not part of `deploy.js`). Set as `rakeRecipient` on PokerEscrow/TournamentManager/TableRegistry and `devWallet` on ChipsToken. Public `distribute()` splits its CHIPS balance `payoutBps` (default 50%) → payout wallet, remainder → staked in ChipsStaking under the splitter (yield harvestable via `harvestYield()`, principal unstakeable to the payout wallet by owner via `unstakeToPayout()`).
 
 Post-deploy wiring (done in `scripts/deploy.js`):
 - `token.transfer(stakingAddr, 200M_CHIPS)` then `staking.initYieldPool()`
