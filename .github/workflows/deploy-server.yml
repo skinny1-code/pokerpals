@@ -27,15 +27,32 @@ jobs:
           fi
           echo "Token is set (${#FLY_API_TOKEN} chars)"
 
-      - name: Ensure data volume exists
-        # fly.toml mounts pvp_data at /data (durable username store). Creating it
-        # here means no one ever needs the fly CLI locally; a no-op once it exists.
+      - name: Single machine + data volume in the machines' real region
+        # The WS server keeps all table state in memory, so it MUST run as ONE
+        # machine — two machines behind the LB would split players across two
+        # different game states. One machine also needs exactly one pvp_data
+        # volume (fly.toml mounts it at /data), and it must be in the region the
+        # machines actually run in (ams today, NOT fly.toml's primary_region —
+        # hardcoding iad here is what broke the first deploy attempt).
         run: |
-          if flyctl volumes list -a pokerpals-server | grep -q pvp_data; then
-            echo "Volume pvp_data already exists"
+          REGION=$(flyctl machines list -a pokerpals-server --json | python3 -c "
+          import json, sys
+          ms = [m for m in json.load(sys.stdin)
+                if m.get('config', {}).get('metadata', {}).get('fly_process_group', 'app') == 'app']
+          print(ms[0]['region'] if ms else 'ams')")
+          echo "App machines run in: $REGION"
+
+          HAVE=$(flyctl volumes list -a pokerpals-server --json | python3 -c "
+          import json, sys
+          vs = json.load(sys.stdin)
+          print(sum(1 for v in vs if v.get('name') == 'pvp_data' and v.get('region') == '$REGION'))")
+          if [ "$HAVE" = "0" ]; then
+            flyctl volumes create pvp_data --region "$REGION" --size 1 -a pokerpals-server --yes
           else
-            flyctl volumes create pvp_data --region iad --size 1 -a pokerpals-server --yes
+            echo "Volume pvp_data already exists in $REGION"
           fi
+
+          flyctl scale count 1 --region "$REGION" -a pokerpals-server --yes || echo "scale returned nonzero (already 1 machine is fine)"
 
       - name: Deploy to Fly.io
         run: flyctl deploy --remote-only
