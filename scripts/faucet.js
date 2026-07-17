@@ -1,9 +1,15 @@
-// scripts/faucet.js — send testnet CHIPS to any address
+// scripts/faucet.js — send testnet CHIPS (and gas ETH) to any address
 // All 1B CHIPS are minted at deploy, so we transfer from OPS_WALLET_KEY (100M budget)
 // rather than calling ChipsToken.faucet() which would exceed MAX_SUPPLY.
-// Usage: npm run faucet                                        → 10,000 CHIPS to deployer
-//        FAUCET_TO=0xADDR npm run faucet                      → 10,000 CHIPS to 0xADDR
-//        FAUCET_TO=0xADDR FAUCET_AMOUNT=50000 npm run faucet  → 50,000 CHIPS to 0xADDR
+// If the recipient has no Arbitrum Sepolia ETH for gas, a small top-up is sent
+// automatically from the same sender wallet, so players never need a public
+// testnet-ETH faucet (most of which demand a mainnet ETH balance).
+// Usage: npm run faucet                            → 10,000 CHIPS to deployer
+//        npm run faucet -- 0xADDR                  → 10,000 CHIPS to 0xADDR
+//        npm run faucet -- 0xADDR 50000            → 50,000 CHIPS to 0xADDR
+//        FAUCET_TO=0xADDR npm run faucet           → env-var form still works
+//        FAUCET_ETH=0.01 npm run faucet -- 0xADDR  → force a 0.01 ETH gas top-up
+//        FAUCET_ETH=0 npm run faucet -- 0xADDR     → never send gas ETH
 import "dotenv/config";
 import { ethers } from "ethers";
 
@@ -34,8 +40,12 @@ async function main() {
 
   const provider = await getProvider();
   const sender   = new ethers.Wallet(senderKey, provider);
-  const addr     = process.env.FAUCET_TO     || sender.address;
-  const amount   = process.env.FAUCET_AMOUNT || "10000";
+
+  // Positional args (npm run faucet -- 0xADDR [amount]) win over env vars.
+  const [argAddr, argAmount] = process.argv.slice(2);
+  if (argAddr && !ethers.isAddress(argAddr)) throw new Error(`"${argAddr}" is not a valid address`);
+  const addr   = argAddr || process.env.FAUCET_TO || sender.address;
+  const amount = argAmount || process.env.FAUCET_AMOUNT || "10000";
 
   const token = new ethers.Contract(
     process.env.NEXT_PUBLIC_CHIPS_TOKEN,
@@ -54,6 +64,29 @@ async function main() {
   const receipt = await tx.wait();
   console.log(`✅ Sent ${amount} CHIPS to ${addr}`);
   console.log(`   block: ${receipt.blockNumber}  tx: ${tx.hash}`);
+
+  // Gas top-up: players need a little Sepolia ETH to buy in / approve. Default:
+  // send 0.005 ETH when the recipient holds less than 0.001. FAUCET_ETH=<amt>
+  // forces the amount; FAUCET_ETH=0 disables.
+  const ethOverride = process.env.FAUCET_ETH;
+  if (addr.toLowerCase() !== sender.address.toLowerCase() && ethOverride !== '0') {
+    const recipientEth = await provider.getBalance(addr);
+    const topUp = ethOverride ? ethers.parseEther(ethOverride)
+      : (recipientEth < ethers.parseEther('0.001') ? ethers.parseEther('0.005') : 0n);
+    if (topUp > 0n) {
+      const senderEth = await provider.getBalance(sender.address);
+      if (senderEth < topUp + ethers.parseEther('0.002')) {
+        console.warn(`⚠️  Skipping gas top-up — sender only has ${ethers.formatEther(senderEth)} ETH`);
+      } else {
+        console.log(`Sending ${ethers.formatEther(topUp)} gas ETH to ${addr}...`);
+        const ethTx = await sender.sendTransaction({ to: addr, value: topUp });
+        await ethTx.wait();
+        console.log(`✅ Sent ${ethers.formatEther(topUp)} ETH for gas  tx: ${ethTx.hash}`);
+      }
+    } else {
+      console.log(`Recipient already has ${ethers.formatEther(recipientEth)} ETH — no gas top-up needed.`);
+    }
+  }
 }
 
 main().catch(e => { console.error("❌", e.message); process.exit(1); });
