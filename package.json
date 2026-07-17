@@ -1,7 +1,7 @@
 {
   "name": "pokerpals",
   "version": "1.0.0",
-  "description": "PokerVsPlayer — Onchain PvP Crypto Poker Network",
+  "description": "PokerVsPlayer \u2014 Onchain PvP Crypto Poker Network",
   "private": true,
   "type": "module",
   "scripts": {
@@ -24,7 +24,9 @@
     "setup:env": "node scripts/setupEnv.js",
     "faucet": "node scripts/faucet.js",
     "fix:antibot-oracle": "node scripts/fixAntiBotOracle.js",
-    "launch": "npm run server & npm run dev"
+    "launch": "npm run server & npm run dev",
+    "setup:profit-split": "node scripts/setupProfitSplit.js",
+    "distribute-profits": "node scripts/distributeProfits.js"
   },
   "dependencies": {
     "@farcaster/miniapp-sdk": "^0.3.0",
