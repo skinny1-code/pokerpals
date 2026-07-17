@@ -25,8 +25,10 @@ npm run build:check          # local verify build (next build --debug-prerender)
 npm run launch               # shortcut: npm run server & npm run dev in parallel
 
 npm run faucet               # send 10,000 CHIPS to deployer (testnet only)
-FAUCET_TO=0xADDR npm run faucet                      # send 10,000 CHIPS to 0xADDR
-FAUCET_TO=0xADDR FAUCET_AMOUNT=50000 npm run faucet  # send 50,000 CHIPS to 0xADDR
+npm run faucet -- 0xADDR             # send 10,000 CHIPS to 0xADDR (+ gas ETH top-up if broke)
+npm run faucet -- 0xADDR 50000       # send 50,000 CHIPS to 0xADDR
+FAUCET_ETH=0 npm run faucet -- 0xADDR   # skip the automatic gas-ETH top-up
+FAUCET_TO=0xADDR FAUCET_AMOUNT=50000 npm run faucet  # legacy env-var form still works
 ```
 
 ### First-time testnet setup
