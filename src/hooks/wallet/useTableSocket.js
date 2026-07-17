@@ -21,6 +21,26 @@ function clearAuthCache() {
   try { sessionStorage.removeItem('pvp-auth'); } catch {}
 }
 
+// ─── SESSION PASS (localStorage) ─────────────────────────────────────────────
+// Server-issued token from a prior signature auth. Lets this device reconnect
+// without a wallet prompt until it expires (server default: 30 days, renewed on
+// every successful auth). Only authenticates the game socket — moving funds
+// still requires wallet-signed on-chain transactions.
+function getSessionPass(address) {
+  try {
+    const p = JSON.parse(localStorage.getItem('pvp-session-pass') || 'null');
+    if (p?.address?.toLowerCase() !== address?.toLowerCase()) return null;
+    if (!p.token || (p.expiresAt && Date.now() > p.expiresAt - 60_000)) return null;
+    return p;
+  } catch { return null; }
+}
+function setSessionPass(pass) {
+  try { localStorage.setItem('pvp-session-pass', JSON.stringify(pass)); } catch {}
+}
+function clearSessionPass() {
+  try { localStorage.removeItem('pvp-session-pass'); } catch {}
+}
+
 // ─── HOOK: TABLE WEBSOCKET ────────────────────────────────────────────────────
 // Connects, authenticates, and manages real-time game state for a single table.
 export function useTableSocket(tableId, tableConfig) {
@@ -46,6 +66,7 @@ export function useTableSocket(tableId, tableConfig) {
   const [verifyFailures,  setVerifyFailures]  = useState([]);
   const wsRef           = useRef(null);
   const authCacheRef    = useRef(null);
+  const challengeNonceRef = useRef(null); // kept so a rejected session pass can fall back to signing the same nonce
   const authFailedRef   = useRef(false); // set true on sign dismiss — breaks infinite reconnect loop
   const tableConfigRef  = useRef(tableConfig); // keep latest config accessible inside ws callbacks
   tableConfigRef.current = tableConfig;
@@ -70,49 +91,67 @@ export function useTableSocket(tableId, tableConfig) {
       setWsStatus('connected');
     };
 
+    // Signature auth flow, shared by the AUTH_CHALLENGE handler and the
+    // fallback after a rejected session pass (which reuses the same nonce).
+    const signAndAuth = (nonce) => {
+      signMessageAsync({ message: `PVP-AUTH:${nonce}` })
+        .then(signature => {
+          if (ws.readyState === WebSocket.OPEN) {
+            authCacheRef.current = { address, nonce, signature };
+            ws.send(JSON.stringify({ type: 'AUTH', payload: { address, signature } }));
+          } else {
+            // Socket died while the wallet app had focus — common on mobile,
+            // where backgrounding the browser to sign can get the tab's
+            // connection killed. Not a decline, so don't set authFailedRef
+            // (that would block the automatic reconnect below); the fresh
+            // connection will issue a new challenge and re-prompt to sign.
+            setWsError('Connection dropped while signing — reconnecting…');
+          }
+        })
+        .catch((err) => {
+          // signMessageAsync rejects both for a genuine decline AND for a
+          // dropped WalletConnect session (e.g. the wallet app's session
+          // times out while the browser tab is backgrounded to sign) — the
+          // two look identical here without inspecting the error. Only a
+          // real EIP-1193 user rejection (code 4001 / "rejected") should
+          // stop auto-reconnect; anything else is more likely a transient
+          // session hiccup, so let the fresh connection re-prompt instead
+          // of dead-ending on a manual refresh.
+          const declined = err?.code === 4001 || err?.name === 'UserRejectedRequestError' ||
+            /reject/i.test(err?.shortMessage || err?.message || '');
+          if (declined) {
+            authFailedRef.current = true;
+            setWsError('Signature declined — tap to retry');
+          } else {
+            setWsError('Signature request failed — reconnecting…');
+          }
+          ws.close();
+        });
+    };
+
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
           case 'AUTH_CHALLENGE': {
-            signMessageAsync({ message: `PVP-AUTH:${msg.nonce}` })
-              .then(signature => {
-                if (ws.readyState === WebSocket.OPEN) {
-                  authCacheRef.current = { address, nonce: msg.nonce, signature };
-                  ws.send(JSON.stringify({ type: 'AUTH', payload: { address, signature } }));
-                } else {
-                  // Socket died while the wallet app had focus — common on mobile,
-                  // where backgrounding the browser to sign can get the tab's
-                  // connection killed. Not a decline, so don't set authFailedRef
-                  // (that would block the automatic reconnect below); the fresh
-                  // connection will issue a new challenge and re-prompt to sign.
-                  setWsError('Connection dropped while signing — reconnecting…');
-                }
-              })
-              .catch((err) => {
-                // signMessageAsync rejects both for a genuine decline AND for a
-                // dropped WalletConnect session (e.g. the wallet app's session
-                // times out while the browser tab is backgrounded to sign) — the
-                // two look identical here without inspecting the error. Only a
-                // real EIP-1193 user rejection (code 4001 / "rejected") should
-                // stop auto-reconnect; anything else is more likely a transient
-                // session hiccup, so let the fresh connection re-prompt instead
-                // of dead-ending on a manual refresh.
-                const declined = err?.code === 4001 || err?.name === 'UserRejectedRequestError' ||
-                  /reject/i.test(err?.shortMessage || err?.message || '');
-                if (declined) {
-                  authFailedRef.current = true;
-                  setWsError('Signature declined — tap to retry');
-                } else {
-                  setWsError('Signature request failed — reconnecting…');
-                }
-                ws.close();
-              });
+            challengeNonceRef.current = msg.nonce;
+            const pass = getSessionPass(address);
+            if (pass) {
+              // Session pass: reconnect without a wallet prompt. If the server
+              // rejects it, AUTH_FAIL(tokenExpired) falls back to signing with
+              // this same nonce.
+              ws.send(JSON.stringify({ type: 'AUTH', payload: { address, token: pass.token } }));
+            } else {
+              signAndAuth(msg.nonce);
+            }
             break;
           }
           case 'AUTH_OK':
             setWsStatus('authed');
             setWsError(null);
+            if (msg.sessionToken) {
+              setSessionPass({ address, token: msg.sessionToken, expiresAt: msg.sessionExpiresAt });
+            }
             if (tableId) {
               // Always send JOIN_TABLE immediately; include config if available (server uses defaults otherwise)
               ws.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, config: tableConfigRef.current || undefined } }));
@@ -121,6 +160,12 @@ export function useTableSocket(tableId, tableConfig) {
             }
             break;
           case 'AUTH_FAIL':
+            if (msg.tokenExpired) {
+              // Stale session pass — drop it and sign with the nonce from this
+              // connection's challenge. One wallet prompt, then a fresh pass.
+              clearSessionPass();
+              if (challengeNonceRef.current) { signAndAuth(challengeNonceRef.current); break; }
+            }
             clearAuthCache();
             authCacheRef.current = null;
             setWsError(msg.error || 'Authentication failed — check wallet signature');

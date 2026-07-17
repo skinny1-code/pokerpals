@@ -584,6 +584,43 @@ function sigFailureMessage(check, address) {
   return 'Bad signature — your wallet returned a signature that could not be verified. Try again, or reconnect your wallet.';
 }
 
+// ─── SESSION PASS ─────────────────────────────────────────────────────────────
+// After a successful wallet-signature AUTH, the server issues an HMAC-signed
+// session token so each device signs ONCE and then reconnects silently for
+// SESSION_TTL_DAYS (default 30). Stateless: the secret is derived from the
+// operator key, so tokens survive server restarts and need no storage, and
+// rotating the operator key invalidates every outstanding token at once.
+// A token only authenticates the game WebSocket — anything that moves funds
+// still requires an on-chain transaction signed by the wallet itself.
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS) ||
+  (Number(process.env.SESSION_TTL_DAYS) || 30) * 24 * 60 * 60 * 1000;
+const SESSION_SECRET = ethers.keccak256(ethers.toUtf8Bytes(`${OPERATOR_KEY}:pvp-session-v1`));
+
+function issueSessionToken(address) {
+  const payload = Buffer.from(JSON.stringify({
+    a: String(address).toLowerCase(),
+    exp: Date.now() + SESSION_TTL_MS,
+  })).toString('base64url');
+  const mac = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  return { token: `${payload}.${mac}`, expiresAt: Date.now() + SESSION_TTL_MS };
+}
+
+function verifySessionToken(token, address) {
+  try {
+    const [payload, mac] = String(token).split('.');
+    if (!payload || !mac) return { ok: false, reason: 'malformed' };
+    const expected = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+    const a = Buffer.from(mac), b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { ok: false, reason: 'bad-mac' };
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (data.a !== String(address).toLowerCase()) return { ok: false, reason: 'address-mismatch' };
+    if (typeof data.exp !== 'number' || Date.now() >= data.exp) return { ok: false, reason: 'expired' };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'malformed' };
+  }
+}
+
 // ─── SERVER ───────────────────────────────────────────────────────────────────
 const tables  = new Map();
 const clients = new Map(); // ws => { addr, tableId }
@@ -1003,17 +1040,32 @@ wss.on('connection', (ws, req) => {
 
       case 'AUTH': {
         try {
-          const { address, signature } = payload;
+          const { address, signature, token } = payload;
           const nonce = client.challenge;
           if (!nonce) return send(ws, { type: 'AUTH_FAIL', error: 'No challenge' });
-          const check = await verifyWalletSignature(`PVP-AUTH:${nonce}`, signature, address);
-          if (!check.ok) {
-            console.warn(`[WS] AUTH sig mismatch: sent=${shortAddr(String(address))} recovered=${check.recovered ? shortAddr(check.recovered) : 'n/a'}`);
-            return send(ws, { type: 'AUTH_FAIL', error: sigFailureMessage(check, address) });
+
+          if (token) {
+            // Session-pass path: no wallet prompt. On failure the challenge stays
+            // valid, so the client falls back to a signature on this connection.
+            const t = verifySessionToken(token, address);
+            if (!t.ok) {
+              console.log(`[WS] session token rejected (${t.reason}) for ${shortAddr(String(address))}`);
+              return send(ws, { type: 'AUTH_FAIL', tokenExpired: true,
+                error: 'Session expired — sign with your wallet to continue.' });
+            }
+          } else {
+            const check = await verifyWalletSignature(`PVP-AUTH:${nonce}`, signature, address);
+            if (!check.ok) {
+              console.warn(`[WS] AUTH sig mismatch: sent=${shortAddr(String(address))} recovered=${check.recovered ? shortAddr(check.recovered) : 'n/a'}`);
+              return send(ws, { type: 'AUTH_FAIL', error: sigFailureMessage(check, address) });
+            }
           }
           clients.set(ws, { addr: address, tableId: null });
-          send(ws, { type: 'AUTH_OK', address });
-          console.log(`[WS] → AUTH_OK for ${address.slice(0,10)}`);
+          // Fresh token on every successful auth — a rolling window, so active
+          // players never see a signature prompt again on this device.
+          const session = issueSessionToken(address);
+          send(ws, { type: 'AUTH_OK', address, sessionToken: session.token, sessionExpiresAt: session.expiresAt });
+          console.log(`[WS] → AUTH_OK for ${address.slice(0,10)}${token ? ' (session pass)' : ' (signature)'}`);
 
           // Testnet: auto-verify immediately on auth so players never see or need
           // the manual "Request Verification" gate while this flag is on — fire
