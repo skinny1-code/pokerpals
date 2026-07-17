@@ -502,6 +502,50 @@ class PokerTable {
   }
 }
 
+// ─── WALLET SIGNATURE VERIFICATION ────────────────────────────────────────────
+// EIP-1271 magic value a smart-contract account returns for a valid signature.
+const ERC1271_MAGIC = '0x1626ba7e';
+const ERC1271_ABI   = ['function isValidSignature(bytes32 hash, bytes signature) view returns (bytes4)'];
+
+const shortAddr = a => (a && a.length >= 10) ? `${a.slice(0, 6)}…${a.slice(-4)}` : String(a);
+
+// Verify a personal_sign signature across the wallet behaviors seen in the wild,
+// not just the textbook one:
+//   1. standard EOA recovery of the plain message
+//   2. wallets that sign the hex-encoded form of the message as literal text
+//   3. ERC-1271 smart-contract accounts, checked on-chain
+// Returns { ok, recovered } — when !ok, `recovered` is the address standard
+// recovery produced (or null), so callers can tell the player exactly which
+// account actually signed instead of a bare "Bad signature".
+async function verifyWalletSignature(message, signature, address) {
+  const want = String(address).toLowerCase();
+  let recovered = null;
+  try {
+    recovered = ethers.verifyMessage(message, signature);
+    if (recovered.toLowerCase() === want) return { ok: true, recovered };
+  } catch {}
+  try {
+    const hexForm = ethers.verifyMessage(ethers.hexlify(ethers.toUtf8Bytes(message)), signature);
+    if (hexForm.toLowerCase() === want) return { ok: true, recovered: hexForm };
+  } catch {}
+  try {
+    const account = new ethers.Contract(address, ERC1271_ABI, provider);
+    if (await account.isValidSignature(ethers.hashMessage(message), signature) === ERC1271_MAGIC) {
+      return { ok: true, recovered: want };
+    }
+  } catch {}
+  return { ok: false, recovered };
+}
+
+// Human-readable reason for a failed verification, specific enough to act on.
+function sigFailureMessage(check, address) {
+  if (check.recovered && check.recovered.toLowerCase() !== String(address).toLowerCase()) {
+    return `Signature came from account ${shortAddr(check.recovered)}, but you're connected as ${shortAddr(address)}. ` +
+      `Open your wallet, switch to the account you connected with (or disconnect and reconnect with the one you want), then try again.`;
+  }
+  return 'Bad signature — your wallet returned a signature that could not be verified. Try again, or reconnect your wallet.';
+}
+
 // ─── SERVER ───────────────────────────────────────────────────────────────────
 const tables  = new Map();
 const clients = new Map(); // ws => { addr, tableId }
@@ -553,15 +597,16 @@ const server = createServer((req, res) => {
   } else if (req.url === '/claim-username' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => { body += chunk; if (body.length > 10_000) req.destroy(); });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const { address, signature, username } = JSON.parse(body);
         if (!address || !signature || !username) {
           res.writeHead(400); return res.end(JSON.stringify({ ok: false, error: 'Missing fields' }));
         }
-        const recovered = ethers.verifyMessage(`PVP-CLAIM-USERNAME:${username}`, signature);
-        if (recovered.toLowerCase() !== String(address).toLowerCase()) {
-          res.writeHead(401); return res.end(JSON.stringify({ ok: false, error: 'Bad signature' }));
+        const check = await verifyWalletSignature(`PVP-CLAIM-USERNAME:${username}`, signature, address);
+        if (!check.ok) {
+          console.warn(`[Server] claim-username sig mismatch: sent=${shortAddr(String(address))} recovered=${check.recovered ? shortAddr(check.recovered) : 'n/a'}`);
+          res.writeHead(401); return res.end(JSON.stringify({ ok: false, error: sigFailureMessage(check, address) }));
         }
         const result = claimUsername(address, username);
         res.writeHead(result.ok ? 200 : 409);
@@ -893,9 +938,10 @@ wss.on('connection', (ws, req) => {
           const { address, signature } = payload;
           const nonce = client.challenge;
           if (!nonce) return send(ws, { type: 'AUTH_FAIL', error: 'No challenge' });
-          const recovered = ethers.verifyMessage(`PVP-AUTH:${nonce}`, signature);
-          if (recovered.toLowerCase() !== address.toLowerCase()) {
-            return send(ws, { type: 'AUTH_FAIL', error: 'Bad signature' });
+          const check = await verifyWalletSignature(`PVP-AUTH:${nonce}`, signature, address);
+          if (!check.ok) {
+            console.warn(`[WS] AUTH sig mismatch: sent=${shortAddr(String(address))} recovered=${check.recovered ? shortAddr(check.recovered) : 'n/a'}`);
+            return send(ws, { type: 'AUTH_FAIL', error: sigFailureMessage(check, address) });
           }
           clients.set(ws, { addr: address, tableId: null });
           send(ws, { type: 'AUTH_OK', address });

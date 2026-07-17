@@ -123,7 +123,7 @@ export function useTableSocket(tableId, tableConfig) {
           case 'AUTH_FAIL':
             clearAuthCache();
             authCacheRef.current = null;
-            setWsError('Authentication failed — check wallet signature');
+            setWsError(msg.error || 'Authentication failed — check wallet signature');
             break;
           case 'GAME_STATE': {
             setGameState(msg.state);
