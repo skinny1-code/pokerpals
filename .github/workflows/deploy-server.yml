@@ -27,5 +27,15 @@ jobs:
           fi
           echo "Token is set (${#FLY_API_TOKEN} chars)"
 
+      - name: Ensure data volume exists
+        # fly.toml mounts pvp_data at /data (durable username store). Creating it
+        # here means no one ever needs the fly CLI locally; a no-op once it exists.
+        run: |
+          if flyctl volumes list -a pokerpals-server | grep -q pvp_data; then
+            echo "Volume pvp_data already exists"
+          else
+            flyctl volumes create pvp_data --region iad --size 1 -a pokerpals-server --yes
+          fi
+
       - name: Deploy to Fly.io
         run: flyctl deploy --remote-only
