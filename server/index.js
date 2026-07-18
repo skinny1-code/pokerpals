@@ -107,6 +107,32 @@ const ESCROW_ABI = [
 ];
 const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, operator);
 
+// ─── STAKING (freeroll tier gate) ────────────────────────────────────────────
+const STAKING_ADDR = resolveAddr('STAKING', _depl?.contracts?.ChipsStaking,
+  process.env.NEXT_PUBLIC_STAKING);
+const stakingContract = STAKING_ADDR
+  ? new ethers.Contract(STAKING_ADDR, ["function getTier(address) view returns (uint8)"], provider)
+  : null;
+
+// Tier lookups are cached briefly so seating a freeroll doesn't hammer the RPC.
+const tierCache = new Map(); // addrLower -> { tier, at }
+const TIER_CACHE_MS = 5 * 60 * 1000;
+async function getStakeTier(addr) {
+  if (!stakingContract) return 0;
+  const key = addr.toLowerCase();
+  const hit = tierCache.get(key);
+  if (hit && Date.now() - hit.at < TIER_CACHE_MS) return hit.tier;
+  try {
+    const tier = Number(await stakingContract.getTier(addr));
+    tierCache.set(key, { tier, at: Date.now() });
+    return tier;
+  } catch (e) {
+    console.error('[Server] getTier failed:', e.message);
+    // Fail closed for freeroll gating: unknown tier counts as 0.
+    return hit ? hit.tier : 0;
+  }
+}
+
 // ─── HAND HISTORY (batched on-chain gameplay stats) ─────────────────────────
 const HAND_HISTORY_ADDR = resolveAddr('HAND_HISTORY', _depl?.contracts?.HandHistory,
   process.env.NEXT_PUBLIC_HAND_HISTORY);
@@ -629,11 +655,16 @@ const clients = new Map(); // ws => { addr, tableId }
 const SEED_TABLES = [
   { id: 9001n, name: 'Micro — NLH 9-Max',      buyIn: 1000, minBuyIn: 1000, maxBuyIn: 10000, bigBlind: 20, maxPlayers: 9, gameType: 0 },
   { id: 9002n, name: 'High Stakes — NLH 9-Max', buyIn: 5000, minBuyIn: 5000, maxBuyIn: 50000, bigBlind: 50, maxPlayers: 9, gameType: 0 },
+  // Staker freeroll: free fixed stacks, seating gated to staking tier >= 1.
+  // Chips here are play money — never cashable (see signAndRemovePlayer);
+  // prizes are paid separately from the PromotionsPool.
+  { id: 9100n, name: 'Staker Freeroll — Bronze+', buyIn: 10000, minBuyIn: 10000, maxBuyIn: 10000, bigBlind: 100, maxPlayers: 9, gameType: 0, isFreeroll: true },
 ];
-for (const { id, name, ...config } of SEED_TABLES) {
+for (const { id, name, isFreeroll, ...config } of SEED_TABLES) {
   const t = new PokerTable(id, config);
   t.name = name;
   t.isPermanent = true;
+  t.isFreeroll = !!isFreeroll;
   tables.set(String(id), t);
 }
 console.log(`[Server] Seeded ${SEED_TABLES.length} permanent tables`);
@@ -688,7 +719,7 @@ const server = createServer((req, res) => {
   }
   if (req.url === '/tables') {
     const list = [...tables.values()].map(t => ({
-      id: String(t.id), name: t.name || null, config: t.config, seated: t.players.length, phase: t.phase,
+      id: String(t.id), name: t.name || null, config: t.config, seated: t.players.length, phase: t.phase, isFreeroll: !!t.isFreeroll,
     }));
     res.writeHead(200);
     res.end(JSON.stringify({ tables: list }));
@@ -861,7 +892,8 @@ async function signAndRemovePlayer(t, addr, ws) {
   if (!t.isActive) {
     if (ws?.readyState === WebSocket.OPEN) {
       t.players = t.players.filter(x => x.addr !== addr);
-      send(ws, { type: 'REFUND_AVAILABLE', tableId: String(t.id) });
+      // Freeroll seats have no on-chain deposit — nothing to refund.
+      if (!t.isFreeroll) send(ws, { type: 'REFUND_AVAILABLE', tableId: String(t.id) });
       if (t.players.length === 0 && !t.isPermanent) tables.delete(t.id);
       broadcastTable(t);
     } else {
@@ -912,8 +944,10 @@ async function signAndRemovePlayer(t, addr, ws) {
     t.phase = 'waiting';
   }
 
-  // Sign a cashout if player has chips
-  if (amount > 0) {
+  // Sign a cashout if player has chips. Freeroll chips are play money with no
+  // on-chain backing — never sign cashouts for them; prizes are paid from the
+  // PromotionsPool separately.
+  if (amount > 0 && !t.isFreeroll) {
     try {
       const nonce = Number(await escrow.cashOutNonce(BigInt(t.id), addr));
       const sig = await t.signCashOut(addr, amount, nonce);
@@ -1103,6 +1137,15 @@ wss.on('connection', (ws, req) => {
 
         const addr = client.addr;
         if (!addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+
+        // Freeroll tables are a staker perk — tier >= 1 (25K+ CHIPS staked) to sit.
+        if (t?.isFreeroll) {
+          const tier = await getStakeTier(addr);
+          if (tier < 1) {
+            return send(ws, { type: 'ERROR',
+              error: 'Freerolls are for stakers — stake 25,000+ CHIPS on the Stake page to enter.' });
+          }
+        }
 
         // Permanent tables always skip chain verify — they don't exist on-chain
         const skipChainVerify = (t?.isPermanent === true) || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true';
@@ -1342,7 +1385,7 @@ wss.on('connection', (ws, req) => {
 
       case 'LIST_TABLES': {
         const list = [...tables.values()].map(t => ({
-          id: String(t.id), config: t.config, seated: t.players.length, phase: t.phase,
+          id: String(t.id), config: t.config, seated: t.players.length, phase: t.phase, name: t.name || null, isFreeroll: !!t.isFreeroll,
         }));
         send(ws, { type: 'TABLE_LIST', tables: list });
         break;

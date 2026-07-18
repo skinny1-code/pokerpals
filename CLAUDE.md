@@ -32,6 +32,10 @@ FAUCET_TO=0xADDR FAUCET_AMOUNT=50000 npm run faucet  # legacy env-var form still
 
 npm run setup:profit-split -- 0xADDR   # deploy ProfitSplitter + route ALL owner income to it (owner key required)
 npm run distribute-profits             # harvest yield/vest then split splitter balance (default 50% payout / 50% staked)
+
+npm run deploy:lottery                 # deploy StakerLottery (weekly no-loss staker draw) → manifest
+npm run lottery:draw                   # weekly: top prize up from PromotionsPool (LOTTERY_PRIZE, default 100k) + settle epoch
+npm run fund:rakeback -- 100000        # top up PokerEscrow's rakeback pool from PromotionsPool (5% accrual needs pool > 0)
 ```
 
 ### First-time testnet setup
@@ -46,6 +50,8 @@ npm run dev                  # 5. start frontend (terminal 2)
 ```
 
 Run `server` and `oracle` as two independent Node processes.
+
+Server-run **staker freeroll**: permanent table `9100` ("Staker Freeroll — Bronze+") seats only wallets with ChipsStaking tier >= 1 (on-chain `getTier` read, 5-min cache). Freeroll chips are play money: the server never signs cashouts or refund hints for table 9100; prizes are paid manually from the PromotionsPool.
 
 ## Architecture
 
@@ -64,6 +70,7 @@ The system has three independent runtime layers:
 - `StablecoinPool` — on-network USDC reserve. Funded by USDC proceeds from chip purchases. ChipsLiquidityPool is authorized to call `notifyDeposit()` and `authorizedPayout()`.
 - `ChipsLiquidityPool` — 500M CHIPS CHIPS↔USDC swap pool at a fixed owner-set peg. Player USDC flows directly to StablecoinPool; player receives CHIPS from this pool. `rateUsdcPerChip` = USDC-wei per 1e18 CHIPS (default 1000 = $0.001/CHIP).
 - `MockUSDC` — testnet USDC stand-in (6 decimals). Mainnet uses `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`.
+- `StakerLottery` — weekly no-loss draw for stakers (deployed by `npm run deploy:lottery`, not part of `deploy.js`). Tier >= 1 stakers `enter()` free each epoch; tickets = staked CHIPS; `draw()` pays the whole prize (funded from PromotionsPool by `lottery:draw`) to a weighted-random entrant. Blockhash randomness — swap for VRF before mainnet. Address in manifest → `NEXT_PUBLIC_LOTTERY`.
 - `ProfitSplitter` — optional owner-income router (deployed by `npm run setup:profit-split -- 0xADDR`, not part of `deploy.js`). Set as `rakeRecipient` on PokerEscrow/TournamentManager/TableRegistry and `devWallet` on ChipsToken. Public `distribute()` splits its CHIPS balance `payoutBps` (default 50%) → payout wallet, remainder → staked in ChipsStaking under the splitter (yield harvestable via `harvestYield()`, principal unstakeable to the payout wallet by owner via `unstakeToPayout()`).
 
 Post-deploy wiring (done in `scripts/deploy.js`):
