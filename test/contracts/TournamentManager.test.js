@@ -51,8 +51,10 @@ describe("TournamentManager", () => {
       await referral.getAddress()
     );
 
+    const Renderer = await ethers.getContractFactory("HandleRenderer");
+    const renderer = await Renderer.deploy();
     const Handle = await ethers.getContractFactory("PokerHandle");
-    handle = await Handle.deploy(await token.getAddress(), await escrow.getAddress());
+    handle = await Handle.deploy(await token.getAddress(), await escrow.getAddress(), await renderer.getAddress());
     await tourn.setPokerHandle(await handle.getAddress());
     await handle.reserveHandle("Player1_Handle", player1.address);
     await handle.reserveHandle("Player2_Handle", player2.address);

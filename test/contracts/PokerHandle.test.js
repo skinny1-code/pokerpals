@@ -41,8 +41,10 @@ describe("PokerHandle", () => {
       await referral.getAddress()
     );
 
+    const Renderer = await ethers.getContractFactory("HandleRenderer");
+    const renderer = await Renderer.deploy();
     const Handle = await ethers.getContractFactory("PokerHandle");
-    handle = await Handle.deploy(await token.getAddress(), await escrow.getAddress());
+    handle = await Handle.deploy(await token.getAddress(), await escrow.getAddress(), await renderer.getAddress());
 
     await token.transfer(player1.address, parseUnits("10000", 18));
     await token.connect(player1).approve(await handle.getAddress(), MINT_COST);
@@ -185,5 +187,39 @@ describe("PokerHandle", () => {
 
     expect(await handle.isHandleEligible(operator.address)).to.equal(false);
     expect(await handle.getLinkedWallets(tokenId)).to.deep.equal([]);
+  });
+
+  it("tokenURI: renders the medallion emblem SVG from the renderer", async () => {
+    await escrow.markHuman(player1.address, true);
+    await handle.connect(player1).mintHandle("Joker");
+    const uri = await handle.tokenURI(1);
+    const json = JSON.parse(Buffer.from(uri.split(",")[1], "base64").toString());
+    expect(json.name).to.equal("@Joker");
+    const svg = Buffer.from(json.image.split(",")[1], "base64").toString();
+    expect(svg).to.include("<svg");
+    expect(svg).to.include("@Joker");                       // handle on the card
+    expect(svg).to.include('cx="200" cy="172" r="96"');     // medallion ring
+    expect(svg).to.include('fill-rule="evenodd"');          // animal silhouette path
+    expect(svg).to.include("#d9c08a");                      // champagne palette
+    const animalAttr = json.attributes.find(a => a.trait_type === "Animal");
+    expect(["BEAR","WOLF","FOX","SHARK","EAGLE","TIGER","RABBIT","BULL"]).to.include(animalAttr.value);
+  });
+
+  it("setRenderer: owner can swap the art module and tokenURI changes", async () => {
+    await escrow.markHuman(player1.address, true);
+    await handle.connect(player1).mintHandle("Joker");
+    const before = await handle.tokenURI(1);
+
+    const Renderer2 = await ethers.getContractFactory("HandleRenderer");
+    const renderer2 = await Renderer2.deploy();
+    await handle.setRenderer(await renderer2.getAddress());
+    expect(await handle.renderer()).to.equal(await renderer2.getAddress());
+    // Same art contract code, so output matches — proves delegation works end-to-end
+    expect(await handle.tokenURI(1)).to.equal(before);
+  });
+
+  it("setRenderer: rejects non-owner and zero address", async () => {
+    await expectReverted(handle.connect(player1).setRenderer(player1.address));
+    await expectReverted(handle.setRenderer("0x0000000000000000000000000000000000000000"));
   });
 });

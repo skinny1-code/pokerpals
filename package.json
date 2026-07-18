@@ -26,7 +26,8 @@
     "fix:antibot-oracle": "node scripts/fixAntiBotOracle.js",
     "launch": "npm run server & npm run dev",
     "setup:profit-split": "node scripts/setupProfitSplit.js",
-    "distribute-profits": "node scripts/distributeProfits.js"
+    "distribute-profits": "node scripts/distributeProfits.js",
+    "redeploy:handle": "node scripts/redeployHandle.js"
   },
   "dependencies": {
     "@farcaster/miniapp-sdk": "^0.3.0",

@@ -78,8 +78,10 @@ describe("PokerEscrow", () => {
     // createTable()/buyIn() gate on PokerHandle.isHandleEligible — give the
     // table-creating/buying-in signers a handle via the owner-only reserveHandle()
     // (no CHIPS cost, no humanVerified requirement, mirrors the migration scripts).
+    const Renderer = await ethers.getContractFactory("HandleRenderer");
+    const renderer = await Renderer.deploy();
     const Handle = await ethers.getContractFactory("PokerHandle");
-    handle = await Handle.deploy(await token.getAddress(), await escrow.getAddress());
+    handle = await Handle.deploy(await token.getAddress(), await escrow.getAddress(), await renderer.getAddress());
     await escrow.setPokerHandle(await handle.getAddress());
     await handle.reserveHandle("Owner_Handle", owner.address);
     await handle.reserveHandle("Player1_Handle", player1.address);
