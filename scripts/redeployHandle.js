@@ -5,10 +5,13 @@
 // and call PokerHandle.setRenderer instead.
 //
 // Usage: npm run redeploy:handle   (requires DEPLOYER_KEY in .env)
+//
+// Uses the prebuilt artifacts in scripts/artifacts/ — no hardhat, no compile
+// step. (Hardhat's compiler needs a native module with no Android build, so
+// compiling in Termux is impossible; the artifacts are committed instead.)
 import "dotenv/config";
 import { readFileSync, writeFileSync } from "fs";
 import { ethers } from "ethers";
-import hre from "hardhat";
 
 const RPCS = [
   process.env.ARB_SEPOLIA_RPC,
@@ -28,7 +31,7 @@ async function getProvider() {
 }
 
 async function deployArtifact(name, deployer, args) {
-  const artifact = await hre.artifacts.readArtifact(name);
+  const artifact = JSON.parse(readFileSync(new URL(`./artifacts/${name}.json`, import.meta.url), "utf8"));
   const factory  = new ethers.ContractFactory(artifact.abi, artifact.bytecode, deployer);
   const c = await factory.deploy(...args);
   await c.waitForDeployment();

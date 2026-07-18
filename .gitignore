@@ -63,3 +63,7 @@ server/data/
 .vercel
 *.tsbuildinfo
 SECRETS-BACKUP.txt
+
+# Prebuilt deploy artifacts for phone-side scripts (no hardhat on Termux)
+!scripts/artifacts/
+!scripts/artifacts/*.json
