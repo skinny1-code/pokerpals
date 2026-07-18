@@ -16,3 +16,4 @@ export * from './wallet/useTableSocket';
 export * from './wallet/useTournaments';
 export * from './wallet/useTableRegistry';
 export * from './wallet/usePlayerStats';
+export * from './wallet/useLottery';

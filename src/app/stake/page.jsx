@@ -1,7 +1,7 @@
 'use client';
 import { useState, useCallback, useEffect } from 'react';
 import WalletBar from '../../components/WalletBar';
-import { useWallet, useStaking } from '../../hooks/usePokerWallet';
+import { useWallet, useStaking, useLottery } from '../../hooks/usePokerWallet';
 
 const TIERS = [
   { id:0, name:'Standard', icon:'♠', stake:0,           rake:'1.5%', apr:'0%',  color:'#8d877a', border:'rgba(141,135,122,.3)', glow:'rgba(141,135,122,.25)' },
@@ -211,6 +211,74 @@ function StakeModal({ tier, chipsBalance, onClose, onConfirm, loading }) {
   );
 }
 
+function StakerPerks({ currentTier }) {
+  const { enabled, prize, endsAt, entrants, myTickets, entered, enter, status, error } = useLottery();
+  const eligible = currentTier >= 1;
+  const secsLeft = Math.max(0, endsAt - Math.floor(Date.now() / 1000));
+  const days  = Math.floor(secsLeft / 86400);
+  const hours = Math.floor((secsLeft % 86400) / 3600);
+
+  return (
+    <div style={{
+      background: 'linear-gradient(160deg, rgba(217,192,138,.07), rgba(14,14,16,.9))',
+      border: '1px solid var(--border-gold)', borderRadius: 'var(--r-lg)',
+      padding: '20px 24px', marginBottom: 24,
+    }}>
+      <div style={{ fontSize: 10, letterSpacing: 3, color: '#d9c08a', fontWeight: 800, marginBottom: 14 }}>
+        ♠ STAKER PERKS
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 16 }}>
+
+        {/* Weekly no-loss lottery */}
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
+            Weekly No-Loss Lottery
+          </div>
+          {enabled ? (
+            <>
+              <div style={{ fontSize: 12.5, color: '#a29c8e', lineHeight: 1.6, marginBottom: 10 }}>
+                Prize <span style={{ color: '#d9c08a', fontWeight: 800 }}>◈ {fmt(prize)}</span>
+                {' '}· {entrants} entered · draw in {days}d {hours}h.
+                Tickets = your staked CHIPS. Your stake is never touched.
+              </div>
+              {entered ? (
+                <div style={{ fontSize: 12, color: '#27ae60', fontWeight: 800 }}>
+                  ✓ Entered with {fmt(myTickets)} tickets — good luck!
+                </div>
+              ) : (
+                <TxButton color="#d9c08a" wide
+                  onClick={enter}
+                  disabled={!eligible}
+                  loading={status === 'entering'}>
+                  {eligible ? 'ENTER FREE DRAW' : 'STAKE 25K+ TO ENTER'}
+                </TxButton>
+              )}
+              {error && <div style={{ fontSize: 11, color: '#e74c3c', marginTop: 6 }}>{error}</div>}
+            </>
+          ) : (
+            <div style={{ fontSize: 12.5, color: '#6b6659' }}>Launching soon.</div>
+          )}
+        </div>
+
+        {/* Freeroll */}
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
+            Staker Freeroll Table
+          </div>
+          <div style={{ fontSize: 12.5, color: '#a29c8e', lineHeight: 1.6 }}>
+            Table <span style={{ color: '#d9c08a', fontWeight: 800 }}>#9100 · Staker Freeroll</span> in
+            the lobby is Bronze+ only: free 10K stacks, real opponents, zero risk.
+            {eligible
+              ? <span style={{ color: '#27ae60', fontWeight: 700 }}> You&apos;re in — take a seat.</span>
+              : ' Stake 25,000+ CHIPS to unlock.'}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 export default function StakePage() {
   const { chipsBalance, isConnected } = useWallet();
   const {
@@ -298,6 +366,11 @@ export default function StakePage() {
               </div>
             ))}
           </div>
+        )}
+
+        {/* Staker perks: no-loss lottery + freeroll access */}
+        {mounted && isConnected && (
+          <StakerPerks currentTier={currentTier} />
         )}
 
         {/* Lock warning */}
