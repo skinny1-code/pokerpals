@@ -88,9 +88,15 @@ async function main() {
   const registryAddr = await registry.getAddress();
   console.log("✅ TableRegistry:", registryAddr);
 
-  // 7. PokerHandle — username NFT
+  // 7. HandleRenderer + PokerHandle — username NFT with swappable on-chain art
+  const Renderer = await ethers.getContractFactory("HandleRenderer");
+  const rendererC = await Renderer.deploy();
+  await rendererC.waitForDeployment();
+  const rendererAddr = await rendererC.getAddress();
+  console.log("✅ HandleRenderer:", rendererAddr);
+
   const Handle = await ethers.getContractFactory("PokerHandle");
-  const handle = await Handle.deploy(tokenAddr, escrowAddr);
+  const handle = await Handle.deploy(tokenAddr, escrowAddr, rendererAddr);
   await handle.waitForDeployment();
   const handleAddr = await handle.getAddress();
   console.log("✅ PokerHandle:", handleAddr);
@@ -250,6 +256,7 @@ async function main() {
         TournamentManager:   tournAddr,
         TableRegistry:       registryAddr,
         PokerHandle:         handleAddr,
+        HandleRenderer:      rendererAddr,
         KingOfSpadesPool:    kingsPoolAddr,
         PromotionsPool:      promoPoolAddr,
         StablecoinPool:      stablePoolAddr,
