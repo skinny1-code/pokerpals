@@ -3,6 +3,7 @@ import { Providers } from './providers';
 import AppErrorBoundary from '../components/AppErrorBoundary';
 import ErrorMonitorMount from '../components/ErrorMonitorMount';
 import AuthGate from '../components/AuthGate';
+import AmbientMusic from '../components/AmbientMusic';
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
 
@@ -53,6 +54,7 @@ export default function RootLayout({ children }) {
           <Providers>
             <ErrorMonitorMount />
             <AuthGate><main>{children}</main></AuthGate>
+            <AmbientMusic />
           </Providers>
         </AppErrorBoundary>
       </body>
