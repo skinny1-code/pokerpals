@@ -11,6 +11,7 @@ import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { fullVerify, BehaviorMonitor } from "./antiBotOracle.js";
 import { getUsernames, claimUsername, storeStatus } from "./usernameStore.js";
+import { decide as botDecide } from "./botBrain.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -849,15 +850,39 @@ function maybeBotAct(t) {
   const active = t.phase !== 'waiting' && t.phase !== 'showdown' ? t.players[t.actionIdx] : null;
   if (!active?.isBot || active.folded) return;
   t.botActPending = true;
+  // Human-ish, variable think time (overridable for tests / simulations)
+  const delay = Number(process.env.BOT_ACT_DELAY_MS) ||
+    (900 + Math.floor(Math.random() * 1400));
   setTimeout(async () => {
     t.botActPending = false;
-    const callAmt = Math.max(0, (t.maxBet || 0) - (active.bet || 0));
-    const action  = callAmt === 0 ? 'check' : 'call';
-    console.log(`[Bot] ${action}${callAmt > 0 ? ` ${callAmt}` : ''} at table ${t.id}`);
-    const result = t.applyAction(active.addr, action, callAmt);
+    // Re-validate: the hand may have moved on while we "thought"
+    const still = t.phase !== 'waiting' && t.phase !== 'showdown' ? t.players[t.actionIdx] : null;
+    if (!still || still.addr !== active.addr || still.folded) return;
+
+    const toCall = Math.max(0, (t.maxBet || 0) - (active.bet || 0));
+    const ctx = {
+      hand: active.hand, community: t.community, phase: t.phase,
+      pot: t.pot, toCall, myBet: active.bet || 0, chips: active.chips + (active.bet || 0),
+      bigBlind: t.config.bigBlind,
+      minRaise: Math.max(t.config.bigBlind, t.lastRaiseAmount || t.config.bigBlind),
+      numActive: t.players.filter(x => !x.folded).length,
+      lastToAct: t.actionIdx === t.players.length - 1,
+      wasRaisedPre: (t.maxBet || 0) > t.config.bigBlind,
+    };
+    let { action, amount } = botDecide(ctx);
+    let result = t.applyAction(active.addr, action, amount);
+    if (result?.error) {
+      // Strategy produced an illegal move for this spot (e.g. short-stack raise
+      // below minimum) — degrade gracefully rather than stall the table.
+      console.warn(`[Bot] ${action}${amount ? ' ' + amount : ''} rejected (${result.error}) — falling back`);
+      const fallback = toCall === 0 ? 'check' : 'call';
+      result = t.applyAction(active.addr, fallback, 0);
+      action = fallback; amount = 0;
+    }
+    console.log(`[Bot] ${action}${amount ? ` +${amount}` : ''} (${t.phase}) at table ${t.id}`);
     broadcastTable(t);
     if (result?.winners) await handleHandOver(t, result);
-  }, 800);
+  }, delay);
 }
 function broadcastToTable(t, msg) {
   t.players.forEach(p => send(p.ws, msg));
@@ -1047,7 +1072,7 @@ async function handleHandOver(t, result) {
       maybeAutoStart(t);
     }
     broadcastTable(t);
-  }, 6000);
+  }, Number(process.env.HAND_RESTART_DELAY_MS) || 6000);
 }
 
 // ─── WebSocket message handler ────────────────────────────────────────────────
