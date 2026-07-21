@@ -457,3 +457,17 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
 .music-eq i:nth-child(3) { height: 7px;  animation-delay: 360ms; }
 @keyframes music-eq { 0%,100% { transform: scaleY(.4); } 50% { transform: scaleY(1); } }
 @media (prefers-reduced-motion: reduce) { .music-eq i { animation: none; } }
+
+/* ─── Community card 3D flip reveal ─────────────────────────────────────── */
+@keyframes card-flip-in {
+  0%   { transform: perspective(600px) rotateY(-92deg) translateZ(0) scale(.9); opacity: 0; }
+  55%  { opacity: 1; }
+  100% { transform: perspective(600px) rotateY(0deg) scale(1); opacity: 1; }
+}
+.card-flip { animation: card-flip-in 0.5s cubic-bezier(0.22, 0.7, 0.25, 1) both;
+  transform-origin: center; backface-visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .card-flip { animation: fade-in .2s both; } }
+
+/* Pot pulse when it grows / is won */
+@keyframes pot-bump { 0%,100% { transform: scale(1); } 40% { transform: scale(1.14); } }
+.pot-bump { animation: pot-bump .4s ease; }

@@ -8,6 +8,8 @@ import BettingControls from '../../../components/BettingControls';
 import Card from '../../../components/Card';
 import { useTableSocket, useEscrow, useHandleMap, useHandleAvatars, useWallet } from '../../../hooks/usePokerWallet';
 import { useIsMobile } from '../../../hooks/useIsMobile';
+import { useGameSounds } from '../../../hooks/useGameSounds';
+import { playSfx } from '../../../lib/soundFx';
 import VerifyHumanBanner from '../../../components/VerifyHumanBanner';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
@@ -483,6 +485,9 @@ function TablePageInner() {
     verifyStatus, verifyFailures, sendVerifyHuman,
   } = useTableSocket(id, tableConfig);
 
+  // Poker-room sound effects driven by live game-state transitions
+  useGameSounds(gameState, handOver, address);
+
   const isMobile = useIsMobile();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -827,11 +832,11 @@ function TablePageInner() {
             pot={gameState?.pot || 0}
             bigBlind={bigBlind}
             playerChips={heroPlayer?.chips || 0}
-            onFold={() => sendAction('fold')}
-            onCheck={() => sendAction('check')}
-            onCall={() => sendAction('call')}
-            onRaise={amt => sendAction('raise', amt)}
-            onAllIn={() => sendAction('allin')}
+            onFold={() => { playSfx('fold'); sendAction('fold'); }}
+            onCheck={() => { playSfx('check'); sendAction('check'); }}
+            onCall={() => { playSfx('chip'); sendAction('call'); }}
+            onRaise={amt => { playSfx('chip'); sendAction('raise', amt); }}
+            onAllIn={() => { playSfx('allin'); sendAction('allin'); }}
             onExtendTurn={extendTurn}
             turnExtended={!!gameState?.turnExtended}
           />
