@@ -288,36 +288,59 @@ export default function StakePage() {
 
   const [selectedTier, setSelectedTier] = useState(null);
   const [mounted, setMounted] = useState(false);
+  const [flash, setFlash] = useState(null); // { kind:'ok'|'err', text }
   useEffect(() => setMounted(true), []);
 
   const isLocked = lockedUntil > Date.now() / 1000;
   const unlockDate = isLocked ? new Date(lockedUntil * 1000).toLocaleDateString() : null;
 
+  // Estimated daily yield at the current tier, for an honest "still growing" hint.
+  const tierAprPct = parseFloat(TIERS[currentTier]?.apr || '0') || 0;
+  const dailyYield = stakedAmount * (tierAprPct / 100) / 365;
+
+  // Refetch a moment after a tx so on-chain state has settled before we re-read.
+  const refetchSoon = useCallback(() => { refetch(); setTimeout(refetch, 4000); }, [refetch]);
+
   const handleStake = useCallback(async (amount) => {
     setSelectedTier(null);
     await stake(amount);
-    refetch();
-  }, [stake, refetch]);
+    refetchSoon();
+  }, [stake, refetchSoon]);
 
   const handleUnstake = useCallback(async (amount) => {
-    await unstake(amount);
-    refetch();
-  }, [unstake, refetch]);
+    const tx = await unstake(amount);
+    setFlash(tx
+      ? { kind: 'ok', text: `Unstaking ${fmt(amount)} CHIPS back to your wallet.` }
+      : { kind: 'err', text: 'Unstake failed — your stake is still locked or the tx was rejected.' });
+    refetchSoon();
+  }, [unstake, refetchSoon]);
 
   const handleClaimYield = useCallback(async () => {
-    await claimYield();
-    refetch();
-  }, [claimYield, refetch]);
+    const amt = pendingYield;
+    const tx = await claimYield();
+    setFlash(tx
+      ? { kind: 'ok', text: `Claimed ≈ ${fmt(amt)} CHIPS in yield to your wallet. Your ${fmt(stakedAmount)} stake stays locked and keeps earning.` }
+      : { kind: 'err', text: 'Claim failed or was rejected — no CHIPS moved.' });
+    refetchSoon();
+  }, [claimYield, pendingYield, stakedAmount, refetchSoon]);
 
   const handleClaimRakeback = useCallback(async () => {
-    await claimRakeback();
-    refetch();
-  }, [claimRakeback, refetch]);
+    const amt = rakebackOwed;
+    const tx = await claimRakeback();
+    setFlash(tx
+      ? { kind: 'ok', text: `Claimed ≈ ${fmt(amt)} CHIPS in rakeback to your wallet.` }
+      : { kind: 'err', text: 'Claim failed or was rejected — no CHIPS moved.' });
+    refetchSoon();
+  }, [claimRakeback, rakebackOwed, refetchSoon]);
 
   const handleCompound = useCallback(async () => {
-    await compound();
-    refetch();
-  }, [compound, refetch]);
+    const amt = pendingYield;
+    const tx = await compound();
+    setFlash(tx
+      ? { kind: 'ok', text: `Reinvested ≈ ${fmt(amt)} CHIPS into your stake — no dust, no wallet payout, just a bigger position.` }
+      : { kind: 'err', text: 'Compound failed or was rejected.' });
+    refetchSoon();
+  }, [compound, pendingYield, refetchSoon]);
 
   const loading = status !== 'idle' && status !== 'error';
 
@@ -373,10 +396,27 @@ export default function StakePage() {
           <StakerPerks currentTier={currentTier} />
         )}
 
+        {/* Transaction result banner — confirms claims so they never look "lost" */}
+        {flash && (
+          <div style={{
+            padding: '12px 16px', marginBottom: 16, fontSize: 12.5, fontWeight: 600,
+            borderRadius: 'var(--r-sm)', lineHeight: 1.5,
+            display: 'flex', gap: 10, alignItems: 'flex-start',
+            background: flash.kind === 'ok' ? 'rgba(39,174,96,.12)' : 'rgba(224,71,59,.12)',
+            border: `1px solid ${flash.kind === 'ok' ? 'rgba(39,174,96,.4)' : 'rgba(224,71,59,.4)'}`,
+            color: flash.kind === 'ok' ? '#7ee0a8' : '#f0a097',
+          }}>
+            <span>{flash.kind === 'ok' ? '✓' : '⚠'}</span>
+            <span style={{ flex: 1 }}>{flash.text}</span>
+            <button onClick={() => setFlash(null)} aria-label="Dismiss"
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 15, opacity: .7 }}>×</button>
+          </div>
+        )}
+
         {/* Lock warning */}
         {isLocked && (
           <div className="notice-warn" style={{ padding: '12px 18px', marginBottom: 16, fontSize: 11.5, fontWeight: 600 }}>
-            ⏳ Stake locked until {unlockDate} — unstaking will be available then.
+            ⏳ Stake locked until {unlockDate} — unstaking will be available then. Your rewards can still be claimed anytime.
           </div>
         )}
 
@@ -412,6 +452,11 @@ export default function StakePage() {
                 ↻ Compound
               </TxButton>
             </div>
+            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 10, lineHeight: 1.5 }}>
+              Rewards only — your staked CHIPS stay locked and keep earning.
+              {currentTier > 0 && dailyYield > 0 && <> Earning ≈ <span style={{ color: 'var(--emerald-bright)' }}>◈ {fmt(dailyYield)}/day</span>.</>}
+              {' '}Claiming is an on-chain transaction (small gas fee) — for tiny amounts, <b>Compound</b> reinvests instead.
+            </div>
           </div>
 
           <div className="glass-strong" style={{ padding: '22px 24px' }}>
@@ -426,6 +471,9 @@ export default function StakePage() {
               loading={loading && status === 'claiming'} color="#d9c08a" wide>
               Claim Rakeback
             </TxButton>
+            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 10, lineHeight: 1.5 }}>
+              5% of the rake you pay, claimable to your wallet. On-chain claim (small gas fee).
+            </div>
           </div>
         </div>
 
