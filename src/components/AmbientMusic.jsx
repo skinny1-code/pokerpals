@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createAmbientEngine } from '../lib/ambientEngine';
+import { isSfxEnabled, setSfxEnabled, playSfx } from '../lib/soundFx';
 
 const PREF_KEY = 'pvp-music';
 
@@ -18,7 +19,7 @@ function loadPref() {
   return { on: true, vol: 0.5 }; // default: on at a gentle volume
 }
 
-export default function AmbientMusic() {
+function useMusic() {
   const engineRef = useRef(null);
   const [mounted, setMounted]   = useState(false);
   const [on, setOn]             = useState(false);
@@ -78,28 +79,53 @@ export default function AmbientMusic() {
     if (on) { ensureRunning(v); engineRef.current?.setVolume(v); }
   }, [on, persist, ensureRunning]);
 
-  if (!mounted) return null;
+  return { mounted, on, vol, expanded, setExpanded, toggle, changeVol };
+}
+
+export default function AmbientMusic() {
+  const m = useMusic();
+  const [sfx, setSfx] = useState(true);
+  useEffect(() => { setSfx(isSfxEnabled()); }, []);
+
+  const toggleSfx = useCallback(() => {
+    const next = !sfx;
+    setSfx(next);
+    setSfxEnabled(next);
+    if (next) playSfx('chip'); // a little confirmation click when turning on
+  }, [sfx]);
+
+  if (!m.mounted) return null;
 
   return (
-    <div className="music-fab" onMouseEnter={() => setExpanded(true)} onMouseLeave={() => setExpanded(false)}>
-      {expanded && on && (
+    <div className="music-fab" onMouseEnter={() => m.setExpanded(true)} onMouseLeave={() => m.setExpanded(false)}>
+      {m.expanded && m.on && (
         <input
-          type="range" min="0" max="1" step="0.05" value={vol}
-          onChange={(e) => changeVol(parseFloat(e.target.value))}
+          type="range" min="0" max="1" step="0.05" value={m.vol}
+          onChange={(e) => m.changeVol(parseFloat(e.target.value))}
           aria-label="Music volume"
           className="music-vol"
         />
       )}
       <button
-        onClick={toggle}
-        aria-label={on ? 'Mute lounge music' : 'Play lounge music'}
-        title={on ? 'Mute lounge music' : 'Play lounge music'}
+        onClick={toggleSfx}
+        aria-label={sfx ? 'Mute game sounds' : 'Enable game sounds'}
+        title={sfx ? 'Mute game sound effects' : 'Enable game sound effects'}
         className="music-btn"
-        style={{ color: on ? 'var(--gold-pale)' : 'var(--text-secondary)' }}
+        style={{ color: sfx ? 'var(--gold-pale)' : 'var(--text-secondary)' }}
+      >
+        <span style={{ fontSize: 14 }}>{sfx ? '🔊' : '🔇'}</span>
+        <span style={{ fontSize: 10, letterSpacing: 1.5 }}>SFX</span>
+      </button>
+      <button
+        onClick={m.toggle}
+        aria-label={m.on ? 'Mute lounge music' : 'Play lounge music'}
+        title={m.on ? 'Mute lounge music' : 'Play lounge music'}
+        className="music-btn"
+        style={{ color: m.on ? 'var(--gold-pale)' : 'var(--text-secondary)' }}
       >
         <span style={{ fontSize: 15 }}>♪</span>
-        {on && <span className="music-eq" aria-hidden><i/><i/><i/></span>}
-        <span style={{ fontSize: 10, letterSpacing: 1.5 }}>{on ? 'MUSIC' : 'MUTED'}</span>
+        {m.on && <span className="music-eq" aria-hidden><i/><i/><i/></span>}
+        <span style={{ fontSize: 10, letterSpacing: 1.5 }}>{m.on ? 'MUSIC' : 'MUTED'}</span>
       </button>
     </div>
   );

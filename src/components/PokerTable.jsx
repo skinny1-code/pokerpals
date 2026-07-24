@@ -77,7 +77,7 @@ function CommunityCards({ cards = [] }) {
       {Array.from({ length: 5 }).map((_, i) => {
         const card = cards[i];
         if (card) return (
-          <div key={`${i}-${card}`} className="card-deal" style={{ animationDelay: `${i * 0.08}s` }}>
+          <div key={`${i}-${card}`} className="card-flip" style={{ animationDelay: `${i * 0.09}s` }}>
             <Card card={card} width={56} height={78} />
           </div>
         );
