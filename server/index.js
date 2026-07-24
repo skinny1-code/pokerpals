@@ -12,6 +12,7 @@ import { join, dirname } from "path";
 import { fullVerify, BehaviorMonitor } from "./antiBotOracle.js";
 import { getUsernames, claimUsername, storeStatus } from "./usernameStore.js";
 import { decide as botDecide } from "./botBrain.js";
+import { createCashoutRelay } from "./cashoutRelay.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -103,6 +104,7 @@ const ESCROW_ABI = [
   "function getTableInfo(uint256 id) external view returns (uint256 tableId, uint256 buyInAmount, uint256 bigBlind, uint8 maxPlayers, uint8 gameType, uint8 status, uint256 potTotal, uint256 handNonce, uint8 playerCount)",
   "function getPlayerDeposit(uint256 tableId, address player) external view returns (uint256)",
   "function cashOutNonce(uint256,address) external view returns (uint256)",
+  "function cashOut(uint256 tableId, address player, uint256 amount, uint256 nonce, bytes sig) external",
   "function markHuman(address,bool) external",
   "function closeTable(uint256) external",
 ];
@@ -785,6 +787,16 @@ function send(ws, data) {
   // before it can schedule the next-hand restart — freezing the table at showdown.
   if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
 }
+
+// Sponsored (gasless) cashout relay. On by default; SPONSOR_CASHOUT=false makes
+// players self-submit. Auto-pauses when the operator wallet is low on gas.
+const { relayOrSignCashOut } = createCashoutRelay({
+  escrow, health, send,
+  isSocketOpen: ws => ws?.readyState === WebSocket.OPEN,
+  shortAddr,
+  sponsorEnabled: () => process.env.SPONSOR_CASHOUT !== 'false',
+});
+
 function broadcastTable(t) {
   t.players.forEach(p => {
     if (p.ws?.readyState === WebSocket.OPEN)
@@ -973,18 +985,7 @@ async function signAndRemovePlayer(t, addr, ws) {
   // on-chain backing — never sign cashouts for them; prizes are paid from the
   // PromotionsPool separately.
   if (amount > 0 && !t.isFreeroll) {
-    try {
-      const nonce = Number(await escrow.cashOutNonce(BigInt(t.id), addr));
-      const sig = await t.signCashOut(addr, amount, nonce);
-      const msg = { type: 'CASHOUT_SIG', amount, sig, nonce, tableId: String(t.id) };
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        send(ws, msg);
-      } else {
-        t.pendingCashouts.set(addr, msg);
-      }
-    } catch (e) {
-      console.error(`[Server] signCashOut error for ${addr}:`, e.message);
-    }
+    await relayOrSignCashOut(t, addr, amount, ws);
   }
 
   // Close or reset table when last player exits

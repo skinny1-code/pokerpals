@@ -33,6 +33,6 @@ export function GET() {
         </div>
       </div>
     ),
-    { width: 1200, height: 800 }
+    { width: 1200, height: 630 }
   );
 }

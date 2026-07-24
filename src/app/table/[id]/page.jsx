@@ -12,6 +12,11 @@ import VerifyHumanBanner from '../../../components/VerifyHumanBanner';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 
+// Block explorer base for tx links (Arbitrum Sepolia by default, Arbitrum One on mainnet).
+const EXPLORER_TX = (Number(process.env.NEXT_PUBLIC_CHAIN_ID) === 42161
+  ? 'https://arbiscan.io/tx/'
+  : 'https://sepolia.arbiscan.io/tx/');
+
 // ── action label from server → badge key ─────────────────────────────────────
 function parseActionLabel(label) {
   if (!label) return null;
@@ -476,6 +481,7 @@ function TablePageInner() {
   const {
     gameState, handOver, wsStatus, wsError,
     cashoutSig, setCashoutSig,
+    cashoutRelay,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData, needsRebuy,
     sendAction, extendTurn, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot, botStatus,
@@ -937,8 +943,34 @@ function TablePageInner() {
             </div>
           )}
 
-          {/* Cashout banner — shown after server sends CASHOUT_SIG */}
-          {cashoutSig && (
+          {/* Sponsored cashout — server covered the gas; player just watches it land */}
+          {cashoutRelay && (
+            <div className="glass-strong pop-in" style={{ border:'1px solid var(--border-gold)', padding:'12px' }}>
+              <div className="gold-text" style={{ fontSize:9, letterSpacing:1, marginBottom:6, fontWeight:800 }}>
+                {cashoutRelay.status === 'confirmed' ? 'WITHDRAWAL COMPLETE' : 'WITHDRAWAL SPONSORED — GAS ON US ⛽'}
+              </div>
+              <div className="gold-text" style={{ fontSize:16, fontWeight:700,
+                fontFamily:"'JetBrains Mono',monospace", marginBottom:8 }}>
+                ◈ {Number(cashoutRelay.amount).toLocaleString()}
+              </div>
+              <div style={{ fontSize:10, color:'var(--text-secondary)', marginBottom:8, lineHeight:1.5 }}>
+                {cashoutRelay.status === 'confirmed'
+                  ? 'Sent to your wallet — you paid zero gas.'
+                  : 'On the way to your wallet — no gas, no signature needed.'}
+                {cashoutRelay.txHash && (
+                  <> <a href={`${EXPLORER_TX}${cashoutRelay.txHash}`} target="_blank" rel="noreferrer"
+                       className="gold-text" style={{ textDecoration:'underline' }}>View transaction ↗</a></>
+                )}
+              </div>
+              <button className="btn btn-gold" onClick={() => router.push('/')}
+                style={{ width:'100%', padding:'10px', fontSize:11, cursor:'pointer' }}>
+                {cashoutRelay.status === 'confirmed' ? 'Back to Lobby' : 'Back to Lobby (payout still processing)'}
+              </button>
+            </div>
+          )}
+
+          {/* Cashout banner — self-submit fallback when sponsorship is off or a sponsored tx reverted */}
+          {cashoutSig && !cashoutRelay && (
             <div className="glass-strong pop-in" style={{ border:'1px solid var(--border-gold)', padding:'12px' }}>
               <div className="gold-text" style={{ fontSize:9, letterSpacing:1, marginBottom:6, fontWeight:800 }}>READY TO WITHDRAW</div>
               <div className="gold-text" style={{ fontSize:16, fontWeight:700,
@@ -1005,7 +1037,7 @@ function TablePageInner() {
           )}
 
           {/* Refund available (table not yet active) */}
-          {refundAvailable && !cashoutSig && (
+          {refundAvailable && !cashoutSig && !cashoutRelay && (
             <div>
               <div style={{ fontSize:9, color:'#d9c08a99', letterSpacing:1, marginBottom:6 }}>
                 You left the waiting room
@@ -1026,7 +1058,7 @@ function TablePageInner() {
           )}
 
           {/* Leave — locked badge or button */}
-          {!cashoutSig && !refundAvailable && (
+          {!cashoutSig && !cashoutRelay && !refundAvailable && (
             cashoutLocked ? (
               <div style={{
                 background:'rgba(240,144,42,.08)', border:'1px solid #f0902a44',

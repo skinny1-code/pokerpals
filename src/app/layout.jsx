@@ -5,7 +5,10 @@ import ErrorMonitorMount from '../components/ErrorMonitorMount';
 import AuthGate from '../components/AuthGate';
 import AmbientMusic from '../components/AmbientMusic';
 
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
+// Canonical site URL for link previews. Falls back to the known production
+// domain so Open Graph / Twitter cards never break when NEXT_PUBLIC_APP_URL is
+// missing at build time (which was leaving shared links with a blank card).
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://pokervsplayer.xyz').replace(/\/$/, '');
 
 // Mobile-first viewport: render at device width and cover the notch so the
 // safe-area-inset padding in globals.css takes effect.
@@ -16,26 +19,47 @@ export const viewport = {
   themeColor: '#0b0b0d',
 };
 
+const OG_TITLE = 'PokerVsPlayer — Onchain Crypto Poker';
+const OG_DESC  = 'Real PvP poker, instant onchain settlement, no bots';
+const OG_IMAGE = {
+  url: '/og.png',           // resolved to an absolute URL via metadataBase
+  width: 1200,
+  height: 630,
+  alt: 'PokerVsPlayer — onchain crypto poker',
+};
+
 export const metadata = {
-  title: 'PokerVsPlayer — Onchain Crypto Poker',
-  description: 'Real PvP poker, instant onchain settlement, no bots',
+  // metadataBase lets Next.js turn the relative '/og.png' into an absolute URL
+  // in every preview tag — the piece that was missing, so cards rendered blank.
+  metadataBase: new URL(APP_URL),
+  title: OG_TITLE,
+  description: OG_DESC,
   openGraph: {
-    title: 'PokerVsPlayer — Onchain Crypto Poker',
-    description: 'Real PvP poker, instant onchain settlement, no bots',
-    images: APP_URL ? [`${APP_URL}/og.png`] : [],
+    type: 'website',
+    siteName: 'PokerVsPlayer',
+    url: APP_URL,
+    title: OG_TITLE,
+    description: OG_DESC,
+    images: [OG_IMAGE],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: OG_TITLE,
+    description: OG_DESC,
+    images: ['/og.png'],
   },
   other: {
     // Farcaster / Base Mini App embed — shows when someone shares the link on Farcaster
     'fc:frame': JSON.stringify({
       version: 'next',
-      imageUrl: APP_URL ? `${APP_URL}/og.png` : '',
+      imageUrl: `${APP_URL}/og.png`,
       button: {
         title: '♠ Play Poker',
         action: {
           type: 'launch_frame',
           name: 'PokerVsPlayer',
-          url: APP_URL || '',
-          splashImageUrl: APP_URL ? `${APP_URL}/splash.png` : '',
+          url: APP_URL,
+          splashImageUrl: `${APP_URL}/splash.png`,
           splashBackgroundColor: '#111114',
         },
       },
