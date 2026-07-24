@@ -177,6 +177,8 @@ Frontend pages (`src/app/`):
 
 `handNonce` is tracked both in the `PokerTable` in-memory state and in the contract — they must stay in sync. The server increments its local `handNonce` only after broadcasting `HAND_OVER`.
 
+**Sponsored (gasless) cashout** (`server/cashoutRelay.js`): when a player leaves with chips, `PokerEscrow.cashOut(tableId, player, amount, nonce, sig)` pays the `player` named in the operator signature regardless of who submits the tx — so the server submits it from the operator wallet and the player pays **zero gas** and signs nothing. Flow: server signs → submits → sends `CASHOUT_RELAYED` (carries the sig as a fallback) → `CASHOUT_CONFIRMED` on receipt. If sponsorship is off (`SPONSOR_CASHOUT=false`), the operator is low on gas, or a sponsored tx reverts, it falls back to `CASHOUT_SIG` for the player to self-submit (the original path). Submissions are serialized to protect the operator's wallet nonce. On by default; freeroll (table 9100) chips are never cashed out on-chain.
+
 ## Environment
 
 See `.env.example` for all required variables. Key groups:

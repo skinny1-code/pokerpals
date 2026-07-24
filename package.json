@@ -18,7 +18,7 @@
     "deploy:escrow": "npx hardhat run scripts/redeploy-escrow.js",
     "deploy:tournament": "npx hardhat run scripts/redeploy-tournament.js",
     "deploy:mainnet": "DEPLOY_NETWORK=arbitrum npx hardhat run scripts/deploy.js",
-    "test": "node test/holdem.test.mjs && node test/botBrain.test.mjs && node test/ambientEngine.test.mjs",
+    "test": "node test/holdem.test.mjs && node test/botBrain.test.mjs && node test/ambientEngine.test.mjs && node test/cashoutRelay.test.mjs",
     "test:contracts": "npx hardhat test",
     "setup:wallets": "node scripts/generateWallets.js",
     "setup:env": "node scripts/setupEnv.js",

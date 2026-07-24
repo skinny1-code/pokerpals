@@ -54,6 +54,7 @@ export function useTableSocket(tableId, tableConfig) {
   const [wsStatus,        setWsStatus]        = useState('disconnected');
   const [wsError,         setWsError]         = useState(null);
   const [cashoutSig,      setCashoutSig]      = useState(null);
+  const [cashoutRelay,    setCashoutRelay]    = useState(null); // { status:'relayed'|'confirmed', amount, txHash }
   const [cashoutLocked,   setCashoutLocked]   = useState(null);
   const [tableLocked,     setTableLocked]     = useState(false);
   const [refundAvailable, setRefundAvailable] = useState(false);
@@ -190,7 +191,19 @@ export function useTableSocket(tableId, tableConfig) {
             setHandOver(msg);
             break;
           case 'CASHOUT_SIG':
+            // Self-submit fallback (sponsorship off, or a sponsored tx reverted).
+            // Clear any relay banner so the manual "Cash Out" button shows.
+            setCashoutRelay(null);
             setCashoutSig({ amount: msg.amount, sig: msg.sig, nonce: msg.nonce, tableId: msg.tableId });
+            break;
+          case 'CASHOUT_RELAYED':
+            // Server sponsored the withdrawal — player pays no gas. No button needed.
+            setCashoutSig(null);
+            setCashoutRelay({ status: 'relayed', amount: msg.amount, txHash: msg.txHash });
+            break;
+          case 'CASHOUT_CONFIRMED':
+            setCashoutSig(null);
+            setCashoutRelay({ status: 'confirmed', amount: msg.amount, txHash: msg.txHash });
             break;
           case 'CASHOUT_LOCKED':
             setCashoutLocked({ handsRemaining: msg.handsRemaining });
@@ -302,6 +315,7 @@ export function useTableSocket(tableId, tableConfig) {
   return {
     gameState, handOver, tableList, wsStatus, wsError,
     cashoutSig, setCashoutSig,
+    cashoutRelay, setCashoutRelay,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData, needsRebuy,
     sendAction, extendTurn, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat, spawnBot, botStatus,
