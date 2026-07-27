@@ -4,11 +4,13 @@ import AppErrorBoundary from '../components/AppErrorBoundary';
 import ErrorMonitorMount from '../components/ErrorMonitorMount';
 import AuthGate from '../components/AuthGate';
 import AmbientMusic from '../components/AmbientMusic';
+import { resolveAppUrl } from '../lib/appUrl';
 
-// Canonical site URL for link previews. Falls back to the known production
-// domain so Open Graph / Twitter cards never break when NEXT_PUBLIC_APP_URL is
-// missing at build time (which was leaving shared links with a blank card).
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://pokervsplayer.xyz').replace(/\/$/, '');
+// Canonical site URL for link previews. resolveAppUrl() always returns a valid
+// absolute URL — even when NEXT_PUBLIC_APP_URL is missing OR set scheme-less
+// (e.g. "pokervsplayer.xyz"), which otherwise makes `new URL()` below throw and
+// takes the whole site down at build/render time.
+const APP_URL = resolveAppUrl();
 
 // Mobile-first viewport: render at device width and cover the notch so the
 // safe-area-inset padding in globals.css takes effect.
