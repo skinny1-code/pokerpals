@@ -1,7 +1,7 @@
 {
   "name": "pokerpals",
   "version": "1.0.0",
-  "description": "PokerVsPlayer \u2014 Onchain PvP Crypto Poker Network",
+  "description": "PokerVsPlayer — Onchain PvP Crypto Poker Network",
   "private": true,
   "type": "module",
   "scripts": {
@@ -42,7 +42,7 @@
     "@vercel/analytics": "^2.0.1",
     "@walletconnect/ethereum-provider": "^2.23.10",
     "ethers": "^6.16.0",
-    "next": "^16.2.9",
+    "next": "^16.2.12",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "viem": "^2.52.2",
@@ -61,12 +61,13 @@
   },
   "overrides": {
     "ws": "^8.21.0",
-    "postcss": "^8.5.15",
+    "postcss": "^8.5.25",
     "uuid": "^14.0.0",
     "tmp": "^0.2.7",
     "diff": "^8.0.4",
     "serialize-javascript": "^7.0.6",
     "adm-zip": "^0.6.0",
-    "axios": "^1.18.1"
+    "axios": "^1.18.1",
+    "sharp": "^0.35.3"
   }
 }

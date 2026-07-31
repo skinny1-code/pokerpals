@@ -95,6 +95,16 @@ async function checkOperatorGas() {
 checkOperatorGas();
 setInterval(checkOperatorGas, Number(process.env.GAS_CHECK_INTERVAL_MS) || 10 * 60 * 1000);
 
+// SECURITY: these flags disable on-chain buy-in verification and must be OFF on
+// mainnet. Warn loudly at boot so a testnet config can't silently ship to prod.
+if (process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true' || process.env.TESTNET_SKIP_HUMAN_CHECK === 'true') {
+  console.warn('[Server] ⚠️  TESTNET bypass flags are ON (TESTNET_SKIP_CHAIN_VERIFY / ' +
+    'TESTNET_SKIP_HUMAN_CHECK). On-chain deposits are NOT verified. NEVER run this on mainnet.');
+}
+if (process.env.ENABLE_WS_BOTS === 'true') {
+  console.warn('[Server] ⚠️  ENABLE_WS_BOTS is ON — bots can be seated on real-money tables. Disable for mainnet.');
+}
+
 // ─── IN-PROCESS BOT ──────────────────────────────────────────────────────────
 const BOT_KEY  = process.env.OPS_WALLET_KEY;
 const BOT_ADDR = BOT_KEY ? new ethers.Wallet(BOT_KEY).address.toLowerCase() : null;
@@ -1173,8 +1183,15 @@ wss.on('connection', (ws, req) => {
           }
         }
 
-        // Permanent tables always skip chain verify — they don't exist on-chain
-        const skipChainVerify = (t?.isPermanent === true) || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true';
+        // Only skip on-chain buy-in verification for play-money freeroll tables
+        // (which can never trigger an on-chain cashout — see the !isFreeroll guard
+        // in signAndRemovePlayer) or when the explicit testnet flag is set. Real-
+        // money tables (incl. the permanent cash tables 9001/9002) MUST read the
+        // player's actual on-chain deposit — otherwise a client could claim an
+        // arbitrary `buyInAmount`, receive unbacked in-memory chips, and have the
+        // operator sign a real cashout for chips it never verified.
+        // SECURITY: TESTNET_SKIP_CHAIN_VERIFY must be false/unset on mainnet.
+        const skipChainVerify = (t?.isFreeroll === true) || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true';
 
         // If not in memory, load config from chain (or use client-provided config in testnet mode)
         if (!t) {
@@ -1397,9 +1414,19 @@ wss.on('connection', (ws, req) => {
       }
 
       case 'SPAWN_BOT': {
+        // Require authentication (mirrors ACTION/JOIN/CHAT) — the handler used to
+        // accept SPAWN_BOT from any unauthenticated socket on any table.
+        if (!client.addr) { send(ws, { type: 'ERROR', error: 'Not authenticated' }); break; }
         const tidKey = String(payload?.tableId || client.tableId || '9001');
         const t = tables.get(tidKey);
         if (!t) { send(ws, { type: 'ERROR', error: 'Table not found' }); break; }
+        // Bots seat with unbacked in-memory chips, so they must never touch a
+        // real-money table (they'd corrupt the pot and settlement). Allow only on
+        // play-money freeroll/practice tables, testnet, or when explicitly enabled.
+        const botsAllowed = t.isFreeroll === true
+          || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true'
+          || process.env.ENABLE_WS_BOTS === 'true';
+        if (!botsAllowed) { send(ws, { type: 'ERROR', error: 'Bots are not available on this table.' }); break; }
         const count = Math.max(1, Math.min(8, Number(payload?.count) || 1));
         const result = spawnBot(t, Number(payload?.buyIn) || undefined, count);
         if (!result.ok) {
