@@ -198,6 +198,11 @@ contract TournamentManager is Ownable, ReentrancyGuard {
             t.prizePool = t.guaranteedPrize;
         } else {
             t.prizePool = netPool;
+            // Guarantee didn't bind — the guaranteedPrize deposited at creation is
+            // unused surplus; return it to the owner instead of stranding it.
+            if (t.guaranteed && t.guaranteedPrize > 0) {
+                chipsToken.safeTransfer(owner(), t.guaranteedPrize);
+            }
         }
 
         t.status = TournStatus.Running;
@@ -212,12 +217,15 @@ contract TournamentManager is Ownable, ReentrancyGuard {
     ) external nonReentrant {
         Tournament storage t = tournaments[tournId];
         require(t.status == TournStatus.Running, "Not running");
+        require(winners.length == shares.length && winners.length > 0, "len");
 
         uint256 tot; for (uint i; i < shares.length; i++) tot += shares[i];
         require(tot == 1000);
 
+        // Bind chainId + this contract so a signature cannot be replayed on
+        // another chain or a redeployed instance sharing the operator key.
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(
-            keccak256(abi.encodePacked(tournId, winners, shares))
+            keccak256(abi.encodePacked(block.chainid, address(this), tournId, winners, shares))
         );
         if (usedPayoutHashes[digest]) revert AlreadyUsed(digest);
         if (digest.recover(sig) != operatorSigner) revert InvalidSig();

@@ -36,6 +36,22 @@ async function expectNotReverted(promise) {
   }
 }
 
+// settle/cashout digests must match PokerEscrow's chainId + contract binding.
+async function settleDigest(ethers, escrow, tableId, handNonce, winners, shares) {
+  const { chainId } = await ethers.provider.getNetwork();
+  return ethers.solidityPackedKeccak256(
+    ["uint256","address","uint256","uint256","address[]","uint256[]"],
+    [chainId, await escrow.getAddress(), tableId, handNonce, winners, shares]
+  );
+}
+async function cashoutDigest(ethers, escrow, tableId, player, amount, nonce) {
+  const { chainId } = await ethers.provider.getNetwork();
+  return ethers.solidityPackedKeccak256(
+    ["string","uint256","address","uint256","address","uint256","uint256"],
+    ["CASHOUT", chainId, await escrow.getAddress(), tableId, player, amount, nonce]
+  );
+}
+
 describe("PokerEscrow", () => {
   let ethers;
   let token, staking, referral, escrow, kingsPool, handle;
@@ -188,10 +204,7 @@ describe("PokerEscrow", () => {
     const handNonce = 0n;
     const winners  = [player1.address];
     const shares   = [1000n];
-    const digest   = ethers.solidityPackedKeccak256(
-      ["uint256","uint256","address[]","uint256[]"],
-      [tableId, handNonce, winners, shares]
-    );
+    const digest   = await settleDigest(ethers, escrow, tableId, handNonce, winners, shares);
     const sig = await operator.signMessage(ethers.getBytes(digest));
 
     await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
@@ -227,10 +240,7 @@ describe("PokerEscrow", () => {
 
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
-    const digest = ethers.solidityPackedKeccak256(
-      ["uint256","uint256","address[]","uint256[]"],
-      [tableId, handNonce, winners, shares]
-    );
+    const digest = await settleDigest(ethers, escrow, tableId, handNonce, winners, shares);
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
 
@@ -248,10 +258,7 @@ describe("PokerEscrow", () => {
 
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
-    const digest = ethers.solidityPackedKeccak256(
-      ["uint256","uint256","address[]","uint256[]"],
-      [tableId, handNonce, winners, shares]
-    );
+    const digest = await settleDigest(ethers, escrow, tableId, handNonce, winners, shares);
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
 
@@ -298,10 +305,7 @@ describe("PokerEscrow", () => {
 
     const tableId = 1n; const cashNonce = 0n;
     const cashAmount = BUY_IN;
-    const digest = ethers.solidityPackedKeccak256(
-      ["string","uint256","address","uint256","uint256"],
-      ["CASHOUT", tableId, player1.address, cashAmount, cashNonce]
-    );
+    const digest = await cashoutDigest(ethers, escrow, tableId, player1.address, cashAmount, cashNonce);
     const sig = await operator.signMessage(ethers.getBytes(digest));
 
     const balBefore = await token.balanceOf(player1.address);
@@ -321,16 +325,49 @@ describe("PokerEscrow", () => {
     await escrow.connect(player2).buyIn(1);
 
     const tableId = 1n; const cashNonce = 0n;
-    const digest = ethers.solidityPackedKeccak256(
-      ["string","uint256","address","uint256","uint256"],
-      ["CASHOUT", tableId, player1.address, BUY_IN, cashNonce]
-    );
+    const digest = await cashoutDigest(ethers, escrow, tableId, player1.address, BUY_IN, cashNonce);
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).cashOut(tableId, player1.address, BUY_IN, cashNonce, sig);
 
     await expectReverted(
       escrow.connect(player1).cashOut(tableId, player1.address, BUY_IN, cashNonce, sig)
     );
+  });
+
+  // ─── replay binding (C-1): chainId + contract address ────────────────────────
+
+  it("settle: rejects a signature bound to a different chain or contract (replay guard)", async () => {
+    const escrowAddr = await escrow.getAddress();
+    await escrow.createTable(BUY_IN, BB, 2, 0, 0);
+    await token.connect(player1).approve(escrowAddr, BUY_IN + FEE);
+    await escrow.connect(player1).buyIn(1);
+    await token.connect(player2).approve(escrowAddr, BUY_IN + FEE);
+    await escrow.connect(player2).buyIn(1);
+
+    const tableId = 1n, handNonce = 0n;
+    const winners = [player1.address], shares = [1000n];
+    const { chainId } = await ethers.provider.getNetwork();
+
+    // Signature bound to a DIFFERENT chain id (e.g. a testnet sig) must not verify.
+    const wrongChain = ethers.solidityPackedKeccak256(
+      ["uint256","address","uint256","uint256","address[]","uint256[]"],
+      [chainId + 1n, escrowAddr, tableId, handNonce, winners, shares]
+    );
+    await expectReverted(escrow.connect(player1).settle(
+      tableId, handNonce, winners, shares, await operator.signMessage(ethers.getBytes(wrongChain))));
+
+    // Signature bound to a DIFFERENT contract address must not verify.
+    const wrongAddr = ethers.solidityPackedKeccak256(
+      ["uint256","address","uint256","uint256","address[]","uint256[]"],
+      [chainId, player2.address, tableId, handNonce, winners, shares]
+    );
+    await expectReverted(escrow.connect(player1).settle(
+      tableId, handNonce, winners, shares, await operator.signMessage(ethers.getBytes(wrongAddr))));
+
+    // The correctly-bound signature still settles.
+    const good = await settleDigest(ethers, escrow, tableId, handNonce, winners, shares);
+    await expectNotReverted(escrow.connect(player1).settle(
+      tableId, handNonce, winners, shares, await operator.signMessage(ethers.getBytes(good))));
   });
 
   // ─── rakeback ───────────────────────────────────────────────────────────────
@@ -350,10 +387,7 @@ describe("PokerEscrow", () => {
 
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
-    const digest = ethers.solidityPackedKeccak256(
-      ["uint256","uint256","address[]","uint256[]"],
-      [tableId, handNonce, winners, shares]
-    );
+    const digest = await settleDigest(ethers, escrow, tableId, handNonce, winners, shares);
     const sig = await operator.signMessage(ethers.getBytes(digest));
     await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
 

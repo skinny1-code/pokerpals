@@ -235,8 +235,11 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         uint256 tot; for (uint i; i < shares.length; i++) tot += shares[i];
         require(tot == 1000);
 
+        // Bind chainId + this contract so an operator signature cannot be replayed
+        // on another chain (e.g. a testnet sig reused on mainnet) or on a redeployed
+        // escrow sharing the same operator key and tableId/handNonce start values.
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(
-            keccak256(abi.encodePacked(tableId, handNonce, winners, shares))
+            keccak256(abi.encodePacked(block.chainid, address(this), tableId, handNonce, winners, shares))
         );
         if (usedSettleHashes[digest]) revert AlreadySettled(digest);
         if (digest.recover(sig) != operatorSigner) revert InvalidSig();
@@ -357,8 +360,9 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         require(nonce == cashOutNonce[tableId][player], "Bad nonce");
         require(amount <= t.potTotal, "Exceeds pot");
 
+        // Bind chainId + this contract to block cross-chain / cross-deployment replay.
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(
-            keccak256(abi.encodePacked("CASHOUT", tableId, player, amount, nonce))
+            keccak256(abi.encodePacked("CASHOUT", block.chainid, address(this), tableId, player, amount, nonce))
         );
         if (digest.recover(sig) != operatorSigner) revert InvalidSig();
 

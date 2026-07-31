@@ -75,10 +75,4 @@ contract ChipsToken is ERC20, ERC20Burnable, Ownable {
         escrowFactory = _factory;
         emit EscrowFactorySet(_factory);
     }
-
-    /// @notice Testnet faucet — REMOVE before mainnet deployment
-    function faucet(address to, uint256 amount) external onlyOwner {
-        require(totalSupply() + amount <= MAX_SUPPLY, "Exceeds max supply");
-        _mint(to, amount);
-    }
 }

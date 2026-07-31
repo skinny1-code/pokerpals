@@ -68,4 +68,23 @@ describe("StablecoinPool", () => {
     try { await stablePool.connect(rando).withdraw(rando.address, 1n, "hack"); } catch { reverted = true; }
     expect(reverted).to.equal(true);
   });
+
+  it("owner cannot withdraw below the redemption reserve (backing outstanding CHIPS)", async () => {
+    // Simulate CHIPS sales: liqPool transfers player USDC in + notifyDeposit reserves it.
+    await mockUsdc.mint(liqPool.address, 400_000n * 1_000_000n);
+    await mockUsdc.connect(liqPool).transfer(await stablePool.getAddress(), 400_000n * 1_000_000n);
+    await stablePool.connect(liqPool).notifyDeposit(400_000n * 1_000_000n);
+    expect(await stablePool.reservedUsdc()).to.equal(400_000n * 1_000_000n);
+
+    // Balance is 900k (500k owner seed + 400k reserved). Owner may take the 500k
+    // surplus but not a cent of the 400k reserve.
+    await stablePool.withdraw(owner.address, 500_000n * 1_000_000n, "surplus ok");
+    let reverted = false;
+    try { await stablePool.withdraw(owner.address, 1n, "would breach reserve"); } catch { reverted = true; }
+    expect(reverted, "withdraw breaching the reserve must revert").to.equal(true);
+
+    // A redemption releases reserve; then the owner can withdraw that much.
+    await stablePool.connect(liqPool).authorizedPayout(rando.address, 100_000n * 1_000_000n);
+    expect(await stablePool.reservedUsdc()).to.equal(300_000n * 1_000_000n);
+  });
 });

@@ -59,6 +59,20 @@ const SCORER_ID    = process.env.GITCOIN_SCORER_ID;
 const provider   = new ethers.JsonRpcProvider(RPC_URL);
 const operator   = new ethers.Wallet(OPERATOR_KEY, provider);
 
+// Chain id bound into settle/cashout signatures — must match the escrow's
+// block.chainid or the contract's ecrecover check fails. Seeded from env for
+// immediate correctness, then reconciled against the live RPC at boot.
+let CHAIN_ID = BigInt(process.env.CHAIN_ID || process.env.NEXT_PUBLIC_CHAIN_ID || 0);
+provider.getNetwork()
+  .then(n => {
+    const live = BigInt(n.chainId);
+    if (CHAIN_ID && live !== CHAIN_ID) {
+      console.warn(`[Server] ⚠️  CHAIN_ID env (${CHAIN_ID}) != RPC chain (${live}); using RPC chain for signing.`);
+    }
+    CHAIN_ID = live;
+  })
+  .catch(e => console.error('[Server] getNetwork for CHAIN_ID failed:', e.message));
+
 // ─── OPERATOR GAS WATCHDOG ───────────────────────────────────────────────────
 // The operator wallet pays gas for markHuman / settle-adjacent txs. When it runs
 // dry every verification fails silently from the player's point of view — this
@@ -527,17 +541,20 @@ class PokerTable {
   }
 
   async signAndSettle(winners, shares) {
+    // Digest must match PokerEscrow.settle: chainId + escrow address bind the sig
+    // to this chain/contract (blocks cross-chain / cross-deployment replay).
     const digest = ethers.solidityPackedKeccak256(
-      ['uint256','uint256','address[]','uint256[]'],
-      [BigInt(this.id), BigInt(this.handNonce), winners, shares.map(BigInt)]
+      ['uint256','address','uint256','uint256','address[]','uint256[]'],
+      [CHAIN_ID, ESCROW_ADDR, BigInt(this.id), BigInt(this.handNonce), winners, shares.map(BigInt)]
     );
     return operator.signMessage(ethers.getBytes(digest));
   }
 
   async signCashOut(player, amount, nonce) {
+    // Must match PokerEscrow.cashOut's chainId + address-bound digest.
     const digest = ethers.solidityPackedKeccak256(
-      ['string','uint256','address','uint256','uint256'],
-      ['CASHOUT', BigInt(this.id), player, BigInt(amount), BigInt(nonce)]
+      ['string','uint256','address','uint256','address','uint256','uint256'],
+      ['CASHOUT', CHAIN_ID, ESCROW_ADDR, BigInt(this.id), player, BigInt(amount), BigInt(nonce)]
     );
     return operator.signMessage(ethers.getBytes(digest));
   }

@@ -89,7 +89,7 @@ Post-deploy wiring (done in `scripts/deploy.js`):
 **2. WebSocket game server** (`server/index.js`) — Node.js using ES module syntax (`import`). Manages game state in memory (`Map<id, PokerTable>`). Key responsibilities:
 - Authenticates players via wallet signature (`PVP-AUTH:<nonce>`)
 - Runs the card game state machine (`PokerTable` class): dealing, betting rounds, showdown
-- Signs settlement payouts with the operator key: `operator.signMessage(keccak256(tableId, handNonce, winners, shares))`
+- Signs settlement payouts with the operator key: `operator.signMessage(keccak256(chainId, escrowAddress, tableId, handNonce, winners, shares))` — chain- and contract-bound (see Settlement flow)
 - Broadcasts per-player `GAME_STATE` (hole cards hidden for opponents) after every action
 - On `HAND_OVER`, emits the operator signature so any player can submit it to `PokerEscrow.settle()` on-chain
 
@@ -171,7 +171,7 @@ Frontend pages (`src/app/`):
 
 1. Players call `PokerEscrow.buyIn(tableId)` on-chain — requires `humanVerified[player] == true`
 2. Game plays out on the WebSocket server
-3. Server signs: `keccak256(tableId, handNonce, winners[], shares[])` where `shares` sum to 1000 (basis points)
+3. Server signs: `keccak256(chainId, escrowAddress, tableId, handNonce, winners[], shares[])` where `shares` sum to 1000 (basis points). `chainId` + `escrowAddress` bind the signature to this chain and contract so it can't be replayed on another chain or a redeployed escrow — the server (`signAndSettle`/`signCashOut`) and the contract (`settle`/`cashOut`) must keep this digest format identical. Cashout digest: `keccak256("CASHOUT", chainId, escrowAddress, tableId, player, amount, nonce)`.
 4. Server broadcasts the sig via `HAND_OVER`; any player submits to `PokerEscrow.settle()`
 5. Contract verifies the sig against `operatorSigner`, pays winners minus rake, increments `handNonce`
 
@@ -192,5 +192,5 @@ See `.env.example` for all required variables. Key groups:
 
 - Run `slither contracts/` and `myth analyze contracts/PokerEscrow.sol` before mainnet
 - Replace deployer/owner with a Gnosis Safe multisig before mainnet
-- `ChipsToken.faucet()` must be removed before mainnet deployment
+- `ChipsToken.faucet()` (owner-mint) has been removed — supply is fixed at the 1B minted in the constructor. (`npm run faucet` still works on testnet: it transfers from the deployer's balance, it never minted.)
 - Dev vest: `claimDevVest()` is callable by `devWallet` only; owner can update `devWallet` via `setDevWallet()`
