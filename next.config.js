@@ -52,8 +52,26 @@ const STUB_MODULES = [
   'pino-pretty',
 ];
 
+// Security response headers. Deliberately conservative: we set clickjacking
+// protection (scoped to still allow the Farcaster Mini App to embed us) plus the
+// safe hardening headers, but NOT a strict script/style/connect CSP — this app
+// uses inline styles and third-party wallet SDKs throughout, so a strict CSP
+// needs dedicated testing before it can ship without breaking the site.
+const FARCASTER_FRAME_ANCESTORS = "frame-ancestors 'self' https://warpcast.com https://*.warpcast.com https://farcaster.xyz https://*.farcaster.xyz";
+const SECURITY_HEADERS = [
+  { key: 'Content-Security-Policy', value: FARCASTER_FRAME_ANCESTORS },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+];
+
 const nextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false, // don't advertise "X-Powered-By: Next.js"
+  async headers() {
+    return [{ source: '/:path*', headers: SECURITY_HEADERS }];
+  },
   env,
   turbopack: {
     resolveAlias: Object.fromEntries(STUB_MODULES.map(m => [m, './src/stubs/empty.js'])),

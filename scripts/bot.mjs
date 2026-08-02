@@ -8,9 +8,12 @@ const TABLE_ID     = process.argv[2] || "9001";
 const BOT_BUY_IN   = process.argv[3] ? Number(process.argv[3]) : null;
 const WS_URL       = process.env.NEXT_PUBLIC_WS_URL?.replace(/^https?/, m => m === "https" ? "wss" : "ws") || "ws://localhost:4000";
 
-// Use ops wallet as the bot (has CHIPS from deploy)
-const BOT_KEY   = process.env.OPS_WALLET_KEY || "0xc6e7796027e91aa8a8cc33bb241cb9a2f2de5de6f72a69092b4b848acf836381";
-const wallet    = new ethers.Wallet(BOT_KEY);
+// Bot signing key must come from the environment — never hardcode a private key
+// in source (it lands in git history and is world-readable). Generates a fresh
+// throwaway wallet if OPS_WALLET_KEY is unset so local testing still works.
+const BOT_KEY   = process.env.OPS_WALLET_KEY;
+const wallet    = BOT_KEY ? new ethers.Wallet(BOT_KEY) : ethers.Wallet.createRandom();
+if (!BOT_KEY) console.log("⚠️  OPS_WALLET_KEY unset — using a random throwaway wallet (no on-chain CHIPS).");
 const BOT_ADDR  = wallet.address;
 
 console.log(`🤖 Bot wallet: ${BOT_ADDR}`);

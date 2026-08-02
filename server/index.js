@@ -59,6 +59,20 @@ const SCORER_ID    = process.env.GITCOIN_SCORER_ID;
 const provider   = new ethers.JsonRpcProvider(RPC_URL);
 const operator   = new ethers.Wallet(OPERATOR_KEY, provider);
 
+// Chain id bound into settle/cashout signatures — must match the escrow's
+// block.chainid or the contract's ecrecover check fails. Seeded from env for
+// immediate correctness, then reconciled against the live RPC at boot.
+let CHAIN_ID = BigInt(process.env.CHAIN_ID || process.env.NEXT_PUBLIC_CHAIN_ID || 0);
+provider.getNetwork()
+  .then(n => {
+    const live = BigInt(n.chainId);
+    if (CHAIN_ID && live !== CHAIN_ID) {
+      console.warn(`[Server] ⚠️  CHAIN_ID env (${CHAIN_ID}) != RPC chain (${live}); using RPC chain for signing.`);
+    }
+    CHAIN_ID = live;
+  })
+  .catch(e => console.error('[Server] getNetwork for CHAIN_ID failed:', e.message));
+
 // ─── OPERATOR GAS WATCHDOG ───────────────────────────────────────────────────
 // The operator wallet pays gas for markHuman / settle-adjacent txs. When it runs
 // dry every verification fails silently from the player's point of view — this
@@ -94,6 +108,16 @@ async function checkOperatorGas() {
 }
 checkOperatorGas();
 setInterval(checkOperatorGas, Number(process.env.GAS_CHECK_INTERVAL_MS) || 10 * 60 * 1000);
+
+// SECURITY: these flags disable on-chain buy-in verification and must be OFF on
+// mainnet. Warn loudly at boot so a testnet config can't silently ship to prod.
+if (process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true' || process.env.TESTNET_SKIP_HUMAN_CHECK === 'true') {
+  console.warn('[Server] ⚠️  TESTNET bypass flags are ON (TESTNET_SKIP_CHAIN_VERIFY / ' +
+    'TESTNET_SKIP_HUMAN_CHECK). On-chain deposits are NOT verified. NEVER run this on mainnet.');
+}
+if (process.env.ENABLE_WS_BOTS === 'true') {
+  console.warn('[Server] ⚠️  ENABLE_WS_BOTS is ON — bots can be seated on real-money tables. Disable for mainnet.');
+}
 
 // ─── IN-PROCESS BOT ──────────────────────────────────────────────────────────
 const BOT_KEY  = process.env.OPS_WALLET_KEY;
@@ -517,17 +541,20 @@ class PokerTable {
   }
 
   async signAndSettle(winners, shares) {
+    // Digest must match PokerEscrow.settle: chainId + escrow address bind the sig
+    // to this chain/contract (blocks cross-chain / cross-deployment replay).
     const digest = ethers.solidityPackedKeccak256(
-      ['uint256','uint256','address[]','uint256[]'],
-      [BigInt(this.id), BigInt(this.handNonce), winners, shares.map(BigInt)]
+      ['uint256','address','uint256','uint256','address[]','uint256[]'],
+      [CHAIN_ID, ESCROW_ADDR, BigInt(this.id), BigInt(this.handNonce), winners, shares.map(BigInt)]
     );
     return operator.signMessage(ethers.getBytes(digest));
   }
 
   async signCashOut(player, amount, nonce) {
+    // Must match PokerEscrow.cashOut's chainId + address-bound digest.
     const digest = ethers.solidityPackedKeccak256(
-      ['string','uint256','address','uint256','uint256'],
-      ['CASHOUT', BigInt(this.id), player, BigInt(amount), BigInt(nonce)]
+      ['string','uint256','address','uint256','address','uint256','uint256'],
+      ['CASHOUT', CHAIN_ID, ESCROW_ADDR, BigInt(this.id), player, BigInt(amount), BigInt(nonce)]
     );
     return operator.signMessage(ethers.getBytes(digest));
   }
@@ -1173,8 +1200,15 @@ wss.on('connection', (ws, req) => {
           }
         }
 
-        // Permanent tables always skip chain verify — they don't exist on-chain
-        const skipChainVerify = (t?.isPermanent === true) || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true';
+        // Only skip on-chain buy-in verification for play-money freeroll tables
+        // (which can never trigger an on-chain cashout — see the !isFreeroll guard
+        // in signAndRemovePlayer) or when the explicit testnet flag is set. Real-
+        // money tables (incl. the permanent cash tables 9001/9002) MUST read the
+        // player's actual on-chain deposit — otherwise a client could claim an
+        // arbitrary `buyInAmount`, receive unbacked in-memory chips, and have the
+        // operator sign a real cashout for chips it never verified.
+        // SECURITY: TESTNET_SKIP_CHAIN_VERIFY must be false/unset on mainnet.
+        const skipChainVerify = (t?.isFreeroll === true) || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true';
 
         // If not in memory, load config from chain (or use client-provided config in testnet mode)
         if (!t) {
@@ -1397,9 +1431,19 @@ wss.on('connection', (ws, req) => {
       }
 
       case 'SPAWN_BOT': {
+        // Require authentication (mirrors ACTION/JOIN/CHAT) — the handler used to
+        // accept SPAWN_BOT from any unauthenticated socket on any table.
+        if (!client.addr) { send(ws, { type: 'ERROR', error: 'Not authenticated' }); break; }
         const tidKey = String(payload?.tableId || client.tableId || '9001');
         const t = tables.get(tidKey);
         if (!t) { send(ws, { type: 'ERROR', error: 'Table not found' }); break; }
+        // Bots seat with unbacked in-memory chips, so they must never touch a
+        // real-money table (they'd corrupt the pot and settlement). Allow only on
+        // play-money freeroll/practice tables, testnet, or when explicitly enabled.
+        const botsAllowed = t.isFreeroll === true
+          || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true'
+          || process.env.ENABLE_WS_BOTS === 'true';
+        if (!botsAllowed) { send(ws, { type: 'ERROR', error: 'Bots are not available on this table.' }); break; }
         const count = Math.max(1, Math.min(8, Number(payload?.count) || 1));
         const result = spawnBot(t, Number(payload?.buyIn) || undefined, count);
         if (!result.ok) {

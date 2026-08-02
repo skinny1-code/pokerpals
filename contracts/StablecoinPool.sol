@@ -15,6 +15,11 @@ contract StablecoinPool is Ownable {
     IERC20 public immutable usdc;
     mapping(address => bool) public authorized;
 
+    /// @notice USDC that backs CHIPS already sold (deposits from sales minus
+    ///         redemption payouts). The owner cannot withdraw below this floor,
+    ///         so player redemptions can never be rugged by an owner withdrawal.
+    uint256 public reservedUsdc;
+
     event Deposited(address indexed from, uint256 amount);
     event USDCPaidOut(address indexed to, uint256 amount);
     event Withdrawal(address indexed to, uint256 amount, string note);
@@ -28,6 +33,7 @@ contract StablecoinPool is Ownable {
     ///         was transferred directly to this contract via safeTransferFrom.
     function notifyDeposit(uint256 amount) external {
         require(authorized[msg.sender], "StablecoinPool: not authorized");
+        reservedUsdc += amount; // this USDC now backs outstanding CHIPS float
         emit Deposited(msg.sender, amount);
     }
 
@@ -35,6 +41,8 @@ contract StablecoinPool is Ownable {
     function authorizedPayout(address to, uint256 amount) external {
         require(authorized[msg.sender], "StablecoinPool: not authorized");
         require(usdc.balanceOf(address(this)) >= amount, "StablecoinPool: insufficient USDC");
+        // A redemption releases part of the backing float.
+        reservedUsdc = amount >= reservedUsdc ? 0 : reservedUsdc - amount;
         usdc.safeTransfer(to, amount);
         emit USDCPaidOut(to, amount);
     }
@@ -48,7 +56,11 @@ contract StablecoinPool is Ownable {
     /// @notice Owner withdraws USDC for on-network use (prizes, payouts, promos).
     function withdraw(address to, uint256 amount, string calldata note) external onlyOwner {
         require(to != address(0), "StablecoinPool: zero address");
-        require(usdc.balanceOf(address(this)) >= amount, "StablecoinPool: insufficient USDC");
+        uint256 bal = usdc.balanceOf(address(this));
+        require(bal >= amount, "StablecoinPool: insufficient USDC");
+        // Owner may only withdraw surplus above the redemption reserve, so the
+        // USDC backing outstanding CHIPS can never be drained out from under holders.
+        require(bal - amount >= reservedUsdc, "StablecoinPool: would breach redemption reserve");
         usdc.safeTransfer(to, amount);
         emit Withdrawal(to, amount, note);
     }
