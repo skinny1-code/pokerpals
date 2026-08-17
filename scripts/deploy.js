@@ -10,8 +10,9 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const VALID_NETWORKS = ["arbitrumSepolia", "arbitrum"];
-const CHAIN_IDS      = { arbitrumSepolia: "421614", arbitrum: "42161" };
+const VALID_NETWORKS = ["arbitrumSepolia", "arbitrum", "robinhoodTestnet", "robinhood"];
+const CHAIN_IDS      = { arbitrumSepolia: "421614", arbitrum: "42161", robinhoodTestnet: "46630", robinhood: "4663" };
+const TESTNETS       = new Set(["arbitrumSepolia", "robinhoodTestnet"]);
 
 // Real USDC on Arbitrum One (native)
 const USDC_MAINNET = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
@@ -25,7 +26,7 @@ async function main() {
   const conn = await network.connect({ network: networkName });
   const ethers = conn.ethers;
   const [deployer] = await ethers.getSigners();
-  const isTestnet = networkName === "arbitrumSepolia";
+  const isTestnet = TESTNETS.has(networkName);
   console.log("Deployer:", deployer.address);
   console.log("Network: ", networkName);
 
@@ -117,17 +118,24 @@ async function main() {
   const promoPoolAddr = await promoPool.getAddress();
   console.log("✅ PromotionsPool:", promoPoolAddr);
 
-  // 10. MockUSDC (testnet) or resolve mainnet USDC address
+  // 10. USDC: explicit env override wins; else MockUSDC on testnets; else the
+  //     known native USDC for the chain. Unknown mainnets (e.g. Robinhood Chain)
+  //     must pass USDC_ADDRESS — we never guess a real-money token address.
   let usdcAddr;
-  if (isTestnet) {
+  if (process.env.USDC_ADDRESS) {
+    usdcAddr = process.env.USDC_ADDRESS;
+    console.log("ℹ️  Using USDC from env:", usdcAddr);
+  } else if (isTestnet) {
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const mockUsdc = await MockUSDC.deploy();
     await mockUsdc.waitForDeployment();
     usdcAddr = await mockUsdc.getAddress();
     console.log("✅ MockUSDC:", usdcAddr);
-  } else {
+  } else if (networkName === "arbitrum") {
     usdcAddr = USDC_MAINNET;
-    console.log("ℹ️  Using mainnet USDC:", usdcAddr);
+    console.log("ℹ️  Using Arbitrum One USDC:", usdcAddr);
+  } else {
+    throw new Error(`No USDC address known for "${networkName}". Set USDC_ADDRESS to the chain's USDC token.`);
   }
 
   // 11. StablecoinPool — USDC reserve for on-network use (prizes, payouts, promos)

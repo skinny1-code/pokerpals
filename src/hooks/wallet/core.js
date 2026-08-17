@@ -4,9 +4,31 @@
 // config and plain functions.
 
 import { createConfig, http } from "wagmi";
+import { defineChain } from "viem";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
+
+// ─── ROBINHOOD CHAIN ────────────────────────────────────────────────────────
+// Robinhood Chain is an Arbitrum Orbit L2 (EVM-identical), so the same contracts
+// and signing work unchanged — settlement/cashout signatures are already bound to
+// block.chainid, so nothing replays across chains. Only this network wiring +
+// a redeploy are needed to migrate. RPCs are overridable via env.
+export const robinhoodChain = defineChain({
+  id: 4663,
+  name: "Robinhood Chain",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: [process.env.NEXT_PUBLIC_ROBINHOOD_RPC || "https://rpc.mainnet.chain.robinhood.com"] } },
+  blockExplorers: { default: { name: "Blockscout", url: "https://robinhoodchain.blockscout.com" } },
+});
+export const robinhoodTestnet = defineChain({
+  id: 46630,
+  name: "Robinhood Chain Testnet",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: [process.env.NEXT_PUBLIC_ROBINHOOD_TESTNET_RPC || "https://rpc.testnet.chain.robinhood.com"] } },
+  blockExplorers: { default: { name: "Explorer", url: "https://explorer.testnet.chain.robinhood.com" } },
+  testnet: true,
+});
 
 // ─── WS URL HELPER ─────────────────────────────────────────────────────────────
 // Upgrades ws:// → wss:// when the page is served over https (avoids mixed-content block).
@@ -41,10 +63,12 @@ const _connectors = [
 ];
 
 export const wagmiConfig = createConfig({
-  chains:     [arbitrum, arbitrumSepolia],
+  chains:     [arbitrum, arbitrumSepolia, robinhoodChain, robinhoodTestnet],
   transports: {
-    [arbitrum.id]:        http(process.env.NEXT_PUBLIC_ARB_RPC),
-    [arbitrumSepolia.id]: http(process.env.NEXT_PUBLIC_ARB_SEPOLIA_RPC),
+    [arbitrum.id]:         http(process.env.NEXT_PUBLIC_ARB_RPC),
+    [arbitrumSepolia.id]:  http(process.env.NEXT_PUBLIC_ARB_SEPOLIA_RPC),
+    [robinhoodChain.id]:   http(process.env.NEXT_PUBLIC_ROBINHOOD_RPC),
+    [robinhoodTestnet.id]: http(process.env.NEXT_PUBLIC_ROBINHOOD_TESTNET_RPC),
   },
   connectors: _connectors,
   ssr: true,  // prevents wagmi from reading localStorage during SSR hydration
