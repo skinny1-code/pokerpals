@@ -33,30 +33,32 @@ function buildChips(amount, bigBlind, maxChips = 7) {
   return chips.length ? chips : [CHIP_DENOMS[CHIP_DENOMS.length - 1]];
 }
 
-function ChipPile({ amount, bigBlind = 100, maxChips = 7, chipW = 26, chipH = 7 }) {
+function ChipPile({ amount, bigBlind = 100, maxChips = 7, chipD = 22 }) {
   if (!amount || amount <= 0) return null;
   const chips = buildChips(amount, bigBlind, maxChips);
-  const gap = chipH - 2;
-  const totalH = chipH + (chips.length - 1) * gap;
+  const gap = 4; // round casino chips, stacked with a slight rise
+  const totalH = chipD + (chips.length - 1) * gap;
   const fmt = v => v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M`
     : v >= 1_000 ? `${(v/1_000).toFixed(1)}K` : v.toLocaleString();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-      <div style={{ position: 'relative', width: chipW, height: totalH + 4 }}>
+      <div style={{ position: 'relative', width: chipD, height: totalH }}>
         {chips.map((chip, i) => (
-          <div key={i} style={{
+          <div key={i} className="chip-toss" style={{
             position: 'absolute',
             bottom: i * gap,
             left: 0,
-            width: chipW,
-            height: chipH,
-            borderRadius: chipH / 2,
-            background: `radial-gradient(ellipse at 50% 25%, ${chip.hi}bb, ${chip.color})`,
-            border: `1px solid ${chip.hi}55`,
+            width: chipD,
+            height: chipD,
+            borderRadius: '50%',
+            background: `radial-gradient(circle at 40% 30%, ${chip.hi}, ${chip.color} 70%)`,
+            border: `2px dashed rgba(255,255,255,.55)`,
+            boxSizing: 'border-box',
+            animationDelay: `${i * 0.05}s`,
             boxShadow: i === chips.length - 1
-              ? `0 3px 6px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.1)`
-              : `0 1px 3px rgba(0,0,0,.5)`,
+              ? `0 3px 6px rgba(0,0,0,.7), inset 0 0 0 3px rgba(0,0,0,.25)`
+              : `0 1px 3px rgba(0,0,0,.6)`,
           }} />
         ))}
       </div>
@@ -248,9 +250,9 @@ export default function PlayerSeat({
         <div style={{
           width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: '50%',
           overflow: 'hidden',
-          border: `2px solid ${isActive ? '#d9c08a' : isAllIn ? '#f0902a' : '#232327'}`,
+          border: `2px solid ${isActive ? '#d9c08a' : isAllIn ? '#f0902a' : '#241608'}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: isActive ? '0 0 18px #d9c08a99, 0 0 4px #d9c08a' : 'none',
+          boxShadow: isActive ? '0 0 20px #d9c08acc, 0 0 5px #d9c08a' : '0 4px 10px rgba(0,0,0,.6)',
           transition: 'border-color .3s, box-shadow .3s',
           position: 'relative', zIndex: 1,
         }}>

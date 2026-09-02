@@ -11,7 +11,9 @@ npm run compile              # compile Solidity contracts via Hardhat
 npm run test                 # run JS hand-evaluator unit tests (test/holdem.test.mjs) — no chain needed
 npm run test:contracts       # run Hardhat Solidity contract tests (test/contracts/)
 npm run deploy:testnet       # deploy to Arbitrum Sepolia → saves deployments/arbitrumSepolia.json + writes .env
-npm run deploy:mainnet       # deploy to Arbitrum One
+npm run deploy:mainnet       # deploy to Robinhood Chain (mainnet target, chainId 4663) — requires USDC_ADDRESS
+npm run deploy:robinhood-testnet  # deploy to Robinhood Chain testnet (chainId 46630)
+npm run deploy:arbitrum-one  # legacy: deploy to Arbitrum One (42161)
 
 npm run setup:wallets        # generate fresh wallets for all roles → writes .env + WALLETS-PRINT-ME.txt
 npm run setup:env            # re-sync .env from deployments/arbitrumSepolia.json (run after any redeploy)
@@ -57,7 +59,7 @@ Server-run **staker freeroll**: permanent table `9100` ("Staker Freeroll — Bro
 
 The system has three independent runtime layers:
 
-**1. Smart contracts** (`contracts/`) — Solidity 0.8.26, deployed on Arbitrum One. Deployment order matters and is handled by `scripts/deploy.js`:
+**1. Smart contracts** (`contracts/`) — Solidity 0.8.26. **Mainnet target is Robinhood Chain** (an Arbitrum Orbit L2, chainId 4663); Arbitrum Sepolia (421614) is the testnet. The contracts are EVM-identical across all of these, and settlement/cashout signatures are bound to `chainId` so nothing replays across chains. Deployment order matters and is handled by `scripts/deploy.js`:
 - `ChipsToken` — ERC-20 token named "Chips" (ticker: CHIPS), 1B supply. Allocation: 10% dev (vested 24 months in-contract), 20% staking rewards pool (seeded to ChipsStaking at deploy), 10% ops reserve (→ KingOfSpadesPool), 10% community (→ PromotionsPool), 50% liquidity (→ ChipsLiquidityPool)
 - `ChipsStaking` — players lock CHIPS to earn a VIP tier (0–4); tier determines rake rate. Also receives 45% of every rake payment as yield for stakers
 - `ReferralRegistry` — tracks referrer per player; must be `setAuthorized(escrowAddr, true)` before it will record rake credits

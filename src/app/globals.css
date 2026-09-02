@@ -167,6 +167,9 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
 .pulse          { animation: pulse-ring 1.5s infinite; }
 .winner-glow    { animation: winner-glow 1s ease-in-out infinite; }
 .card-deal      { animation: deal-card 0.38s cubic-bezier(0.2, 0, 0.2, 1) both; }
+/* Bet chips hop onto the felt with a coin-flip spin when a bet lands. */
+.chip-toss      { animation: chip-toss 0.55s cubic-bezier(0.25, 0.8, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) { .chip-toss { animation: fade-in .2s both; } }
 .float          { animation: float-y 5s ease-in-out infinite; }
 
 /* Stagger helpers for hero entrances */
