@@ -33,10 +33,10 @@ function buildChips(amount, bigBlind, maxChips = 7) {
   return chips.length ? chips : [CHIP_DENOMS[CHIP_DENOMS.length - 1]];
 }
 
-function ChipPile({ amount, bigBlind = 100, maxChips = 7, chipD = 22 }) {
+function ChipPile({ amount, bigBlind = 100, maxChips = 9, chipD = 30 }) {
   if (!amount || amount <= 0) return null;
   const chips = buildChips(amount, bigBlind, maxChips);
-  const gap = 4; // round casino chips, stacked with a slight rise
+  const gap = 6; // round casino chips, stacked with a slight rise
   const totalH = chipD + (chips.length - 1) * gap;
   const fmt = v => v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M`
     : v >= 1_000 ? `${(v/1_000).toFixed(1)}K` : v.toLocaleString();
@@ -209,7 +209,7 @@ export default function PlayerSeat({
 
   // How big is this bet relative to pot (for chip pile sizing)
   const betPct   = pot > 0 ? Math.min(betAmount / pot, 1) : 0;
-  const chipCount = betAmount > 0 ? Math.max(2, Math.min(7, Math.ceil(betPct * 6) + 1)) : 0;
+  const chipCount = betAmount > 0 ? Math.max(3, Math.min(9, Math.ceil(betPct * 8) + 1)) : 0;
 
   return (
     <div style={{
@@ -318,8 +318,8 @@ export default function PlayerSeat({
       {betAmount > 0 && (
         <div style={{
           position: 'absolute',
-          top: pos.label === 'bottom' ? '-72px' : pos.label === 'top' ? '72px' : '0',
-          left: pos.label === 'left' ? '76px' : pos.label === 'right' ? '-76px' : '50%',
+          top: pos.label === 'bottom' ? '-84px' : pos.label === 'top' ? '84px' : '0',
+          left: pos.label === 'left' ? '84px' : pos.label === 'right' ? '-84px' : '50%',
           transform: pos.label === 'left' || pos.label === 'right' ? 'translateY(-50%)' : 'translateX(-50%)',
         }}>
           <ChipPile amount={betAmount} bigBlind={bigBlind} maxChips={chipCount} />
