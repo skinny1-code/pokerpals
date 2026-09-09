@@ -8,7 +8,7 @@ import { resolveAppUrl } from '../lib/appUrl';
 
 // Canonical site URL for link previews. resolveAppUrl() always returns a valid
 // absolute URL — even when NEXT_PUBLIC_APP_URL is missing OR set scheme-less
-// (e.g. "saloon.poker"), which otherwise makes `new URL()` below throw and
+// (e.g. "pokervsplayer.xyz"), which otherwise makes `new URL()` below throw and
 // takes the whole site down at build/render time.
 const APP_URL = resolveAppUrl();
 

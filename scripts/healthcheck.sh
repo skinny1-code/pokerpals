@@ -10,7 +10,7 @@
 #   bash scripts/healthcheck.sh
 #
 # Override any default with an env var:
-#   SITE_URL=https://saloon.poker \
+#   SITE_URL=https://pokervsplayer.xyz \
 #   WS_URL=wss://pokerpals-server.fly.dev \
 #   ARB_SEPOLIA_RPC=https://... \
 #   bash scripts/healthcheck.sh
@@ -19,7 +19,7 @@
 
 set -u
 
-SITE_URL="${SITE_URL:-https://saloon.poker}"
+SITE_URL="${SITE_URL:-https://pokervsplayer.xyz}"
 WS_URL="${WS_URL:-wss://pokerpals-server.fly.dev}"
 # Health endpoint = the WS host over https, /tables (the server serves it as plain HTTP)
 HEALTH_URL="$(printf '%s' "$WS_URL" | sed -E 's#^wss?://#https://#')/tables"

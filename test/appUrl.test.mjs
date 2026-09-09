@@ -15,11 +15,11 @@ const isAbsolute = (s) => { try { const u = new URL(s); return u.protocol === 'h
 
 // Every plausible NEXT_PUBLIC_APP_URL value, including the ones that crashed prod.
 const cases = [
-  ['https://saloon.poker',   'https://saloon.poker'],
-  ['https://saloon.poker/',  'https://saloon.poker'],   // trailing slash trimmed
-  ['saloon.poker',           'https://saloon.poker'],   // scheme prepended (was THROW)
-  ['www.saloon.poker',       'https://www.saloon.poker'],// (was THROW)
-  ['  saloon.poker  ',       'https://saloon.poker'],   // whitespace
+  ['https://pokervsplayer.xyz',   'https://pokervsplayer.xyz'],
+  ['https://pokervsplayer.xyz/',  'https://pokervsplayer.xyz'],   // trailing slash trimmed
+  ['pokervsplayer.xyz',           'https://pokervsplayer.xyz'],   // scheme prepended (was THROW)
+  ['www.pokervsplayer.xyz',       'https://www.pokervsplayer.xyz'],// (was THROW)
+  ['  pokervsplayer.xyz  ',       'https://pokervsplayer.xyz'],   // whitespace
   ['http://localhost:3000',       'http://localhost:3000'],       // http + port preserved
   ['',                            DEFAULT_APP_URL],               // empty -> fallback
   [undefined,                     DEFAULT_APP_URL],               // unset -> fallback

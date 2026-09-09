@@ -15,7 +15,7 @@ export function GET() {
       version:              '1',
       name:                 'Saloon',
       iconUrl:              `${base}/icon.png`,
-      homeUrl:              base || 'https://saloon.poker',
+      homeUrl:              base || 'https://pokervsplayer.xyz',
       imageUrl:             `${base}/og.png`,
       splashImageUrl:       `${base}/splash.png`,
       splashBackgroundColor:'#111114',
