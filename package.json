@@ -1,7 +1,7 @@
 {
   "name": "saloon",
   "version": "1.0.0",
-  "description": "Saloon — Onchain PvP Crypto Poker Network",
+  "description": "Saloon \u2014 Onchain PvP Crypto Poker Network",
   "private": true,
   "type": "module",
   "scripts": {
@@ -45,7 +45,7 @@
     "@vercel/analytics": "^2.0.1",
     "@walletconnect/ethereum-provider": "^2.23.10",
     "ethers": "^6.16.0",
-    "next": "^16.2.12",
+    "next": "^16.3.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "viem": "^2.52.2",
@@ -57,20 +57,26 @@
     "@nomicfoundation/hardhat-mocha": "^3.0.21",
     "chai": "^6.2.2",
     "dotenv": "^17.4.2",
-    "hardhat": "^3.9.0",
+    "hardhat": "^3.16.0",
     "mocha": "^11.7.6",
     "solc": "^0.8.35",
     "typescript": "^6.0.3"
   },
   "overrides": {
-    "ws": "^8.21.0",
-    "postcss": "^8.5.25",
-    "uuid": "^14.0.0",
-    "tmp": "^0.2.7",
-    "diff": "^8.0.4",
-    "serialize-javascript": "^7.0.6",
     "adm-zip": "^0.6.0",
     "axios": "^1.18.1",
-    "sharp": "^0.35.3"
+    "baseline-browser-mapping": "^2.11.21",
+    "brace-expansion": "^2.1.4",
+    "browserslist": "^4.28.9",
+    "diff": "^8.0.4",
+    "js-yaml": "^4.3.2",
+    "nanoid": "^3.3.18",
+    "postcss": "^8.5.25",
+    "serialize-javascript": "^7.0.6",
+    "sharp": "^0.35.4",
+    "tmp": "^0.2.7",
+    "undici": "^6.28.1",
+    "uuid": "^14.0.0",
+    "ws": "^8.21.0"
   }
 }
