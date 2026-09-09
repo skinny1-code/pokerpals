@@ -13,9 +13,9 @@ export function GET() {
     },
     frame: {
       version:              '1',
-      name:                 'PokerVsPlayer',
+      name:                 'All In',
       iconUrl:              `${base}/icon.png`,
-      homeUrl:              base || 'https://pokervsplayer.xyz',
+      homeUrl:              base || 'https://allin.gg',
       imageUrl:             `${base}/og.png`,
       splashImageUrl:       `${base}/splash.png`,
       splashBackgroundColor:'#111114',

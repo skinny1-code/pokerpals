@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-/// @title ChipsToken — PokerVsPlayer in-game currency ("PokerChips / CHIPS")
+/// @title ChipsToken — All In in-game currency ("All In / ALLIN")
 /// @notice Used as the denomination for all tables, pots, and rake distribution.
 ///         Dev allocation: 25M released at deploy + 2M/month thereafter (2% of total per month).
 contract ChipsToken is ERC20, ERC20Burnable, Ownable {
@@ -29,7 +29,7 @@ contract ChipsToken is ERC20, ERC20Burnable, Ownable {
     event DevVestClaimed(address indexed devWallet, uint256 amount);
 
     constructor(address _devWallet, address communityWallet, address liquidityWallet, address opsWallet)
-        ERC20("PokerChips", "CHIPS")
+        ERC20("All In", "ALLIN")
         Ownable(msg.sender)
     {
         devWallet       = _devWallet;

@@ -1,5 +1,5 @@
 // src/hooks/wallet/usePlayerStats.js
-// Lifetime player stats (from on-chain event logs) and the staked-CHIPS
+// Lifetime player stats (from on-chain event logs) and the staked-ALLIN
 // leaderboard. Both index a bounded block range client-side.
 
 import { useState, useEffect } from "react";
@@ -134,7 +134,7 @@ export function usePlayerStats(target) {
   return { stats, activity, loading };
 }
 
-// ─── HOOK: LEADERBOARD (handle holders sorted by staked CHIPS) ───────────────
+// ─── HOOK: LEADERBOARD (handle holders sorted by staked ALLIN) ───────────────
 export function useLeaderboard() {
   const publicClient = usePublicClient();
   const [entries, setEntries] = useState([]);

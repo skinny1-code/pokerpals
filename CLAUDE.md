@@ -26,9 +26,9 @@ npm run build                # production Next.js build (used by Vercel)
 npm run build:check          # local verify build (next build --debug-prerender) — see "Known Issues" in README; plain `next build` aborts locally on the /_global-error prerender, a framework/env bug that does NOT affect Vercel/production
 npm run launch               # shortcut: npm run server & npm run dev in parallel
 
-npm run faucet               # send 10,000 CHIPS to deployer (testnet only)
-npm run faucet -- 0xADDR             # send 10,000 CHIPS to 0xADDR (+ gas ETH top-up if broke)
-npm run faucet -- 0xADDR 50000       # send 50,000 CHIPS to 0xADDR
+npm run faucet               # send 10,000 ALLIN to deployer (testnet only)
+npm run faucet -- 0xADDR             # send 10,000 ALLIN to 0xADDR (+ gas ETH top-up if broke)
+npm run faucet -- 0xADDR 50000       # send 50,000 ALLIN to 0xADDR
 FAUCET_ETH=0 npm run faucet -- 0xADDR   # skip the automatic gas-ETH top-up
 FAUCET_TO=0xADDR FAUCET_AMOUNT=50000 npm run faucet  # legacy env-var form still works
 
@@ -60,20 +60,20 @@ Server-run **staker freeroll**: permanent table `9100` ("Staker Freeroll — Bro
 The system has three independent runtime layers:
 
 **1. Smart contracts** (`contracts/`) — Solidity 0.8.26. **Mainnet target is Robinhood Chain** (an Arbitrum Orbit L2, chainId 4663); Arbitrum Sepolia (421614) is the testnet. The contracts are EVM-identical across all of these, and settlement/cashout signatures are bound to `chainId` so nothing replays across chains. Deployment order matters and is handled by `scripts/deploy.js`:
-- `ChipsToken` — ERC-20 token named "Chips" (ticker: CHIPS), 1B supply. Allocation: 10% dev (vested 24 months in-contract), 20% staking rewards pool (seeded to ChipsStaking at deploy), 10% ops reserve (→ KingOfSpadesPool), 10% community (→ PromotionsPool), 50% liquidity (→ ChipsLiquidityPool)
-- `ChipsStaking` — players lock CHIPS to earn a VIP tier (0–4); tier determines rake rate. Also receives 45% of every rake payment as yield for stakers
+- `ChipsToken` — ERC-20 token named "All In" (ticker: ALLIN), 1B supply. Allocation: 10% dev (vested 24 months in-contract), 20% staking rewards pool (seeded to ChipsStaking at deploy), 10% ops reserve (→ KingOfSpadesPool), 10% community (→ PromotionsPool), 50% liquidity (→ ChipsLiquidityPool)
+- `ChipsStaking` — players lock ALLIN to earn a VIP tier (0–4); tier determines rake rate. Also receives 45% of every rake payment as yield for stakers
 - `ReferralRegistry` — tracks referrer per player; must be `setAuthorized(escrowAddr, true)` before it will record rake credits
 - `PokerEscrow` — core cash-game contract: buy-in locking, per-hand signed settlement, VIP rake tiers, referral splits, seat fees. Optionally links tables to a `TableRegistry` room for access control.
 - `TournamentManager` — scheduled tournaments; mirrors the signed-settlement pattern of `PokerEscrow`
-- `TableRegistry` — on-chain private room leasing. Anyone pays a weekly CHIPS fee to lease a room. Rooms can be NFT-gated (ERC-721 ownership required to sit). Lease fee split: 15% burn / 45% staking / 10% King of Spades Pool / 30% treasury. `canSit(roomId, player)` is checked by PokerEscrow on buy-in.
-- `PokerHandle` — ERC-721 NFT for on-chain usernames. Players burn CHIPS to mint a unique 3–20 char handle (alphanumeric + underscore, case-insensitive uniqueness). Fully on-chain SVG tokenURI. One handle per wallet, but handles are transferable. Contract address stored in `NEXT_PUBLIC_POKER_HANDLE`.
-- `KingOfSpadesPool` — on-chain operating-expense fund. Seeded with 100M CHIPS at deploy + receives 10% of all rake continuously. Owner withdraws with annotated reason for auditability.
-- `PromotionsPool` — 100M CHIPS community allocation for contests, airdrops, rake-free promos. Owner withdraws with note.
+- `TableRegistry` — on-chain private room leasing. Anyone pays a weekly ALLIN fee to lease a room. Rooms can be NFT-gated (ERC-721 ownership required to sit). Lease fee split: 15% burn / 45% staking / 10% King of Spades Pool / 30% treasury. `canSit(roomId, player)` is checked by PokerEscrow on buy-in.
+- `PokerHandle` — ERC-721 NFT for on-chain usernames. Players burn ALLIN to mint a unique 3–20 char handle (alphanumeric + underscore, case-insensitive uniqueness). Fully on-chain SVG tokenURI. One handle per wallet, but handles are transferable. Contract address stored in `NEXT_PUBLIC_POKER_HANDLE`.
+- `KingOfSpadesPool` — on-chain operating-expense fund. Seeded with 100M ALLIN at deploy + receives 10% of all rake continuously. Owner withdraws with annotated reason for auditability.
+- `PromotionsPool` — 100M ALLIN community allocation for contests, airdrops, rake-free promos. Owner withdraws with note.
 - `StablecoinPool` — on-network USDC reserve. Funded by USDC proceeds from chip purchases. ChipsLiquidityPool is authorized to call `notifyDeposit()` and `authorizedPayout()`.
-- `ChipsLiquidityPool` — 500M CHIPS CHIPS↔USDC swap pool at a fixed owner-set peg. Player USDC flows directly to StablecoinPool; player receives CHIPS from this pool. `rateUsdcPerChip` = USDC-wei per 1e18 CHIPS (default 1000 = $0.001/CHIP).
+- `ChipsLiquidityPool` — 500M ALLIN ALLIN↔USDC swap pool at a fixed owner-set peg. Player USDC flows directly to StablecoinPool; player receives ALLIN from this pool. `rateUsdcPerChip` = USDC-wei per 1e18 ALLIN (default 1000 = $0.001/CHIP).
 - `MockUSDC` — testnet USDC stand-in (6 decimals). Mainnet uses `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`.
-- `StakerLottery` — weekly no-loss draw for stakers (deployed by `npm run deploy:lottery`, not part of `deploy.js`). Tier >= 1 stakers `enter()` free each epoch; tickets = staked CHIPS; `draw()` pays the whole prize (funded from PromotionsPool by `lottery:draw`) to a weighted-random entrant. Blockhash randomness — swap for VRF before mainnet. Address in manifest → `NEXT_PUBLIC_LOTTERY`.
-- `ProfitSplitter` — optional owner-income router (deployed by `npm run setup:profit-split -- 0xADDR`, not part of `deploy.js`). Set as `rakeRecipient` on PokerEscrow/TournamentManager/TableRegistry and `devWallet` on ChipsToken. Public `distribute()` splits its CHIPS balance `payoutBps` (default 50%) → payout wallet, remainder → staked in ChipsStaking under the splitter (yield harvestable via `harvestYield()`, principal unstakeable to the payout wallet by owner via `unstakeToPayout()`).
+- `StakerLottery` — weekly no-loss draw for stakers (deployed by `npm run deploy:lottery`, not part of `deploy.js`). Tier >= 1 stakers `enter()` free each epoch; tickets = staked ALLIN; `draw()` pays the whole prize (funded from PromotionsPool by `lottery:draw`) to a weighted-random entrant. Blockhash randomness — swap for VRF before mainnet. Address in manifest → `NEXT_PUBLIC_LOTTERY`.
+- `ProfitSplitter` — optional owner-income router (deployed by `npm run setup:profit-split -- 0xADDR`, not part of `deploy.js`). Set as `rakeRecipient` on PokerEscrow/TournamentManager/TableRegistry and `devWallet` on ChipsToken. Public `distribute()` splits its ALLIN balance `payoutBps` (default 50%) → payout wallet, remainder → staked in ChipsStaking under the splitter (yield harvestable via `harvestYield()`, principal unstakeable to the payout wallet by owner via `unstakeToPayout()`).
 
 Post-deploy wiring (done in `scripts/deploy.js`):
 - `token.transfer(stakingAddr, 200M_CHIPS)` then `staking.initYieldPool()`
@@ -105,13 +105,13 @@ The server uses `crypto.randomInt` for shuffling (cryptographically random). Han
 Also exports `BehaviorMonitor`, which can be integrated into the game server to flag bots by detecting suspiciously fast/consistent action timing (<250ms avg, <100 variance).
 
 **4. Frontend** (`src/`) — Next.js 15 (App Router). Pages: `/` (lobby), `/table`, `/buy`, `/stake`, `/tournament`, `/handle`, `/leaderboard`. Key files:
-- `src/hooks/usePokerWallet.js` — exports `wagmiConfig` (wrap app in `<WagmiProvider>`), plus hooks `useWallet`, `useEscrow`, `useGameSocket`. `useEscrow.buyIn()` does a two-step flow: approve CHIPS → call `buyIn()` on the escrow contract.
+- `src/hooks/usePokerWallet.js` — exports `wagmiConfig` (wrap app in `<WagmiProvider>`), plus hooks `useWallet`, `useEscrow`, `useGameSocket`. `useEscrow.buyIn()` does a two-step flow: approve ALLIN → call `buyIn()` on the escrow contract.
 - `src/components/RevenueDashboard.jsx` — owner-facing dashboard; reads live on-chain data from all contracts via `useReadContract` with polling.
 - `next.config.js` — auto-loads deployed contract addresses from `deployments/arbitrumSepolia.json` (or `deployments/arbitrum.json`) at build time, so `NEXT_PUBLIC_*` contract address env vars are optional if the deployment JSON exists. `.env` values take precedence when set.
 
 Frontend pages (`src/app/`):
 - `/` — landing page, wallet connect entry point
-- `/buy` — buy CHIPS token UI
+- `/buy` — buy ALLIN token UI
 - `/handle` — claim a PokerHandle username on-chain
 - `/stake` — ChipsStaking UI (stake for VIP tier + APR yield)
 - `/table/[id]` — live game table; consumes `useGameSocket` for real-time play
@@ -120,28 +120,28 @@ Frontend pages (`src/app/`):
 
 **5. Claude Code config** (`.claude/`) — project-specific Claude Code settings. Custom slash commands are in `.claude/commands/`, event hooks in `.claude/hooks/`, and permissions/settings in `.claude/settings.json`.
 
-## Token Economy (CHIPS)
+## Token Economy (ALLIN)
 
-**Supply: 1,000,000,000 CHIPS**
+**Supply: 1,000,000,000 ALLIN**
 | Allocation | Amount | Destination |
 |---|---|---|
 | 10% Dev | 100M | 25M released at deploy + 2M/month (2%/mo) vested thereafter; dev calls `claimDevVest()` |
 | 20% Staking | 200M | Seeded to ChipsStaking yield pool at deploy |
 | 10% Ops Reserve | 100M | `KingOfSpadesPool` contract — devops budget: servers, staff, equipment |
 | 10% Community | 100M | `PromotionsPool` contract — tournaments, airdrops, grants, rake-free promos |
-| 50% Liquidity | 500M | `ChipsLiquidityPool` contract — players buy/sell CHIPS at fixed peg |
+| 50% Liquidity | 500M | `ChipsLiquidityPool` contract — players buy/sell ALLIN at fixed peg |
 
 **On-chain pool architecture:**
 | Pool | Contract | Seeded | Purpose |
 |---|---|---|---|
-| King of Spades Pool | `KingOfSpadesPool` | 100M CHIPS + 10% rake | Business operating expenses |
-| Promotions Pool | `PromotionsPool` | 100M CHIPS | Contests, tournaments, airdrops |
+| King of Spades Pool | `KingOfSpadesPool` | 100M ALLIN + 10% rake | Business operating expenses |
+| Promotions Pool | `PromotionsPool` | 100M ALLIN | Contests, tournaments, airdrops |
 | Stablecoin Pool | `StablecoinPool` | USDC from chip purchases | On-network USDC reserve |
-| Chips Liquidity Pool | `ChipsLiquidityPool` | 500M CHIPS | Player CHIPS↔USDC swaps |
+| Chips Liquidity Pool | `ChipsLiquidityPool` | 500M ALLIN | Player ALLIN↔USDC swaps |
 
 **Owner income streams:**
 - `RAKE_WALLET` (EOA): 20% of cash-game rake + 30% of tournament/lease rake + 100% of seat fees — ongoing personal income
-- `DEV_WALLET`: 25M CHIPS at deploy + 2M/month from remaining 75M vest — personal equity stake
+- `DEV_WALLET`: 25M ALLIN at deploy + 2M/month from remaining 75M vest — personal equity stake
 
 **Rake split per hand — PokerEscrow (of total rake):**
 - 15% burned → deflationary supply reduction
@@ -156,18 +156,18 @@ Frontend pages (`src/app/`):
 - 10% → King of Spades Pool
 - 30% → treasury (owner's personal rake wallet EOA)
 
-**CHIPS↔USDC swap flow:**
-- Buy: player USDC → StablecoinPool (direct transfer) + `notifyDeposit()` → player receives CHIPS from ChipsLiquidityPool
-- Redeem: player CHIPS → ChipsLiquidityPool (held) + StablecoinPool `authorizedPayout()` → player receives USDC
+**ALLIN↔USDC swap flow:**
+- Buy: player USDC → StablecoinPool (direct transfer) + `notifyDeposit()` → player receives ALLIN from ChipsLiquidityPool
+- Redeem: player ALLIN → ChipsLiquidityPool (held) + StablecoinPool `authorizedPayout()` → player receives USDC
 
 **VIP staking tiers:**
 | Tier | Stake | Rake | APR |
 |---|---|---|---|
 | 0 Standard | 0 | 1.5% | 0% |
-| 1 Bronze | 25,000 CHIPS | 1.3% | 5% |
-| 2 Silver | 250,000 CHIPS | 1.1% | 8% |
-| 3 Gold | 1,000,000 CHIPS | 0.9% | 12% |
-| 4 Whale | 5,000,000 CHIPS | 0.6% | 18% |
+| 1 Bronze | 25,000 ALLIN | 1.3% | 5% |
+| 2 Silver | 250,000 ALLIN | 1.1% | 8% |
+| 3 Gold | 1,000,000 ALLIN | 0.9% | 12% |
+| 4 Whale | 5,000,000 ALLIN | 0.6% | 18% |
 
 ## Settlement flow (trustless)
 

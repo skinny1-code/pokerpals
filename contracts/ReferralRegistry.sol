@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 ///         flows to their referrer on every hand (paid via PokerEscrow.settle).
 ///
 /// Referral codes: each verified human gets a unique code = keccak(address)[0:8]
-/// Share your code link: pokerpals.gg/ref/[code]
+/// Share your code link: allin.gg/ref/[code]
 contract ReferralRegistry is Ownable {
     using SafeERC20 for IERC20;
 

@@ -16,7 +16,7 @@ const NAV_LINKS = [
   { href:'/leaderboard', label:'Leaderboard',  icon:'◉' },
   { href:'/stake',       label:'Stake',        icon:'◈' },
   { href:'/rooms',       label:'Rooms',        icon:'♛' },
-  { href:'/buy',         label:'Buy CHIPS',    icon:'$' },
+  { href:'/buy',         label:'Buy ALLIN',    icon:'$' },
   { href:'/handle',      label:'Profile',      icon:'@' },
   { href:'/handle?tab=settings', label:'Settings', icon:'⚙' },
 ];
@@ -145,7 +145,7 @@ export default function WalletBar() {
               </div>
             )}
 
-            {/* CHIPS balance — hidden on mobile to save space */}
+            {/* ALLIN balance — hidden on mobile to save space */}
             <div className="hide-mobile" style={{
               background:'linear-gradient(135deg,#151518,#101013)', border:'1px solid var(--border-gold)',
               borderRadius:9, padding:'6px 13px',

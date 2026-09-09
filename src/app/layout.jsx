@@ -8,7 +8,7 @@ import { resolveAppUrl } from '../lib/appUrl';
 
 // Canonical site URL for link previews. resolveAppUrl() always returns a valid
 // absolute URL — even when NEXT_PUBLIC_APP_URL is missing OR set scheme-less
-// (e.g. "pokervsplayer.xyz"), which otherwise makes `new URL()` below throw and
+// (e.g. "allin.gg"), which otherwise makes `new URL()` below throw and
 // takes the whole site down at build/render time.
 const APP_URL = resolveAppUrl();
 
@@ -21,13 +21,13 @@ export const viewport = {
   themeColor: '#0b0b0d',
 };
 
-const OG_TITLE = 'PokerVsPlayer — Onchain Crypto Poker';
+const OG_TITLE = 'All In — Onchain Crypto Poker';
 const OG_DESC  = 'Real PvP poker, instant onchain settlement, no bots';
 const OG_IMAGE = {
   url: '/og.png',           // resolved to an absolute URL via metadataBase
   width: 1200,
   height: 630,
-  alt: 'PokerVsPlayer — onchain crypto poker',
+  alt: 'All In — onchain crypto poker',
 };
 
 export const metadata = {
@@ -38,7 +38,7 @@ export const metadata = {
   description: OG_DESC,
   openGraph: {
     type: 'website',
-    siteName: 'PokerVsPlayer',
+    siteName: 'All In',
     url: APP_URL,
     title: OG_TITLE,
     description: OG_DESC,
@@ -59,7 +59,7 @@ export const metadata = {
         title: '♠ Play Poker',
         action: {
           type: 'launch_frame',
-          name: 'PokerVsPlayer',
+          name: 'All In',
           url: APP_URL,
           splashImageUrl: `${APP_URL}/splash.png`,
           splashBackgroundColor: '#111114',

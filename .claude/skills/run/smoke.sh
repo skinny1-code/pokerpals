@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke-test launcher for PokerVsPlayer.
+# Smoke-test launcher for All In.
 # Starts the WS game server + Next.js production server, waits for readiness,
 # then runs a Playwright script (first arg, or /tmp/run_pokerpals.cjs by
 # default) and cleans up.

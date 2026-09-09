@@ -1,5 +1,5 @@
 // src/hooks/wallet/useStaking.js
-// Stake/unstake CHIPS for a VIP tier, claim staking yield and rakeback.
+// Stake/unstake ALLIN for a VIP tier, claim staking yield and rakeback.
 
 import { useState, useCallback } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicClient, useReadContract } from "wagmi";
@@ -7,7 +7,7 @@ import { waitForTransactionReceipt } from "wagmi/actions";
 import { parseUnits, formatUnits } from "viem";
 import {
   wagmiConfig, safeFeeOverrides, hasAllowance,
-  CHIPS_ABI, CHIPS, STAKING_ABI, STAKING, ESCROW_ABI, ESCROW,
+  CHIPS_ABI, ALLIN, STAKING_ABI, STAKING, ESCROW_ABI, ESCROW,
 } from "./core";
 
 export function useStaking() {
@@ -52,7 +52,7 @@ export function useStaking() {
         setStatus('approving');
         const approveFees = await safeFeeOverrides(publicClient);
         const approveTx = await writeContractAsync({
-          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          address: ALLIN, abi: CHIPS_ABI, functionName: "approve",
           args: [STAKING, amountBN], ...approveFees,
         });
         await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });

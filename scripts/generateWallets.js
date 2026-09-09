@@ -124,7 +124,7 @@ const PRINT_PATH = path.resolve(__dirname, "../WALLETS-PRINT-ME.txt");
 
 const printLines = [
   "================================================================",
-  "  PokerVsPlayer — WALLET KEYS",
+  "  All In — WALLET KEYS",
   `  Generated: ${now}`,
   "  KEEP THIS SAFE — DO NOT SHARE — DO NOT LOSE",
   "================================================================",
@@ -153,7 +153,7 @@ fs.writeFileSync(PRINT_PATH, printLines.join("\n") + "\n");
 
 // Terminal summary
 console.log("\n" + line());
-console.log("  PokerVsPlayer — NEW WALLETS GENERATED");
+console.log("  All In — NEW WALLETS GENERATED");
 console.log("  Write these down and store them safely!");
 console.log(line());
 

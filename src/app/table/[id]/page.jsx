@@ -309,12 +309,12 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
           <div style={{ fontSize:10, color:'#57544b', letterSpacing:2 }}>SELECT A SEAT</div>
           {minBuyIn != null && maxBuyIn != null && minBuyIn !== maxBuyIn ? (
             <div style={{ fontSize:10, color:'#7d786c', marginTop:4 }}>
-              {fmt(minBuyIn)}–{fmt(maxBuyIn)} CHIPS
+              {fmt(minBuyIn)}–{fmt(maxBuyIn)} ALLIN
             </div>
           ) : (
             <div style={{ fontSize:13, color:'#d9c08a', fontWeight:700,
               fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>
-              {fmt(buyInAmount)} CHIPS
+              {fmt(buyInAmount)} ALLIN
             </div>
           )}
         </div>
@@ -381,7 +381,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#57544b' }}>
                 <span>{fmt(minBuyIn)}</span>
                 <span style={{ color:'#d9c08a', fontWeight:700, fontFamily:"'JetBrains Mono',monospace", fontSize:13 }}>
-                  {fmt(buyInAmount)} CHIPS
+                  {fmt(buyInAmount)} ALLIN
                 </span>
                 <span>{fmt(maxBuyIn)}</span>
               </div>
@@ -389,7 +389,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
           )}
           {(minBuyIn == null || minBuyIn === maxBuyIn) && (
             <div style={{ fontSize:13, color:'#d9c08a', fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>
-              {fmt(buyInAmount)} CHIPS
+              {fmt(buyInAmount)} ALLIN
             </div>
           )}
           <button
@@ -673,7 +673,7 @@ function TablePageInner() {
         <span>›</span>
         <span style={{ color:'#8a8478' }}>
           Table #{id}
-          {gameState?.config && <span className="gold-text" style={{ fontWeight:700 }}> · {(gameState.config.bigBlind/2).toLocaleString()}/{gameState.config.bigBlind.toLocaleString()} CHIPS</span>}
+          {gameState?.config && <span className="gold-text" style={{ fontWeight:700 }}> · {(gameState.config.bigBlind/2).toLocaleString()}/{gameState.config.bigBlind.toLocaleString()} ALLIN</span>}
         </span>
         <div style={{ marginLeft:'auto' }}><StatusDot status={wsStatus} /></div>
       </div>

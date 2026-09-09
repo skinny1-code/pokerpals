@@ -1,4 +1,4 @@
-// scripts/deploy.js — deploys all PokerVsPlayer contracts in order
+// scripts/deploy.js — deploys all All In contracts in order
 // npx hardhat run scripts/deploy.js
 // Set DEPLOY_NETWORK=arbitrum for mainnet; defaults to arbitrumSepolia
 import "dotenv/config";

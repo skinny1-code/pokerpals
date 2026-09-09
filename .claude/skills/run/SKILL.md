@@ -1,8 +1,8 @@
 ---
-description: Launch PokerVsPlayer (WS game server + Next.js) and drive it with Playwright
+description: Launch All In (WS game server + Next.js) and drive it with Playwright
 ---
 
-# Run — PokerVsPlayer
+# Run — All In
 
 Two processes must be running before the browser can reach anything:
 

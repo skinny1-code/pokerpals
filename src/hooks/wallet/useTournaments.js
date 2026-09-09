@@ -5,7 +5,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { formatUnits, parseUnits } from "viem";
-import { wagmiConfig, safeFeeOverrides, hasAllowance, CHIPS_ABI, CHIPS, TOURNAMENT_ABI, TOURNAMENT, HANDLE_ABI, HANDLE } from "./core";
+import { wagmiConfig, safeFeeOverrides, hasAllowance, CHIPS_ABI, ALLIN, TOURNAMENT_ABI, TOURNAMENT, HANDLE_ABI, HANDLE } from "./core";
 
 // ─── HOOK: TOURNAMENTS ────────────────────────────────────────────────────────
 export function useTournaments() {
@@ -77,7 +77,7 @@ export function useRegisterTournament() {
   const isVerified = !!myHandle;
 
   const register = useCallback(async (tournId, entryFee) => {
-    if (!address || !TOURNAMENT || !CHIPS) return;
+    if (!address || !TOURNAMENT || !ALLIN) return;
     if (!isVerified) { setStatus('unverified'); return; }
     setErrorMsg(null);
     try {
@@ -86,7 +86,7 @@ export function useRegisterTournament() {
       if (!(await hasAllowance(publicClient, address, TOURNAMENT, feeBN))) {
         setStatus('approving');
         const approveTx = await writeContractAsync({
-          address: CHIPS, abi: CHIPS_ABI, functionName: 'approve',
+          address: ALLIN, abi: CHIPS_ABI, functionName: 'approve',
           args: [TOURNAMENT, feeBN], ...feeOverrides,
         });
         await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });

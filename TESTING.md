@@ -1,4 +1,4 @@
-# Testing PokerVsPlayer on Testnet
+# Testing All In on Testnet
 
 This guide gets external testers playing on **Arbitrum Sepolia**, and gives the
 operator a pre-flight checklist so a test session doesn't start half-broken.
@@ -11,7 +11,7 @@ A tester touches all three. If any one is down, things fail in confusing ways:
 
 | Layer | Where it runs | If it's down… |
 |---|---|---|
-| **Frontend** | Vercel → `https://pokervsplayer.xyz` (auto-deploys from `main`) | nothing loads |
+| **Frontend** | Vercel → `https://allin.gg` (auto-deploys from `main`) | nothing loads |
 | **Game server** | Fly.io → `wss://pokerpals-server.fly.dev` (WebSocket) | site loads but **no tables / no gameplay** |
 | **Contracts** | Arbitrum Sepolia (addresses in `deployments/arbitrumSepolia.json`) | buy-in / settle / stake revert |
 
@@ -56,7 +56,7 @@ prints the manual gates below. All green + manual gates done = ready.
      time, so they're usually automatic.
 
 4. **WalletConnect origins.** On [cloud.reown.com](https://cloud.reown.com), add
-   `https://pokervsplayer.xyz` (and any Vercel preview domains) to the project's
+   `https://allin.gg` (and any Vercel preview domains) to the project's
    allowed origins. Otherwise wallet connect fails with *"origin not allowed"*
    (WebSocket close code **3000**).
 
@@ -74,7 +74,7 @@ prints the manual gates below. All green + manual gates done = ready.
    or the Chainlink faucet). A small amount is plenty.
 4. **Get CHIPS** to play — ask the operator to send you some (see below), or use
    the in-app **Buy CHIPS** page.
-5. Open **https://pokervsplayer.xyz**, connect your wallet, approve the
+5. Open **https://allin.gg**, connect your wallet, approve the
    signature prompt to sign in.
 6. **Claim a handle** at `/handle` (optional but recommended — it's your name at
    the table).
@@ -97,7 +97,7 @@ FAUCET_TO=0xTESTER_ADDRESS FAUCET_AMOUNT=50000 npm run faucet   # custom amount
 | Symptom | Cause | Fix |
 |---|---|---|
 | Lobby loads, no tables ever appear | Game server down, or `NEXT_PUBLIC_WS_URL` wrong/missing | confirm `curl …/tables`; set the Vercel var to the `wss://` URL |
-| Wallet won't connect; toast "origin not allowed" / code 3000 | site origin not in WalletConnect allowed list | add `https://pokervsplayer.xyz` on cloud.reown.com |
+| Wallet won't connect; toast "origin not allowed" / code 3000 | site origin not in WalletConnect allowed list | add `https://allin.gg` on cloud.reown.com |
 | Huge / nonsensical "network fee" in MetaMask | wallet can't estimate gas for a call that would revert (e.g. unstaking during the lock, or buying into a table you can't sit at) | expected — the tx would fail; don't submit it |
 | Buy-in reverts with a "not human" error | `TESTNET_SKIP_HUMAN_CHECK` not set on the server | set it to `true` and redeploy the server |
 | Tx fails: "insufficient funds" | no Sepolia ETH for gas | get test ETH from a faucet |

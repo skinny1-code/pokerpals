@@ -1,7 +1,7 @@
 {
-  "name": "pokerpals",
+  "name": "allin",
   "version": "1.0.0",
-  "description": "PokerVsPlayer — Onchain PvP Crypto Poker Network",
+  "description": "All In — Onchain PvP Crypto Poker Network",
   "private": true,
   "type": "module",
   "scripts": {

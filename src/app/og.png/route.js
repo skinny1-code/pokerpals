@@ -20,7 +20,7 @@ export function GET() {
           fontSize: 64, fontWeight: 'bold', color: '#c9b075',
           marginTop: 16, letterSpacing: '-1px',
         }}>
-          PokerVsPlayer
+          All In
         </div>
         <div style={{ fontSize: 28, color: '#9b9585', marginTop: 12 }}>
           Real PvP poker · Onchain settlement

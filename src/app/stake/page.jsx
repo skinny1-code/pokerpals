@@ -120,7 +120,7 @@ function TierCard({ tier, currentTier, stakedAmount, onStake, onUnstake, isLocke
             color: luxe ? undefined : tier.color,
           }}>{tier.name}</div>
           <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: 1, marginTop: 3 }}>
-            {tier.stake === 0 ? 'No stake required' : `Stake ◈ ${fmt(tier.stake)}+ CHIPS`}
+            {tier.stake === 0 ? 'No stake required' : `Stake ◈ ${fmt(tier.stake)}+ ALLIN`}
           </div>
         </div>
       </div>
@@ -173,10 +173,10 @@ function StakeModal({ tier, chipsBalance, onClose, onConfirm, loading }) {
         boxShadow:'0 28px 70px rgba(0,0,0,.75)',
         animation: 'pop-in .26s ease forwards',
       }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 3, marginBottom: 8, fontWeight: 800 }}>STAKE CHIPS</div>
+        <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 3, marginBottom: 8, fontWeight: 800 }}>STAKE ALLIN</div>
         <div className="gold-text serif" style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>{tier.name} Tier</div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
-          Stake ◈ {fmt(tier.stake)}+ CHIPS to activate {tier.name} benefits.
+          Stake ◈ {fmt(tier.stake)}+ ALLIN to activate {tier.name} benefits.
           Your chips stay in the staking contract and earn {tier.apr} APR.
         </div>
         <div style={{ marginBottom: 14 }}>
@@ -239,7 +239,7 @@ function StakerPerks({ currentTier }) {
               <div style={{ fontSize: 12.5, color: '#a29c8e', lineHeight: 1.6, marginBottom: 10 }}>
                 Prize <span style={{ color: '#d9c08a', fontWeight: 800 }}>◈ {fmt(prize)}</span>
                 {' '}· {entrants} entered · draw in {days}d {hours}h.
-                Tickets = your staked CHIPS. Your stake is never touched.
+                Tickets = your staked ALLIN. Your stake is never touched.
               </div>
               {entered ? (
                 <div style={{ fontSize: 12, color: '#27ae60', fontWeight: 800 }}>
@@ -270,7 +270,7 @@ function StakerPerks({ currentTier }) {
             the lobby is Bronze+ only: free 10K stacks, real opponents, zero risk.
             {eligible
               ? <span style={{ color: '#27ae60', fontWeight: 700 }}> You&apos;re in — take a seat.</span>
-              : ' Stake 25,000+ CHIPS to unlock.'}
+              : ' Stake 25,000+ ALLIN to unlock.'}
           </div>
         </div>
 
@@ -310,7 +310,7 @@ export default function StakePage() {
   const handleUnstake = useCallback(async (amount) => {
     const tx = await unstake(amount);
     setFlash(tx
-      ? { kind: 'ok', text: `Unstaking ${fmt(amount)} CHIPS back to your wallet.` }
+      ? { kind: 'ok', text: `Unstaking ${fmt(amount)} ALLIN back to your wallet.` }
       : { kind: 'err', text: 'Unstake failed — your stake is still locked or the tx was rejected.' });
     refetchSoon();
   }, [unstake, refetchSoon]);
@@ -319,8 +319,8 @@ export default function StakePage() {
     const amt = pendingYield;
     const tx = await claimYield();
     setFlash(tx
-      ? { kind: 'ok', text: `Claimed ≈ ${fmt(amt)} CHIPS in yield to your wallet. Your ${fmt(stakedAmount)} stake stays locked and keeps earning.` }
-      : { kind: 'err', text: 'Claim failed or was rejected — no CHIPS moved.' });
+      ? { kind: 'ok', text: `Claimed ≈ ${fmt(amt)} ALLIN in yield to your wallet. Your ${fmt(stakedAmount)} stake stays locked and keeps earning.` }
+      : { kind: 'err', text: 'Claim failed or was rejected — no ALLIN moved.' });
     refetchSoon();
   }, [claimYield, pendingYield, stakedAmount, refetchSoon]);
 
@@ -328,8 +328,8 @@ export default function StakePage() {
     const amt = rakebackOwed;
     const tx = await claimRakeback();
     setFlash(tx
-      ? { kind: 'ok', text: `Claimed ≈ ${fmt(amt)} CHIPS in rakeback to your wallet.` }
-      : { kind: 'err', text: 'Claim failed or was rejected — no CHIPS moved.' });
+      ? { kind: 'ok', text: `Claimed ≈ ${fmt(amt)} ALLIN in rakeback to your wallet.` }
+      : { kind: 'err', text: 'Claim failed or was rejected — no ALLIN moved.' });
     refetchSoon();
   }, [claimRakeback, rakebackOwed, refetchSoon]);
 
@@ -337,7 +337,7 @@ export default function StakePage() {
     const amt = pendingYield;
     const tx = await compound();
     setFlash(tx
-      ? { kind: 'ok', text: `Reinvested ≈ ${fmt(amt)} CHIPS into your stake — no dust, no wallet payout, just a bigger position.` }
+      ? { kind: 'ok', text: `Reinvested ≈ ${fmt(amt)} ALLIN into your stake — no dust, no wallet payout, just a bigger position.` }
       : { kind: 'err', text: 'Compound failed or was rejected.' });
     refetchSoon();
   }, [compound, pendingYield, refetchSoon]);
@@ -359,12 +359,12 @@ export default function StakePage() {
           <h1 className="gold-text serif animate-up s2" style={{
             fontSize:38, fontWeight:900, marginBottom:12, lineHeight:1.1, opacity:0,
           }}>
-            Stake CHIPS, Play Better Poker
+            Stake ALLIN, Play Better Poker
           </h1>
           <p className="animate-up s3" style={{
             fontSize:14.5, color:'#8d877a', maxWidth:520, lineHeight:1.7, opacity:0,
           }}>
-            Lock CHIPS to reduce your rake rate and earn passive yield.
+            Lock ALLIN to reduce your rake rate and earn passive yield.
             <br/><span style={{ color:'#a59f90' }}>Higher tier = less rake every hand.</span>
           </p>
         </div>
@@ -377,7 +377,7 @@ export default function StakePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))',
             gap: 8, marginBottom: 24 }}>
             {[
-              { label: 'CHIPS Balance',  value: `◈ ${fmt(Math.floor(chipsBalance || 0))}`,  color: '#c9b075' },
+              { label: 'ALLIN Balance',  value: `◈ ${fmt(Math.floor(chipsBalance || 0))}`,  color: '#c9b075' },
               { label: 'Staked',         value: `◈ ${fmt(stakedAmount)}`,                    color: TIERS[currentTier].color },
               { label: 'Pending Yield',  value: `◈ ${fmt(pendingYield)}`,                   color: '#27ae60' },
               { label: 'Rakeback Owed',  value: `◈ ${fmt(rakebackOwed)}`,                   color: '#2980b9' },
@@ -453,7 +453,7 @@ export default function StakePage() {
               </TxButton>
             </div>
             <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 10, lineHeight: 1.5 }}>
-              Rewards only — your staked CHIPS stay locked and keep earning.
+              Rewards only — your staked ALLIN stay locked and keep earning.
               {currentTier > 0 && dailyYield > 0 && <> Earning ≈ <span style={{ color: 'var(--emerald-bright)' }}>◈ {fmt(dailyYield)}/day</span>.</>}
               {' '}Claiming is an on-chain transaction (small gas fee) — for tiny amounts, <b>Compound</b> reinvests instead.
             </div>

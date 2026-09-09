@@ -192,7 +192,7 @@ function StakingPanel() {
 
       {/* Stake / unstake input */}
       <div className="glass-strong" style={{ padding: 18 }}>
-        <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 2, marginBottom: 9, fontWeight: 800 }}>AMOUNT (CHIPS)</div>
+        <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 2, marginBottom: 9, fontWeight: 800 }}>AMOUNT (ALLIN)</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <input type="number" min={0} value={amount} placeholder="0"
             onChange={e => setAmount(e.target.value)}
@@ -377,7 +377,7 @@ function SettingsPanel({ myHandle, mintCost, chipsBalance, changeHandle, status,
       <div className="glass-strong" style={{ padding: 18 }}>
         <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 2, marginBottom: 5, fontWeight: 800 }}>CHANGE HANDLE</div>
         <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          Your handle is an NFT — renaming burns CHIPS and swaps the name in place.
+          Your handle is an NFT — renaming burns ALLIN and swaps the name in place.
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
           <span style={{ fontSize: 16, color: 'var(--border-gold)' }}>@</span>
@@ -392,14 +392,14 @@ function SettingsPanel({ myHandle, mintCost, chipsBalance, changeHandle, status,
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, marginBottom: 12 }}>
           <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Rename cost (burned)</span>
           <span style={{ fontSize: 11, color: 'var(--red)', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>
-            🔥 {fmt(mintCost)} CHIPS
+            🔥 {fmt(mintCost)} ALLIN
           </span>
         </div>
 
         {address && chipsBalance < mintCost && (
           <div style={{ background: 'rgba(224,71,59,.08)', border: '1px solid rgba(224,71,59,.32)', borderRadius: 'var(--r-sm)',
             padding: '9px 12px', marginBottom: 12, fontSize: 11, color: 'var(--orange)' }}>
-            Need {fmt(mintCost)} CHIPS. <Link href="/buy" style={{ color: 'var(--gold)' }}>Get CHIPS →</Link>
+            Need {fmt(mintCost)} ALLIN. <Link href="/buy" style={{ color: 'var(--gold)' }}>Get ALLIN →</Link>
           </div>
         )}
         {errorMsg && (
@@ -411,9 +411,9 @@ function SettingsPanel({ myHandle, mintCost, chipsBalance, changeHandle, status,
 
         <TxButton onClick={onRename} disabled={!canRename}
           loading={status === 'approving' || status === 'changing'} color="#d9c08a" full>
-          {status === 'approving' ? 'Approving CHIPS…'
+          {status === 'approving' ? 'Approving ALLIN…'
            : status === 'changing' ? 'Changing…'
-           : `Burn ${fmt(mintCost)} CHIPS & Rename`}
+           : `Burn ${fmt(mintCost)} ALLIN & Rename`}
         </TxButton>
       </div>
 
@@ -458,9 +458,9 @@ function MintView({
 
       <div className="animate-up s2" style={{ display: 'flex', gap: 8, marginBottom: 16, opacity: 0 }}>
         {[
-          { label: 'CURRENT PRICE', value: `${fmt(mintCost)} CHIPS` },
+          { label: 'CURRENT PRICE', value: `${fmt(mintCost)} ALLIN` },
           { label: 'MINTED', value: totalMinted.toLocaleString() },
-          { label: 'YOUR CHIPS', value: mounted && address ? fmt(Math.floor(chipsBalance)) : '—' },
+          { label: 'YOUR ALLIN', value: mounted && address ? fmt(Math.floor(chipsBalance)) : '—' },
         ].map(s => (
           <div key={s.label} className="stat-card" style={{ flex: 1, minWidth: 0, padding: '12px 8px' }}>
             <div style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: 2, marginBottom: 5, fontWeight: 800 }}>{s.label}</div>
@@ -505,7 +505,7 @@ function MintView({
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Tier {currentTier + 1} price (burned)</span>
               <span style={{ fontSize: 11, color: 'var(--red)', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>
-                🔥 {fmt(mintCost)} CHIPS ({TIER_LABELS?.[currentTier] || ''})
+                🔥 {fmt(mintCost)} ALLIN ({TIER_LABELS?.[currentTier] || ''})
               </span>
             </div>
           </div>
@@ -518,7 +518,7 @@ function MintView({
           {mounted && address && chipsBalance < mintCost && (
             <div style={{ background: 'rgba(224,71,59,.08)', border: '1px solid rgba(224,71,59,.32)', borderRadius: 'var(--r-sm)',
               padding: '9px 12px', marginBottom: 12, fontSize: 11, color: 'var(--orange)' }}>
-              You need {fmt(mintCost)} CHIPS to mint. <Link href="/buy" style={{ color: 'var(--gold)' }}>Get CHIPS →</Link>
+              You need {fmt(mintCost)} ALLIN to mint. <Link href="/buy" style={{ color: 'var(--gold)' }}>Get ALLIN →</Link>
             </div>
           )}
           {errorMsg && (
@@ -531,12 +531,12 @@ function MintView({
           <button onClick={() => canMint && mint(inputVal)} disabled={!canMint}
             className="btn btn-gold" style={{ width: '100%', padding: '13px', fontSize: 13.5,
               opacity: !canMint ? .55 : 1, cursor: !canMint ? 'not-allowed' : 'pointer' }}>
-            {status === 'approving' ? 'Approving CHIPS…'
+            {status === 'approving' ? 'Approving ALLIN…'
              : status === 'minting' ? 'Minting…'
-             : confirmed ? '✓ Handle Minted!' : `Burn ${fmt(mintCost)} CHIPS & Mint`}
+             : confirmed ? '✓ Handle Minted!' : `Burn ${fmt(mintCost)} ALLIN & Mint`}
           </button>
           <div style={{ marginTop: 12, fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
-            One handle per wallet. CHIPS are burned and non-refundable.
+            One handle per wallet. ALLIN are burned and non-refundable.
           </div>
         </div>
       )}
@@ -631,7 +631,7 @@ function HandlePageInner() {
             </div>
           </div>
           <div style={{ textAlign: 'right', position: 'relative' }}>
-            <div style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: 1.5, fontWeight: 800 }}>CHIPS OWNED</div>
+            <div style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: 1.5, fontWeight: 800 }}>ALLIN OWNED</div>
             <div className="gold-text" style={{ fontSize: 24, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace" }}>
               ◈ {mounted ? fmt(Math.floor(chipsBalance || 0)) : '—'}
             </div>
@@ -665,7 +665,7 @@ function HandlePageInner() {
         {tab === 'overview' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 8 }}>
-              <StatCard label="CHIPS BALANCE" value={`◈ ${fmt(chipsBalance || 0)}`} />
+              <StatCard label="ALLIN BALANCE" value={`◈ ${fmt(chipsBalance || 0)}`} />
               <StatCard label="STAKED" value={`◈ ${fmt(stakedAmount)}`} color={tier.color} sub={`${tier.name} tier`} />
               <StatCard label="HANDS WON" value={fmt(stats?.handsWon || 0)} />
               <StatCard label="TABLES PLAYED" value={fmt(stats?.tablesPlayed || 0)} />
@@ -712,7 +712,7 @@ function HandlePageInner() {
                 ♠ Play Now
               </Link>
               <Link href="/buy" className="btn btn-emerald" style={{ textDecoration: 'none', padding: '14px', fontSize: 13 }}>
-                $ Buy CHIPS
+                $ Buy ALLIN
               </Link>
               <button onClick={() => setTab('staking')} className="btn btn-ghost" style={{ padding: '14px', fontSize: 13 }}>
                 ◈ Stake

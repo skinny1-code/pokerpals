@@ -8,7 +8,7 @@ import { waitForTransactionReceipt } from "wagmi/actions";
 import { parseUnits, formatUnits } from "viem";
 import {
   wagmiConfig, safeFeeOverrides, hasAllowance, EXPECTED_CHAIN,
-  CHIPS_ABI, CHIPS, ESCROW_ABI, ESCROW, HAND_HISTORY_ABI, HAND_HISTORY,
+  CHIPS_ABI, ALLIN, ESCROW_ABI, ESCROW, HAND_HISTORY_ABI, HAND_HISTORY,
 } from "./core";
 
 // ─── HOOK: HAND HISTORY (batched on-chain gameplay stats) ──────────────────────
@@ -60,7 +60,7 @@ export function useEscrow(tableId) {
       if (!(await hasAllowance(publicClient, address, ESCROW, needed))) {
         setStatus('approving');
         const approveTx = await writeContractAsync({
-          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          address: ALLIN, abi: CHIPS_ABI, functionName: "approve",
           args: [ESCROW, needed],
           ...feeOverrides,
         });
@@ -127,7 +127,7 @@ export function useEscrow(tableId) {
           address: ESCROW, abi: ESCROW_ABI, functionName: "seatFeeCHIPS", args: [],
         }),
         publicClient.readContract({
-          address: CHIPS, abi: CHIPS_ABI, functionName: "balanceOf", args: [address],
+          address: ALLIN, abi: CHIPS_ABI, functionName: "balanceOf", args: [address],
         }),
       ]);
       if (deposit <= 0n) {
@@ -138,7 +138,7 @@ export function useEscrow(tableId) {
       const fee = roomId !== 0n ? seatFeeOnChain / 2n : 0n;
       const needed = amountBN + fee;
       if (balance < needed) {
-        setRebuyError('Insufficient CHIPS balance for that rebuy amount.');
+        setRebuyError('Insufficient ALLIN balance for that rebuy amount.');
         setStatus('error');
         return;
       }
@@ -147,7 +147,7 @@ export function useEscrow(tableId) {
       if (!(await hasAllowance(publicClient, address, ESCROW, needed))) {
         setStatus('approving');
         const approveTx = await writeContractAsync({
-          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          address: ALLIN, abi: CHIPS_ABI, functionName: "approve",
           args: [ESCROW, needed], ...feeOverrides,
         });
         await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });

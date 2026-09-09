@@ -1,6 +1,6 @@
 # Warpcast Mini-App Setup
 
-This guide explains exactly what to configure in Vercel so PokerVsPlayer appears and
+This guide explains exactly what to configure in Vercel so All In appears and
 opens correctly inside Warpcast as a Farcaster mini-app.
 
 ---
@@ -93,7 +93,7 @@ notifications via Neynar or a custom relay.
   },
   "frame": {
     "version": "1",
-    "name": "PokerVsPlayer",
+    "name": "All In",
     "iconUrl": "https://pokerpals.vercel.app/icon.png",
     "homeUrl": "https://pokerpals.vercel.app",
     "imageUrl": "https://pokerpals.vercel.app/og.png",

@@ -54,7 +54,7 @@ const STAKING_YIELD_ABI = [
 ];
 
 const fmt   = n  => typeof n === 'bigint' ? Number(formatUnits(n, 18)).toLocaleString(undefined,{maximumFractionDigits:1}) : n;
-const chips = n  => `◈ ${fmt(n)} CHIPS`;
+const chips = n  => `◈ ${fmt(n)} ALLIN`;
 const gold  = '#c9b075';
 const green = '#4caf50';
 
@@ -77,7 +77,7 @@ function Bar({ label, value, max, color = gold }) {
     <div style={{marginBottom:10}}>
       <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
         <span style={{fontSize:11,color:'#847e71'}}>{label}</span>
-        <span style={{fontSize:11,color,fontFamily:'monospace'}}>{fmt(value)} CHIPS</span>
+        <span style={{fontSize:11,color,fontFamily:'monospace'}}>{fmt(value)} ALLIN</span>
       </div>
       <div style={{height:4,background:'#111114',borderRadius:2}}>
         <div style={{height:'100%',width:`${pct}%`,background:`linear-gradient(90deg,${color}66,${color})`,borderRadius:2,transition:'width .5s'}}/>
@@ -197,7 +197,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
             <div style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap'}}>
               <StatCard icon="◈" label="TOTAL REVENUE"     value={chips(cashTotal)}  color={gold}  sub="Rake + seats + tournaments"/>
               <StatCard icon="♠" label="CASH GAME RAKE"    value={chips(rake)}       color={gold}  sub={`${Number(tableCount)||0} tables lifetime`}/>
-              <StatCard icon="🪑" label="SEAT FEES"         value={chips(seats)}      color='#29b6f6' sub={seatFee?`${fmt(seatFee)} CHIPS/seat`:''}/>
+              <StatCard icon="🪑" label="SEAT FEES"         value={chips(seats)}      color='#29b6f6' sub={seatFee?`${fmt(seatFee)} ALLIN/seat`:''}/>
               <StatCard icon="🏆" label="TOURNAMENT RAKE"   value={chips(tournRevenue||0n)} color='#ff9800' sub={`${Number(tournCount)||0} tournaments`}/>
               <StatCard icon="👥" label="REFERRAL PAYOUTS"  value={chips(refs)}       color='#ab47bc' sub="20% of rake to referrers"/>
             </div>
@@ -207,7 +207,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
               padding:'16px 18px',marginBottom:16}}>
               <div style={{fontSize:10,color:'#57544b',letterSpacing:2,marginBottom:14}}>REVENUE BREAKDOWN</div>
               <Bar label="Cash Game Rake (1.5%)" value={rake} max={cashTotal} color={gold}/>
-              <Bar label="Seat Fees (2 CHIPS/seat)" value={seats} max={cashTotal} color='#29b6f6'/>
+              <Bar label="Seat Fees (2 ALLIN/seat)" value={seats} max={cashTotal} color='#29b6f6'/>
               <Bar label="Tournament Rake (10%)" value={tournRevenue||0n} max={cashTotal} color='#ff9800'/>
             </div>
 
@@ -216,10 +216,10 @@ export default function RevenueDashboard({ address: ownerAddr }) {
               padding:'16px 18px'}}>
               <div style={{fontSize:10,color:'#57544b',letterSpacing:2,marginBottom:14}}>PROJECTED EARNINGS</div>
               {[
-                ['50 tables × 30 hands/hr × avg 1k CHIPS pot × 1.5%', '22,500 CHIPS/hr'],
-                ['50 tables × 5 players × 2 CHIPS seat fee',           '500 CHIPS/hr'],
-                ['1 daily tournament × 100 players × 100 CHIPS × 10%', '1,000 CHIPS/day'],
-                ['CHIPS token appreciation (500M float)',               'variable'],
+                ['50 tables × 30 hands/hr × avg 1k ALLIN pot × 1.5%', '22,500 ALLIN/hr'],
+                ['50 tables × 5 players × 2 ALLIN seat fee',           '500 ALLIN/hr'],
+                ['1 daily tournament × 100 players × 100 ALLIN × 10%', '1,000 ALLIN/day'],
+                ['ALLIN token appreciation (500M float)',               'variable'],
               ].map(([calc,val])=>(
                 <div key={calc} style={{display:'flex',justifyContent:'space-between',
                   padding:'7px 0',borderBottom:'1px solid #111114',gap:12}}>
@@ -238,13 +238,13 @@ export default function RevenueDashboard({ address: ownerAddr }) {
               { icon:'♠', title:'Cash Game Rake', color:gold,
                 lines:[
                   ['Rate','Standard 1.5% → Whale 0.6%'],
-                  ['Cap','50 CHIPS per pot max'],
+                  ['Cap','50 ALLIN per pot max'],
                   ['When','Every hand settled via PokerEscrow.settle()'],
                   ['Contract','PokerEscrow.sol → tierRakeNum[]'],
                 ]},
               { icon:'🪑', title:'Seat Fees', color:'#29b6f6',
                 lines:[
-                  ['Rate','2 CHIPS per buy-in, 1 CHIPS per rebuy'],
+                  ['Rate','2 ALLIN per buy-in, 1 ALLIN per rebuy'],
                   ['When','Charged at buyIn() + rebuy() calls'],
                   ['Note','Instant transfer to rakeRecipient — never in escrow'],
                   ['Tune','escrow.setRakeParams() — owner only'],
@@ -254,14 +254,14 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                   ['Rate','10% of entry pool (up to 15% max)'],
                   ['When','TournamentManager.startTournament()'],
                   ['Types','Scheduled, Sit-n-Go, Guaranteed Prize'],
-                  ['Example','100 players × 100 CHIPS = 1,000 CHIPS rake'],
+                  ['Example','100 players × 100 ALLIN = 1,000 ALLIN rake'],
                 ]},
               { icon:'💎', title:'VIP Staking', color:'#ab47bc',
                 lines:[
-                  ['Bronze 1k CHIPS','1.3% rake + 2% APR yield'],
-                  ['Silver 10k CHIPS','1.1% rake + 4% APR yield'],
-                  ['Gold 50k CHIPS', '0.9% rake + 7% APR yield'],
-                  ['Whale 200k CHIPS','0.6% rake + 12% APR yield'],
+                  ['Bronze 1k ALLIN','1.3% rake + 2% APR yield'],
+                  ['Silver 10k ALLIN','1.1% rake + 4% APR yield'],
+                  ['Gold 50k ALLIN', '0.9% rake + 7% APR yield'],
+                  ['Whale 200k ALLIN','0.6% rake + 12% APR yield'],
                   ['Yield source','Funded from rake via fundYieldPool()'],
                 ]},
               { icon:'👥', title:'Referrals', color:'#4caf50',
@@ -271,12 +271,12 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                   ['Net cost','~1.2% from your rake — drives free user acquisition'],
                   ['Code','keccak(address)[0:8] — shareable link'],
                 ]},
-              { icon:'◈', title:'CHIPS Token Float', color:'#00e5ff',
+              { icon:'◈', title:'ALLIN Token Float', color:'#00e5ff',
                 lines:[
-                  ['Your allocation','500M CHIPS liquidity'],
-                  ['Demand driver','Every buy-in requires CHIPS — continuous buy pressure'],
+                  ['Your allocation','500M ALLIN liquidity'],
+                  ['Demand driver','Every buy-in requires ALLIN — continuous buy pressure'],
                   ['LP fees','Seed Uniswap/Camelot pool — earn 0.3% of all swaps'],
-                  ['Governance','Lock CHIPS for voting rights → future feature'],
+                  ['Governance','Lock ALLIN for voting rights → future feature'],
                 ]},
             ].map(({icon,title,color,lines})=>(
               <div key={title} style={{background:'#0d0d0f88',border:`1px solid ${color}22`,
@@ -302,8 +302,8 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                 sub="Ops expenses (100M seeded + 10% rake)" color='#c9b075'/>
               <StatCard icon="🎯" label="PROMOTIONS POOL" value={chips(promoChips)}
                 sub="Contests, airdrops, tournaments" color='#ab47bc'/>
-              <StatCard icon="💎" label="CHIPS LIQUIDITY POOL" value={chips(liqChips)}
-                sub="500M CHIPS for buy/sell at $0.001/CHIP" color='#4caf50'/>
+              <StatCard icon="💎" label="ALLIN LIQUIDITY POOL" value={chips(liqChips)}
+                sub="500M ALLIN for buy/sell at $0.001/CHIP" color='#4caf50'/>
               <StatCard icon="💵" label="STABLECOIN POOL" value={`$${fmt(stableUsdc * 10n**12n)}`}
                 sub="USDC reserve for on-network payouts" color='#29b6f6'/>
               <StatCard icon="⛏" label="STAKING YIELD POOL" value={chips(stakingPool)}
@@ -324,7 +324,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
         {/* ── STAKING ── */}
         {tab==='staking' && (
           <>
-            <StatCard icon="⛏" label="TOTAL CHIPS STAKED" value={chips(totalStaked||0n)} color='#ab47bc'
+            <StatCard icon="⛏" label="TOTAL ALLIN STAKED" value={chips(totalStaked||0n)} color='#ab47bc'
               sub="Locked by VIP players"/>
             <div style={{height:12}}/>
             <div style={{background:'#0d0d0f88',border:'1px solid #191920',borderRadius:10,
@@ -340,11 +340,11 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                     <div style={{width:6,height:6,borderRadius:'50%',background:TIER_COLORS[i],flexShrink:0}}/>
                     <div style={{flex:1,minWidth:80}}>
                       <div style={{fontSize:12,color:TIER_COLORS[i],fontWeight:700}}>{name}</div>
-                      <div style={{fontSize:9,color:'#42424a'}}>≥ {fmt(thresh)} CHIPS · {Number(apr)/100}% APR</div>
+                      <div style={{fontSize:9,color:'#42424a'}}>≥ {fmt(thresh)} ALLIN · {Number(apr)/100}% APR</div>
                     </div>
                     <div style={{textAlign:'right'}}>
                       <div style={{fontSize:12,color:'#9a9280',fontFamily:'monospace'}}>{fmt(count)}</div>
-                      <div style={{fontSize:9,color:'#42424a'}}>CHIPS locked</div>
+                      <div style={{fontSize:9,color:'#42424a'}}>ALLIN locked</div>
                     </div>
                   </div>
                 );
@@ -378,7 +378,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                   </div>
                   <div style={{textAlign:'right'}}>
                     <div style={{fontSize:12,color:gold,fontFamily:'monospace'}}>◈ {fmt(earned)}</div>
-                    <div style={{fontSize:9,color:'#42424a'}}>CHIPS earned</div>
+                    <div style={{fontSize:9,color:'#42424a'}}>ALLIN earned</div>
                   </div>
                 </div>
               );

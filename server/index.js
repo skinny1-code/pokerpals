@@ -800,7 +800,7 @@ const server = createServer((req, res) => {
     res.end(JSON.stringify({ status: 'ok', addrs: result.addrs, chips: result.chips }));
   } else {
     res.writeHead(200);
-    res.end(JSON.stringify({ service: 'PokerVsPlayer WS', tables: tables.size }));
+    res.end(JSON.stringify({ service: 'All In WS', tables: tables.size }));
   }
 });
 
@@ -1476,4 +1476,4 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => console.log(`PokerVsPlayer WS server on :${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`All In WS server on :${PORT}`));

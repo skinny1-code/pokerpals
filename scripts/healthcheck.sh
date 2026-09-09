@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/healthcheck.sh — pre-test readiness check for PokerVsPlayer (testnet)
+# scripts/healthcheck.sh — pre-test readiness check for All In (testnet)
 #
 # Confirms the three live layers a tester depends on are actually up:
 #   1. Frontend  (Vercel)        — the site loads
@@ -10,7 +10,7 @@
 #   bash scripts/healthcheck.sh
 #
 # Override any default with an env var:
-#   SITE_URL=https://pokervsplayer.xyz \
+#   SITE_URL=https://allin.gg \
 #   WS_URL=wss://pokerpals-server.fly.dev \
 #   ARB_SEPOLIA_RPC=https://... \
 #   bash scripts/healthcheck.sh
@@ -19,7 +19,7 @@
 
 set -u
 
-SITE_URL="${SITE_URL:-https://pokervsplayer.xyz}"
+SITE_URL="${SITE_URL:-https://allin.gg}"
 WS_URL="${WS_URL:-wss://pokerpals-server.fly.dev}"
 # Health endpoint = the WS host over https, /tables (the server serves it as plain HTTP)
 HEALTH_URL="$(printf '%s' "$WS_URL" | sed -E 's#^wss?://#https://#')/tables"
@@ -31,7 +31,7 @@ ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; pass=$((pass + 1)); }
 bad()  { printf '  \033[31m✗\033[0m %s\n' "$1"; fail=$((fail + 1)); }
 info() { printf '  \033[36mℹ\033[0m %s\n' "$1"; }
 
-echo "PokerVsPlayer — testnet readiness check"
+echo "All In — testnet readiness check"
 echo "========================================"
 
 # 1. Frontend ----------------------------------------------------------------

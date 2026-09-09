@@ -5,7 +5,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAccount, useConnect, useDisconnect, useReadContract, useBalance, useSignMessage } from "wagmi";
 import { formatUnits } from "viem";
-import { CHIPS_ABI, ESCROW_ABI, CHIPS, ESCROW, EXPECTED_CHAIN } from "./core";
+import { CHIPS_ABI, ESCROW_ABI, ALLIN, ESCROW, EXPECTED_CHAIN } from "./core";
 
 // ─── HOOK: WALLET STATE ───────────────────────────────────────────────────────
 export function useWallet() {
@@ -13,9 +13,9 @@ export function useWallet() {
   const { connect, connectors, status: connectStatus, error: connectError } = useConnect();
   const { disconnect }                    = useDisconnect();
 
-  // CHIPS balance
+  // ALLIN balance
   const { data: chipsRaw } = useReadContract({
-    address: CHIPS, abi: CHIPS_ABI, functionName: "balanceOf",
+    address: ALLIN, abi: CHIPS_ABI, functionName: "balanceOf",
     args: [address], query: { enabled: !!address, refetchInterval: 8000 },
   });
   const chipsBalance = chipsRaw ? Number(formatUnits(chipsRaw, 18)) : 0;
@@ -113,7 +113,7 @@ export function useSiteAuth() {
     if (!address) return;
     setStatus('signing');
     try {
-      const message = `Sign in to PokerVsPlayer\n\nAddress: ${address}\nTimestamp: ${new Date().toISOString()}`;
+      const message = `Sign in to All In\n\nAddress: ${address}\nTimestamp: ${new Date().toISOString()}`;
       const signature = await signMessageAsync({ message });
       const entry = { address: address.toLowerCase(), signature, signedAt: Date.now() };
       localStorage.setItem(SITE_AUTH_KEY, JSON.stringify(entry));

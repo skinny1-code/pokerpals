@@ -1,17 +1,17 @@
-# PokerVsPlayer
+# All In
 ### Onchain PvP Crypto Poker Network
 
 > Real players. No bots. Instant onchain settlement. Your edge, your winnings.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Network: Arbitrum](https://img.shields.io/badge/Network-Arbitrum-blue.svg)](https://arbitrum.io)
-[![Token: CHIPS](https://img.shields.io/badge/Token-CHIPS-green.svg)](#)
+[![Token: ALLIN](https://img.shields.io/badge/Token-ALLIN-green.svg)](#)
 
 ---
 
 ## What It Is
 
-PokerVsPlayer is a trustless PvP card game platform where:
+All In is a trustless PvP card game platform where:
 
 - **All funds** are locked in a smart contract — not held by the house
 - **Every hand** is settled onchain via operator-signed payouts
@@ -45,7 +45,7 @@ Settle           ─────────────────────
 |----------|---------|
 | `CHIPSToken.sol` | ERC-20 native token (1B supply) |
 | `PokerEscrow.sol` | Buy-in lock + signed settlement + seat fees + VIP rake tiers |
-| `CHIPSStaking.sol` | Stake CHIPS for lower rake + APR yield |
+| `CHIPSStaking.sol` | Stake ALLIN for lower rake + APR yield |
 | `TournamentManager.sol` | Scheduled tournaments with entry fee rake |
 | `ReferralRegistry.sol` | Onchain referral codes + 20% rake split |
 
@@ -56,11 +56,11 @@ Settle           ─────────────────────
 | Stream | Rate |
 |--------|------|
 | Cash game rake | 1.5% per pot (0.6% for Whale tier) |
-| Seat fee | 1 CHIPS per buy-in |
+| Seat fee | 1 ALLIN per buy-in |
 | Tournament rake | 10% of entry pool |
 | Staking yield | Funded from rake → APR 2–12% |
 | Referral split | 20% of rake to referrer |
-| LP fees | 0.3% of CHIPS/ETH swaps on Camelot |
+| LP fees | 0.3% of ALLIN/ETH swaps on Camelot |
 
 ---
 
@@ -137,7 +137,7 @@ On pass → oracle calls `escrow.markHuman(address, true)` onchain.
 
 The house holds **zero funds**. Flow:
 
-1. Players lock CHIPS in `PokerEscrow.sol` via `buyIn()`
+1. Players lock ALLIN in `PokerEscrow.sol` via `buyIn()`
 2. Hand plays out on the game server
 3. Server signs: `keccak256(tableId, handNonce, winners[], shares[])`
 4. Any player submits signature to `settle()` onchain
@@ -187,4 +187,4 @@ MIT — see [LICENSE](LICENSE)
 
 ---
 
-*PokerVsPlayer — All edge belongs to the players*
+*All In — All edge belongs to the players*
