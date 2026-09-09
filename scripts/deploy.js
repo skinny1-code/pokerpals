@@ -145,8 +145,8 @@ async function main() {
   const stablePoolAddr = await stablePool.getAddress();
   console.log("✅ StablecoinPool:", stablePoolAddr);
 
-  // 12. ChipsLiquidityPool — 500M CHIPS trading pool at $0.001/CHIP peg
-  //     rateUsdcPerChip = 1000 → 1000 USDC-wei per 1e18 CHIPS = $0.001/CHIP
+  // 12. ChipsLiquidityPool — 500M SALOON trading pool at $0.001/CHIP peg
+  //     rateUsdcPerChip = 1000 → 1000 USDC-wei per 1e18 SALOON = $0.001/CHIP
   const LiqPool = await ethers.getContractFactory("ChipsLiquidityPool");
   const liqPool = await LiqPool.deploy(tokenAddr, usdcAddr, stablePoolAddr, 1000n);
   await liqPool.waitForDeployment();
@@ -170,7 +170,7 @@ async function main() {
   // 13. Seed staking yield pool: 200M deployer → staking
   await token.transfer(stakingAddr, STAKING_POOL);
   await staking.initYieldPool();
-  console.log("✅ Staking yield pool seeded with 200M CHIPS");
+  console.log("✅ Staking yield pool seeded with 200M SALOON");
 
   // 14. Transfer allocations to pool contracts
   await token.transfer(kingsPoolAddr, OPS_RESERVE);
@@ -232,11 +232,11 @@ async function main() {
   console.log(`Deployer:          ${deployer.address}`);
   console.log(`Operator signer:   ${OPERATOR}`);
   console.log(`Rake recipient:    ${RAKE_ADDR}   ← personal income (20% treasury rake)`);
-  console.log(`Dev wallet:        ${DEV}   ← 25M CHIPS + 2M/month vest`);
+  console.log(`Dev wallet:        ${DEV}   ← 25M SALOON + 2M/month vest`);
   console.log("\n── On-chain pools ─────────────────────────────────────");
   console.log(`KingOfSpadesPool:  ${kingsPoolAddr}   ← 100M ops + 10% rake`);
   console.log(`PromotionsPool:    ${promoPoolAddr}   ← 100M community`);
-  console.log(`ChipsLiquidityPool:${liqPoolAddr}   ← 500M CHIPS ($0.001/CHIP)`);
+  console.log(`ChipsLiquidityPool:${liqPoolAddr}   ← 500M SALOON ($0.001/CHIP)`);
   console.log(`StablecoinPool:    ${stablePoolAddr}   ← USDC reserve`);
   console.log(`ChipsStaking:      ${stakingAddr}   ← 200M + 45% rake`);
   console.log("\n── Rake split per hand ───────────────────────────────");

@@ -171,7 +171,7 @@ const handHistory = HAND_HISTORY_ADDR
   ? new ethers.Contract(HAND_HISTORY_ADDR, HAND_HISTORY_ABI, operator)
   : null;
 
-// addr -> { handsPlayed, handsWon, winnings (bigint, CHIPS wei) }
+// addr -> { handsPlayed, handsWon, winnings (bigint, SALOON wei) }
 const pendingHandStats = new Map();
 
 function recordHandStatsLocally(participantAddrs, winnerAddrs, winningsByAddr) {
@@ -1191,12 +1191,12 @@ wss.on('connection', (ws, req) => {
         const addr = client.addr;
         if (!addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
 
-        // Freeroll tables are a staker perk — tier >= 1 (25K+ CHIPS staked) to sit.
+        // Freeroll tables are a staker perk — tier >= 1 (25K+ SALOON staked) to sit.
         if (t?.isFreeroll) {
           const tier = await getStakeTier(addr);
           if (tier < 1) {
             return send(ws, { type: 'ERROR',
-              error: 'Freerolls are for stakers — stake 25,000+ CHIPS on the Stake page to enter.' });
+              error: 'Freerolls are for stakers — stake 25,000+ SALOON on the Stake page to enter.' });
           }
         }
 

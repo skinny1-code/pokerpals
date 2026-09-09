@@ -31,24 +31,24 @@
 | **Operator** | `OPERATOR_PRIVATE_KEY` | signs as → | The game server's signing key. Signs keccak256(tableId, handNonce, winners, shares) for every hand. This is the trust anchor — if leaked, attacker can fake payouts. |
 | **Operator Signer** | `OPERATOR_SIGNER` | `0x7591548d072C72F00eD9171555cF4B99642B617c` | The *address* (public) registered in PokerEscrow. Contract verifies settlement sigs against this address. |
 | **Anti-Bot Oracle** | `ANTIBOT_ORACLE` | `0x6E46deF34f262aF3F09bD830fA7e18EaA0bd0a1D` | Only address allowed to call `escrow.markHuman(player, true)`. Runs the standalone oracle that gates buy-ins. |
-| **Ops Wallet** | `OPS_WALLET_KEY` / `OPS_WALLET` | `0xaB08Be0a779fc0001b35A77923cb5d87F87719dB` | Bot player wallet + ops budget wallet. Used by SPAWN_BOT feature. Holds 100M CHIPS one-time budget. |
+| **Ops Wallet** | `OPS_WALLET_KEY` / `OPS_WALLET` | `0xaB08Be0a779fc0001b35A77923cb5d87F87719dB` | Bot player wallet + ops budget wallet. Used by SPAWN_BOT feature. Holds 100M SALOON one-time budget. |
 
-### Allocation Wallets (hold the 1B CHIPS supply)
+### Allocation Wallets (hold the 1B SALOON supply)
 
 | Role | Env Var | Address | Allocation | Income |
 |---|---|---|---|---|
 | **Rake** | `RAKE_WALLET` | `0x567cD273e67eA3D25bE6406B15606128BAb10044` | — | **Your ongoing income.** 20% of every rake + 100% seat fees + 30% tournament rake. Paid per hand. |
-| **Dev** | `DEV_WALLET` | `0xf48e4dAD590C2Af34AED733c3f0a517dbe99d844` | 100M CHIPS | Personal equity. Vests linearly over 24 months in-contract. Call `claimDevVest()` to withdraw. |
-| **Ops** | `OPS_WALLET` | `0xaB08Be0a779fc0001b35A77923cb5d87F87719dB` | 100M CHIPS | One-time devops budget. Servers, staff, marketing. |
-| **Community** | `COMMUNITY_WALLET` | `0x772ae34FA62F445b4689396Ec986114Ab95fF666` | 100M CHIPS | Tournaments, airdrops, community grants. |
-| **Liquidity** | `LIQUIDITY_WALLET` | `0xE5E064260898AC39Fe4413Ac3a05a89293761ce6` | 500M CHIPS | DEX liquidity pools (Camelot, Uniswap on Arbitrum). |
-| *(Staking pool)* | — | `0x125b7F7649276e801D5843f0158D94939e7dA295` (contract) | 200M CHIPS | Seeded directly into ChipsStaking at deploy. Not a wallet. |
+| **Dev** | `DEV_WALLET` | `0xf48e4dAD590C2Af34AED733c3f0a517dbe99d844` | 100M SALOON | Personal equity. Vests linearly over 24 months in-contract. Call `claimDevVest()` to withdraw. |
+| **Ops** | `OPS_WALLET` | `0xaB08Be0a779fc0001b35A77923cb5d87F87719dB` | 100M SALOON | One-time devops budget. Servers, staff, marketing. |
+| **Community** | `COMMUNITY_WALLET` | `0x772ae34FA62F445b4689396Ec986114Ab95fF666` | 100M SALOON | Tournaments, airdrops, community grants. |
+| **Liquidity** | `LIQUIDITY_WALLET` | `0xE5E064260898AC39Fe4413Ac3a05a89293761ce6` | 500M SALOON | DEX liquidity pools (Camelot, Uniswap on Arbitrum). |
+| *(Staking pool)* | — | `0x125b7F7649276e801D5843f0158D94939e7dA295` (contract) | 200M SALOON | Seeded directly into ChipsStaking at deploy. Not a wallet. |
 
 ---
 
 ## Token Economy
 
-### 1B CHIPS Supply Breakdown
+### 1B SALOON Supply Breakdown
 ```
 500M (50%) ──► Liquidity Wallet    → DEX pools
 200M (20%) ──► ChipsStaking        → yield pool (seeded at deploy)
@@ -70,10 +70,10 @@ Total Rake collected from the pot
 | Tier | Stake | Rake % | APR |
 |---|---|---|---|
 | 0 Standard | 0 | 1.5% | 0% |
-| 1 Bronze | 1,000 CHIPS | 1.3% | 2% |
-| 2 Silver | 10,000 CHIPS | 1.1% | 4% |
-| 3 Gold | 50,000 CHIPS | 0.9% | 7% |
-| 4 Whale | 200,000 CHIPS | 0.6% | 12% |
+| 1 Bronze | 1,000 SALOON | 1.3% | 2% |
+| 2 Silver | 10,000 SALOON | 1.1% | 4% |
+| 3 Gold | 50,000 SALOON | 0.9% | 7% |
+| 4 Whale | 200,000 SALOON | 0.6% | 12% |
 
 ---
 

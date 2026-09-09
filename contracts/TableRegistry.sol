@@ -21,7 +21,7 @@ interface IERC721Minimal {
 
 /// @title TableRegistry — on-chain room leasing with optional NFT gating
 ///
-/// Anyone can lease a private poker room by paying a weekly CHIPS fee.
+/// Anyone can lease a private poker room by paying a weekly SALOON fee.
 /// Rooms can be:
 ///   - Open (any verified human can sit)
 ///   - NFT-gated (only holders of a specified ERC-721 can sit)
@@ -45,14 +45,14 @@ contract TableRegistry is Ownable, ReentrancyGuard {
         address lessee;
         string  name;
         address nftGate;       // address(0) = open to all verified humans
-        uint256 minBuyIn;      // minimum buy-in in CHIPS (18 decimals); 0 = no minimum
-        uint256 maxBuyIn;      // maximum buy-in in CHIPS; 0 = no maximum
+        uint256 minBuyIn;      // minimum buy-in in SALOON (18 decimals); 0 = no minimum
+        uint256 maxBuyIn;      // maximum buy-in in SALOON; 0 = no maximum
         uint8   maxPlayers;    // 2–9
         uint8   gameType;      // mirrors PokerEscrow.GameType enum
         bool    isPublic;      // false = NFT/lessee-invite only (UI hint; NFT gate enforced on-chain)
         uint256 leaseExpiry;   // unix timestamp; 0 = expired/not leased
-        uint256 dailyRate;     // CHIPS per day paid; used for pro-rata refunds on terminate
-        uint256 heldFunds;     // CHIPS collected but not yet distributed; backs the refund
+        uint256 dailyRate;     // SALOON per day paid; used for pro-rata refunds on terminate
+        uint256 heldFunds;     // SALOON collected but not yet distributed; backs the refund
     }
 
     IChipsTokenBurn      public immutable chipsToken;
@@ -60,8 +60,8 @@ contract TableRegistry is Ownable, ReentrancyGuard {
     IKingsPoolForRegistry public kingsPool;
     address              public rakeRecipient;
 
-    uint256 public weeklyFee   = 33_500  * 10**18;  // 33,500 CHIPS per week
-    uint256 public monthlyFee  = 100_000 * 10**18;  // 100,000 CHIPS per month (~30 days)
+    uint256 public weeklyFee   = 33_500  * 10**18;  // 33,500 SALOON per week
+    uint256 public monthlyFee  = 100_000 * 10**18;  // 100,000 SALOON per month (~30 days)
     uint256 public minWeeks    = 1;
     uint256 public maxWeeks    = 52;
     uint256 public minMonths   = 1;
@@ -106,8 +106,8 @@ contract TableRegistry is Ownable, ReentrancyGuard {
     /// @notice Lease a private room. Caller pays weeklyFee * weeks_ up-front.
     /// @param weeks_       Lease duration in weeks (1–52)
     /// @param nftGate      ERC-721 contract address; address(0) for no gate
-    /// @param minBuyIn     Minimum buy-in in CHIPS (0 = no minimum)
-    /// @param maxBuyIn     Maximum buy-in in CHIPS (0 = no maximum)
+    /// @param minBuyIn     Minimum buy-in in SALOON (0 = no minimum)
+    /// @param maxBuyIn     Maximum buy-in in SALOON (0 = no maximum)
     /// @param maxPlayers   Seats at the table (2–9)
     /// @param gameType     0=HoldEm 1=Omaha 2=ShortDeck 3=Pineapple
     /// @param isPublic     true = visible in lobby; false = private/invite
@@ -142,7 +142,7 @@ contract TableRegistry is Ownable, ReentrancyGuard {
     }
 
     /// @notice Lease a private room for one or more calendar months (30-day periods).
-    ///         Monthly rate is discounted vs weekly: 100,000 CHIPS/month vs 33,500×4=134,000 for ~4 weeks.
+    ///         Monthly rate is discounted vs weekly: 100,000 SALOON/month vs 33,500×4=134,000 for ~4 weeks.
     function leaseRoomMonths(
         uint256 months_,
         address nftGate,
@@ -287,7 +287,7 @@ contract TableRegistry is Ownable, ReentrancyGuard {
         r.heldFunds  += fee;
     }
 
-    /// @dev Pulls `fee` CHIPS from the lessee into escrow. Distribution is
+    /// @dev Pulls `fee` SALOON from the lessee into escrow. Distribution is
     ///      deferred until the lease's fate is resolved (see _distributeFee).
     function _collectFee(uint256 fee) internal {
         chipsToken.safeTransferFrom(msg.sender, address(this), fee);

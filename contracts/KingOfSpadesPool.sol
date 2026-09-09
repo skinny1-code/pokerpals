@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title KingOfSpadesPool — on-chain operating-expense fund
-/// @notice Holds 100M CHIPS seed + 10% of all rake/lease fees.
+/// @notice Holds 100M SALOON seed + 10% of all rake/lease fees.
 ///         Owner withdraws with an annotated reason for auditability.
 ///         Authorized callers (PokerEscrow, TournamentManager, TableRegistry) notify
 ///         this contract after transferring their rake slice to it.
@@ -25,13 +25,13 @@ contract KingOfSpadesPool is Ownable {
         chipsToken = IERC20(_chipsToken);
     }
 
-    /// @notice Rake contracts call this after transferring CHIPS to this pool.
+    /// @notice Rake contracts call this after transferring SALOON to this pool.
     function receiveOps(uint256 amount) external {
         require(authorized[msg.sender], "KingsPool: not authorized");
         emit PoolFunded(msg.sender, amount);
     }
 
-    /// @notice Owner withdraws CHIPS for operating expenses with an audit note.
+    /// @notice Owner withdraws SALOON for operating expenses with an audit note.
     function withdraw(address to, uint256 amount, string calldata note) external onlyOwner {
         require(to != address(0), "KingsPool: zero address");
         chipsToken.safeTransfer(to, amount);

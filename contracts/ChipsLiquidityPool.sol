@@ -11,13 +11,13 @@ interface IStablecoinPool {
     function authorizedPayout(address to, uint256 amount) external;
 }
 
-/// @title ChipsLiquidityPool — CHIPS↔USDC trading pool at a fixed owner-set peg
-/// @notice Seeded with 500M CHIPS (full liquidity allocation). Players buy CHIPS with
-///         USDC or redeem CHIPS back for USDC at the current peg rate.
+/// @title ChipsLiquidityPool — SALOON↔USDC trading pool at a fixed owner-set peg
+/// @notice Seeded with 500M SALOON (full liquidity allocation). Players buy SALOON with
+///         USDC or redeem SALOON back for USDC at the current peg rate.
 ///         USDC proceeds from sales flow into StablecoinPool; USDC payouts for
 ///         redemptions come from StablecoinPool.
 ///
-/// Rate encoding: `rateUsdcPerChip` = USDC-wei per 1e18 CHIPS-wei
+/// Rate encoding: `rateUsdcPerChip` = USDC-wei per 1e18 SALOON-wei
 ///   $0.001/CHIP → rateUsdcPerChip = 1000  (1000 USDC-wei = 0.001 USDC with 6 decimals)
 ///   $0.01/CHIP  → rateUsdcPerChip = 10000
 ///   $1/CHIP     → rateUsdcPerChip = 1_000_000
@@ -28,7 +28,7 @@ contract ChipsLiquidityPool is Ownable, ReentrancyGuard {
     IERC20 public immutable usdc;
     IStablecoinPool public stablecoinPool;
 
-    uint256 public rateUsdcPerChip; // USDC-wei per 1e18 CHIPS-wei
+    uint256 public rateUsdcPerChip; // USDC-wei per 1e18 SALOON-wei
     bool    public paused;
 
     event ChipsBought(address indexed buyer, uint256 usdcIn, uint256 chipsOut);
@@ -59,7 +59,7 @@ contract ChipsLiquidityPool is Ownable, ReentrancyGuard {
 
     // ─── PLAYER ACTIONS ───────────────────────────────────────────────────────
 
-    /// @notice Buy CHIPS with USDC. USDC goes directly into StablecoinPool.
+    /// @notice Buy SALOON with USDC. USDC goes directly into StablecoinPool.
     ///         Player must approve this contract for USDC before calling.
     function buyChips(uint256 usdcAmount) external nonReentrant {
         if (paused) revert PoolPaused();
@@ -72,20 +72,20 @@ contract ChipsLiquidityPool is Ownable, ReentrancyGuard {
         usdc.safeTransferFrom(msg.sender, address(stablecoinPool), usdcAmount);
         stablecoinPool.notifyDeposit(usdcAmount);
 
-        // Send CHIPS to player
+        // Send SALOON to player
         chipsToken.safeTransfer(msg.sender, chipsOut);
         emit ChipsBought(msg.sender, usdcAmount, chipsOut);
     }
 
-    /// @notice Redeem CHIPS for USDC. USDC is paid out from StablecoinPool.
-    ///         Player must approve this contract for CHIPS before calling.
+    /// @notice Redeem SALOON for USDC. USDC is paid out from StablecoinPool.
+    ///         Player must approve this contract for SALOON before calling.
     function redeemChips(uint256 chipsAmount) external nonReentrant {
         if (paused) revert PoolPaused();
         if (chipsAmount == 0) revert ZeroAmount();
         uint256 usdcOut = (chipsAmount * rateUsdcPerChip) / 1e18;
         if (usdcOut == 0) revert ZeroAmount();
 
-        // Hold CHIPS in this contract (float recycles for future buyers)
+        // Hold SALOON in this contract (float recycles for future buyers)
         chipsToken.safeTransferFrom(msg.sender, address(this), chipsAmount);
 
         // StablecoinPool pays USDC directly to the player
@@ -111,13 +111,13 @@ contract ChipsLiquidityPool is Ownable, ReentrancyGuard {
         emit StablecoinPoolUpdated(_pool);
     }
 
-    /// @notice Owner tops up the CHIPS float (requires prior approve).
+    /// @notice Owner tops up the SALOON float (requires prior approve).
     function depositChips(uint256 amount) external onlyOwner {
         chipsToken.safeTransferFrom(msg.sender, address(this), amount);
         emit ChipsDeposited(amount);
     }
 
-    /// @notice Owner drains CHIPS from the pool (e.g. if market closes).
+    /// @notice Owner drains SALOON from the pool (e.g. if market closes).
     function withdrawChips(uint256 amount) external onlyOwner {
         chipsToken.safeTransfer(msg.sender, amount);
         emit ChipsWithdrawn(amount);
@@ -129,12 +129,12 @@ contract ChipsLiquidityPool is Ownable, ReentrancyGuard {
         return chipsToken.balanceOf(address(this));
     }
 
-    /// @notice Quote: how many CHIPS for a given USDC amount
+    /// @notice Quote: how many SALOON for a given USDC amount
     function quoteChipsOut(uint256 usdcAmount) external view returns (uint256) {
         return (usdcAmount * 1e18) / rateUsdcPerChip;
     }
 
-    /// @notice Quote: how much USDC for a given CHIPS amount
+    /// @notice Quote: how much USDC for a given SALOON amount
     function quoteUsdcOut(uint256 chipsAmount) external view returns (uint256) {
         return (chipsAmount * rateUsdcPerChip) / 1e18;
     }

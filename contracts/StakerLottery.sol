@@ -12,10 +12,10 @@ interface IChipsStakingView {
     );
 }
 
-/// @title StakerLottery — weekly no-loss prize draw for CHIPS stakers
+/// @title StakerLottery — weekly no-loss prize draw for SALOON stakers
 /// @notice The "risk-free gain" mechanic: staked principal is never touched.
 ///         Each epoch (default 7 days) any staker with tier >= 1 may enter()
-///         once, free; their ticket weight equals their staked CHIPS. When the
+///         once, free; their ticket weight equals their staked SALOON. When the
 ///         epoch ends anyone may call draw(): a weighted-random entrant wins
 ///         the whole prize, and the next epoch begins. If nobody entered, the
 ///         prize rolls over. Prizes are funded from the PromotionsPool via
@@ -57,23 +57,23 @@ contract StakerLottery is Ownable, ReentrancyGuard {
     // ─── PLAY ─────────────────────────────────────────────────────────────────
 
     /// @notice Enter this epoch's draw. Free; requires an active stake (tier >= 1).
-    ///         Ticket weight = staked CHIPS at entry time.
+    ///         Ticket weight = staked SALOON at entry time.
     function enter() external nonReentrant {
         require(block.timestamp < epochStart + epochDuration, "Epoch over - call draw()");
         (uint256 amount,,, uint8 tier) = staking.stakes(msg.sender);
-        require(tier >= 1 && amount > 0, "Stake 25K+ CHIPS to enter");
+        require(tier >= 1 && amount > 0, "Stake 25K+ SALOON to enter");
 
         EpochData storage e = _epochs[epochId];
         require(e.tickets[msg.sender] == 0, "Already entered");
 
-        uint256 tickets = amount / 1e18; // whole CHIPS
+        uint256 tickets = amount / 1e18; // whole SALOON
         e.tickets[msg.sender] = tickets;
         e.totalTickets       += tickets;
         e.entrants.push(msg.sender);
         emit Entered(epochId, msg.sender, tickets);
     }
 
-    /// @notice Add CHIPS to the current epoch's prize. Open to anyone —
+    /// @notice Add SALOON to the current epoch's prize. Open to anyone —
     ///         typically the owner forwarding a PromotionsPool withdrawal.
     function fundPrize(uint256 amount) external nonReentrant {
         require(amount > 0, "Zero amount");
@@ -149,9 +149,9 @@ contract StakerLottery is Ownable, ReentrancyGuard {
         epochDuration = secs;
     }
 
-    /// @notice Rescue tokens other than CHIPS sent here by mistake.
+    /// @notice Rescue tokens other than SALOON sent here by mistake.
     function sweep(address token, address to) external onlyOwner {
-        require(token != address(chipsToken), "CHIPS are prize funds");
+        require(token != address(chipsToken), "SALOON are prize funds");
         IERC20(token).safeTransfer(to, IERC20(token).balanceOf(address(this)));
     }
 }

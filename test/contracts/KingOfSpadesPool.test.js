@@ -17,7 +17,7 @@ describe("KingOfSpadesPool", () => {
     const KingsPool = await ethers.getContractFactory("KingOfSpadesPool");
     kingsPool = await KingsPool.deploy(await token.getAddress());
 
-    // Seed pool with some CHIPS to simulate OPS_RESERVE deposit
+    // Seed pool with some SALOON to simulate OPS_RESERVE deposit
     await token.transfer(await kingsPool.getAddress(), parseUnits("100000000", 18));
   });
 

@@ -44,7 +44,7 @@ describe("StakerLottery", () => {
     }
   });
 
-  it("stakers can enter once; tickets equal staked CHIPS", async () => {
+  it("stakers can enter once; tickets equal staked SALOON", async () => {
     await lottery.connect(bronze).enter();
     await lottery.connect(whale).enter();
     expect(await lottery.myTickets(bronze.address)).to.equal(25000n);
@@ -100,7 +100,7 @@ describe("StakerLottery", () => {
     await expectReverted(lottery.connect(bronze).enter());
   });
 
-  it("admin gating: epoch duration bounds and owner-only; sweep protects CHIPS", async () => {
+  it("admin gating: epoch duration bounds and owner-only; sweep protects SALOON", async () => {
     await expectReverted(lottery.connect(bronze).setEpochDuration(WEEK));
     await expectReverted(lottery.setEpochDuration(60)); // < 1h
     await lottery.setEpochDuration(24 * 60 * 60);

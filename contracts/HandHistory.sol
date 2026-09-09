@@ -15,7 +15,7 @@ contract HandHistory is Ownable {
     struct PlayerStats {
         uint256 handsPlayed;
         uint256 handsWon;
-        uint256 totalWinnings; // cumulative pot winnings, in CHIPS wei (18 decimals)
+        uint256 totalWinnings; // cumulative pot winnings, in SALOON wei (18 decimals)
         uint256 lastBatchAt;
     }
 

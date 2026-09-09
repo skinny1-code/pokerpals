@@ -13,7 +13,7 @@ const WS_URL       = process.env.NEXT_PUBLIC_WS_URL?.replace(/^https?/, m => m =
 // throwaway wallet if OPS_WALLET_KEY is unset so local testing still works.
 const BOT_KEY   = process.env.OPS_WALLET_KEY;
 const wallet    = BOT_KEY ? new ethers.Wallet(BOT_KEY) : ethers.Wallet.createRandom();
-if (!BOT_KEY) console.log("⚠️  OPS_WALLET_KEY unset — using a random throwaway wallet (no on-chain CHIPS).");
+if (!BOT_KEY) console.log("⚠️  OPS_WALLET_KEY unset — using a random throwaway wallet (no on-chain SALOON).");
 const BOT_ADDR  = wallet.address;
 
 console.log(`🤖 Bot wallet: ${BOT_ADDR}`);

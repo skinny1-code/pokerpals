@@ -76,7 +76,7 @@ echo "  • WalletConnect: add $SITE_URL to allowed origins on cloud.reown.com"
 echo "    (else wallet connect fails with 'origin not allowed' / close code 3000)"
 echo "  • Game server secrets: OPERATOR_PRIVATE_KEY matches the escrow operatorSigner,"
 echo "    plus ARB_SEPOLIA_RPC and TESTNET_SKIP_HUMAN_CHECK=true"
-echo "  • Testers funded: Arbitrum Sepolia ETH (gas) + CHIPS (npm run faucet)"
+echo "  • Testers funded: Arbitrum Sepolia ETH (gas) + SALOON (npm run faucet)"
 
 # Summary --------------------------------------------------------------------
 echo "========================================"

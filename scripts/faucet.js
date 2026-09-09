@@ -1,12 +1,12 @@
-// scripts/faucet.js — send testnet CHIPS (and gas ETH) to any address
-// All 1B CHIPS are minted at deploy, so we transfer from OPS_WALLET_KEY (100M budget)
+// scripts/faucet.js — send testnet SALOON (and gas ETH) to any address
+// All 1B SALOON are minted at deploy, so we transfer from OPS_WALLET_KEY (100M budget)
 // rather than calling ChipsToken.faucet() which would exceed MAX_SUPPLY.
 // If the recipient has no Arbitrum Sepolia ETH for gas, a small top-up is sent
 // automatically from the same sender wallet, so players never need a public
 // testnet-ETH faucet (most of which demand a mainnet ETH balance).
-// Usage: npm run faucet                            → 10,000 CHIPS to deployer
-//        npm run faucet -- 0xADDR                  → 10,000 CHIPS to 0xADDR
-//        npm run faucet -- 0xADDR 50000            → 50,000 CHIPS to 0xADDR
+// Usage: npm run faucet                            → 10,000 SALOON to deployer
+//        npm run faucet -- 0xADDR                  → 10,000 SALOON to 0xADDR
+//        npm run faucet -- 0xADDR 50000            → 50,000 SALOON to 0xADDR
 //        FAUCET_TO=0xADDR npm run faucet           → env-var form still works
 //        FAUCET_ETH=0.01 npm run faucet -- 0xADDR  → force a 0.01 ETH gas top-up
 //        FAUCET_ETH=0 npm run faucet -- 0xADDR     → never send gas ETH
@@ -56,13 +56,13 @@ async function main() {
 
   const needed = ethers.parseUnits(amount, 18);
   const bal    = await token.balanceOf(sender.address);
-  if (bal < needed) throw new Error(`Sender only has ${ethers.formatUnits(bal, 18)} CHIPS — not enough to send ${amount}`);
+  if (bal < needed) throw new Error(`Sender only has ${ethers.formatUnits(bal, 18)} SALOON — not enough to send ${amount}`);
 
-  console.log(`Sending ${amount} CHIPS to ${addr}...`);
+  console.log(`Sending ${amount} SALOON to ${addr}...`);
   const tx      = await token.transfer(addr, needed);
   console.log(`tx submitted: ${tx.hash}`);
   const receipt = await tx.wait();
-  console.log(`✅ Sent ${amount} CHIPS to ${addr}`);
+  console.log(`✅ Sent ${amount} SALOON to ${addr}`);
   console.log(`   block: ${receipt.blockNumber}  tx: ${tx.hash}`);
 
   // Gas top-up: players need a little Sepolia ETH to buy in / approve. Default:

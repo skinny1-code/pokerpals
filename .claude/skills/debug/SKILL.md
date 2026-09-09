@@ -74,7 +74,7 @@ indexed API over an allowed path and need no local RPC at all:
   `getTableInfo(tableId)`, …) without a local RPC
 - `get_transaction_info` — inspect a specific `buyIn`/`rebuy`/`settle` tx,
   including revert reason
-- `get_token_transfers_by_address` — CHIPS/USDC movement for an address
+- `get_token_transfers_by_address` — SALOON/USDC movement for an address
 - `inspect_contract_code` / `get_contract_abi` — check deployed bytecode
   against `contracts/*.sol` when behavior doesn't match source
 

@@ -1,6 +1,6 @@
 // scripts/lotteryDraw.js — weekly lottery routine (owner):
 //   1. If the current epoch's prize is below LOTTERY_PRIZE (default 100,000
-//      CHIPS), pull the difference from the PromotionsPool and fund it.
+//      SALOON), pull the difference from the PromotionsPool and fund it.
 //   2. If the epoch has ended, draw() and report the winner.
 // Safe to run any time; each step no-ops when not applicable.
 // Usage: npm run lottery:draw   (DEPLOYER_KEY in .env)
@@ -50,12 +50,12 @@ async function main() {
 
   const target = ethers.parseUnits(process.env.LOTTERY_PRIZE || "100000", 18);
   let [id, endsAt, prize] = await lottery.currentEpoch();
-  console.log(`Epoch #${id} — prize ${ethers.formatUnits(prize, 18)} CHIPS, ends ${new Date(Number(endsAt) * 1000).toISOString()}`);
+  console.log(`Epoch #${id} — prize ${ethers.formatUnits(prize, 18)} SALOON, ends ${new Date(Number(endsAt) * 1000).toISOString()}`);
 
   // 1. Top the prize up to target from the PromotionsPool
   if (prize < target) {
     const need = target - prize;
-    console.log(`Funding prize: pulling ${ethers.formatUnits(need, 18)} CHIPS from PromotionsPool...`);
+    console.log(`Funding prize: pulling ${ethers.formatUnits(need, 18)} SALOON from PromotionsPool...`);
     await (await promotions.withdraw(owner.address, need, `staker lottery epoch ${id}`)).wait();
     await (await token.approve(c.StakerLottery, need)).wait();
     await (await lottery.fundPrize(need)).wait();
@@ -70,10 +70,10 @@ async function main() {
     if (winner === ethers.ZeroAddress) {
       console.log("Nobody entered — prize rolled into the new epoch.");
     } else {
-      console.log(`🎉 Winner of epoch #${id}: ${winner} — ${ethers.formatUnits(wonPrize, 18)} CHIPS`);
+      console.log(`🎉 Winner of epoch #${id}: ${winner} — ${ethers.formatUnits(wonPrize, 18)} SALOON`);
     }
     const [newId, newEnds, newPrize] = await lottery.currentEpoch();
-    console.log(`Epoch #${newId} started — prize ${ethers.formatUnits(newPrize, 18)} CHIPS, ends ${new Date(Number(newEnds) * 1000).toISOString()}`);
+    console.log(`Epoch #${newId} started — prize ${ethers.formatUnits(newPrize, 18)} SALOON, ends ${new Date(Number(newEnds) * 1000).toISOString()}`);
   } else {
     console.log("Epoch still running — nothing to draw yet.");
   }

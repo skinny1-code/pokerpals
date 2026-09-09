@@ -59,7 +59,7 @@ export function createCashoutRelay({
     try {
       const tx = await queueOperatorTx(() =>
         escrow.cashOut(BigInt(t.id), addr, BigInt(amount), BigInt(nonce), sig));
-      info(`[Server] sponsored cashout ${tx.hash} — ${shortAddr(addr)} ← ${amount} CHIPS (table ${t.id})`);
+      info(`[Server] sponsored cashout ${tx.hash} — ${shortAddr(addr)} ← ${amount} SALOON (table ${t.id})`);
       deliverCashout(t, addr, ws, {
         type: 'CASHOUT_RELAYED', amount, txHash: tx.hash, tableId: String(t.id), sig, nonce,
       });

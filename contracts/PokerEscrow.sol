@@ -73,7 +73,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     uint256 public referralBps     = 1000; // 10% to referrer
     uint256 public rakeKingsBps    = 1000; // 10% to King of Spades Pool (ops)
 
-    // Rakeback loyalty — players earn back a % of their rake as claimable CHIPS
+    // Rakeback loyalty — players earn back a % of their rake as claimable SALOON
     uint256 public rakebackBps = 500;  // 5% of rake paid accrues to player
     uint256 public rakebackPool;       // funded by owner from community wallet
     mapping(address => uint256) public rakebackAccrued;  // claimable per player
@@ -393,7 +393,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
 
     // ─── RAKEBACK ─────────────────────────────────────────────────────────────
 
-    /// @notice Claim all accrued rakeback CHIPS. Funded from rakebackPool (topped up by owner).
+    /// @notice Claim all accrued rakeback SALOON. Funded from rakebackPool (topped up by owner).
     function claimRakeback() external nonReentrant {
         uint256 amount = rakebackAccrued[msg.sender];
         require(amount > 0, "Nothing to claim");

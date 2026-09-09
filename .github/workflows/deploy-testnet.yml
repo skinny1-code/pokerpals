@@ -23,7 +23,7 @@ on:
         type: choice
         options: ["true", "false"]
       run_faucet:
-        description: "Send 10 000 CHIPS to deployer after deploy?"
+        description: "Send 10 000 SALOON to deployer after deploy?"
         required: false
         default: "false"
         type: choice

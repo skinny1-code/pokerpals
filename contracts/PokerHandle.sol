@@ -25,7 +25,7 @@ interface IPokerEscrow {
 
 /// @title PokerHandle — on-chain poker username NFT
 ///
-/// Players burn CHIPS to mint a unique handle (e.g. "Shark_99").
+/// Players burn SALOON to mint a unique handle (e.g. "Shark_99").
 /// Each token gets a deterministic poker animal identity (Bear, Wolf, Fox, Shark,
 /// Eagle, Tiger, Rabbit, or Bull) based on a hash of the token ID — on-chain SVG.
 ///
