@@ -13,9 +13,9 @@ export function GET() {
     },
     frame: {
       version:              '1',
-      name:                 'All In',
+      name:                 'Saloon',
       iconUrl:              `${base}/icon.png`,
-      homeUrl:              base || 'https://allin.gg',
+      homeUrl:              base || 'https://saloon.poker',
       imageUrl:             `${base}/og.png`,
       splashImageUrl:       `${base}/splash.png`,
       splashBackgroundColor:'#111114',

@@ -69,9 +69,9 @@ export default function AuthGate({ children }) {
       }}>
         <div style={{ textAlign:'center' }}>
           <div style={{ fontSize:28, fontWeight:900, color:'var(--gold)', letterSpacing:1,
-            fontFamily:"'JetBrains Mono',monospace" }}>♠ All In</div>
+            fontFamily:"'JetBrains Mono',monospace" }}>♠ Saloon</div>
           <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:8 }}>
-            Choose a display name — free, no ALLIN required
+            Choose a display name — free, no SALOON required
           </div>
         </div>
         <div style={{
@@ -120,7 +120,7 @@ export default function AuthGate({ children }) {
     }}>
       <div style={{ textAlign:'center' }}>
         <div style={{ fontSize:28, fontWeight:900, color:'var(--gold)', letterSpacing:1,
-          fontFamily:"'JetBrains Mono',monospace" }}>♠ All In</div>
+          fontFamily:"'JetBrains Mono',monospace" }}>♠ Saloon</div>
         <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:8 }}>
           Connect your wallet and sign in to play
         </div>

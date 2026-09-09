@@ -1,8 +1,8 @@
 ---
-description: Launch All In (WS game server + Next.js) and drive it with Playwright
+description: Launch Saloon (WS game server + Next.js) and drive it with Playwright
 ---
 
-# Run — All In
+# Run — Saloon
 
 Two processes must be running before the browser can reach anything:
 

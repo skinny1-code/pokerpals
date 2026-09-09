@@ -295,7 +295,7 @@ export default function PokerTable({
             {tableInfo.bigBlind && (
               <span style={{ fontSize: 9, color: '#57544b',
                 fontFamily: "'JetBrains Mono', monospace" }}>
-                {(tableInfo.bigBlind/2).toLocaleString()}/{tableInfo.bigBlind.toLocaleString()} ALLIN
+                {(tableInfo.bigBlind/2).toLocaleString()}/{tableInfo.bigBlind.toLocaleString()} SALOON
               </span>
             )}
             {tableInfo.gameType === 1 && (

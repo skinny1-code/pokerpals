@@ -1,7 +1,7 @@
 {
-  "name": "allin",
+  "name": "saloon",
   "version": "1.0.0",
-  "description": "All In — Onchain PvP Crypto Poker Network",
+  "description": "Saloon — Onchain PvP Crypto Poker Network",
   "private": true,
   "type": "module",
   "scripts": {

@@ -306,7 +306,7 @@ export const LIQUIDITY_POOL_ABI = [
 ];
 
 // ─── CONTRACT ADDRESSES ────────────────────────────────────────────────────────
-export const ALLIN          = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
+export const SALOON          = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
 export const ESCROW         = process.env.NEXT_PUBLIC_ESCROW;
 export const STAKING        = process.env.NEXT_PUBLIC_STAKING;
 export const HANDLE         = process.env.NEXT_PUBLIC_POKER_HANDLE;
@@ -322,7 +322,7 @@ export const USDC_ADDR      = MOCK_USDC || process.env.NEXT_PUBLIC_USDC;
 
 // Exported for dashboard and other consumers
 export const CONTRACT_ADDRESSES = {
-  chipsToken:      ALLIN,
+  chipsToken:      SALOON,
   escrow:          ESCROW,
   staking:         STAKING,
   handle:          HANDLE,
@@ -374,10 +374,10 @@ export async function safeFeeOverrides(publicClient) {
   }
 }
 
-// Returns true if `owner` has already approved at least `needed` of `tokenAddr` (default ALLIN)
+// Returns true if `owner` has already approved at least `needed` of `tokenAddr` (default SALOON)
 // to `spender`. Lets the write flows skip a redundant approve popup — critical on MetaMask
 // mobile, where back-to-back approve→action popups frequently leave the 2nd one blank/stuck.
-export async function hasAllowance(publicClient, owner, spender, needed, tokenAddr = ALLIN) {
+export async function hasAllowance(publicClient, owner, spender, needed, tokenAddr = SALOON) {
   if (!publicClient || !owner || !spender) return false;
   try {
     const current = await publicClient.readContract({

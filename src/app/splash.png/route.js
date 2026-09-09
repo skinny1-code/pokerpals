@@ -19,7 +19,7 @@ export function GET() {
           fontSize: 28, fontWeight: 'bold',
           color: '#c9b075', marginTop: 8, fontFamily: 'serif',
         }}>
-          All In
+          Saloon
         </div>
       </div>
     ),

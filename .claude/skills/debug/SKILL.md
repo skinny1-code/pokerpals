@@ -1,8 +1,8 @@
 ---
-description: Diagnose a bug in All In across contracts, WS server, and frontend
+description: Diagnose a bug in Saloon across contracts, WS server, and frontend
 ---
 
-# Debug — All In
+# Debug — Saloon
 
 Use when something's broken and the cause isn't obvious. Pick the layer the
 symptom points at, then use the matching technique below. If unsure which

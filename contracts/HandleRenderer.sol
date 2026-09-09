@@ -124,7 +124,7 @@ contract HandleRenderer {
             '<text x="200" y="326" font-family="Georgia,serif" font-size="11" fill="#d9c08a" text-anchor="middle">', unicode"♠", '</text>',
             '<line x1="228" y1="322" x2="282" y2="322" stroke="#d9c08a" stroke-width="0.8" opacity="0.4"/>',
             '<text x="200" y="356" font-family="monospace" font-size="24" font-weight="700" fill="url(#champ)" text-anchor="middle" letter-spacing="2">@', handle, '</text>',
-            '<text x="200" y="380" font-family="monospace" font-size="8" fill="#a29c8e" text-anchor="middle" letter-spacing="3">ALL IN ', unicode"·", ' #', tokenId.toString(), '</text>',
+            '<text x="200" y="380" font-family="monospace" font-size="8" fill="#a29c8e" text-anchor="middle" letter-spacing="3">SALOON ', unicode"·", ' #', tokenId.toString(), '</text>',
             '</svg>'
         );
     }

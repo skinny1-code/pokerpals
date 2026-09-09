@@ -6,12 +6,12 @@
 // (static pages) or every request (dynamic), taking the site down.
 //
 // Handles the real-world env values that broke it:
-//   "https://allin.gg" -> unchanged
-//   "allin.gg"         -> "https://allin.gg" (scheme prepended)
-//   "www.allin.gg"     -> "https://www.allin.gg"
-//   ""/undefined/garbage        -> "https://allin.gg" (safe fallback)
+//   "https://saloon.poker" -> unchanged
+//   "saloon.poker"         -> "https://saloon.poker" (scheme prepended)
+//   "www.saloon.poker"     -> "https://www.saloon.poker"
+//   ""/undefined/garbage        -> "https://saloon.poker" (safe fallback)
 
-export const DEFAULT_APP_URL = 'https://allin.gg';
+export const DEFAULT_APP_URL = 'https://saloon.poker';
 
 export function resolveAppUrl(raw = process.env.NEXT_PUBLIC_APP_URL) {
   const trimmed = String(raw || '').trim().replace(/\/+$/, '');

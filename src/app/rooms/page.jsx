@@ -247,7 +247,7 @@ function LeaseRoomModal({ onClose, weeklyFee, monthlyFee, leaseRoom, status, err
             />
           </div>
           <div className="gold-text" style={{ fontSize:13, fontWeight:800, marginTop:10, fontFamily:"'JetBrains Mono',monospace" }}>
-            Total: ◈ {fmt(totalFee)} ALLIN
+            Total: ◈ {fmt(totalFee)} SALOON
           </div>
           {effectiveCount > 0 && !Number.isInteger(effectiveCount) && (
             <div style={{ fontSize:11, color:'#f0675a', marginTop:8,
@@ -430,7 +430,7 @@ export default function RoomsPage() {
             fontSize:14.5, color:'#8d877a', letterSpacing:.2,
             maxWidth:440, margin:'0 auto 30px', lineHeight:1.7, opacity:0,
           }}>
-            Lease your own poker room with ALLIN.<br/>
+            Lease your own poker room with SALOON.<br/>
             <span style={{ color:'#a59f90' }}>NFT-gate it for your community.</span>
           </p>
 

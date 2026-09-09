@@ -1,6 +1,6 @@
 // src/hooks/wallet/useLiquidityPool.js
-// ALLIN ⇄ USDC swap pool — used by the /buy page (card on-ramp, DEX, and
-// the ALLIN -> USDC withdraw flow).
+// SALOON ⇄ USDC swap pool — used by the /buy page (card on-ramp, DEX, and
+// the SALOON -> USDC withdraw flow).
 
 import { useState, useCallback } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicClient, useReadContract } from "wagmi";
@@ -8,7 +8,7 @@ import { waitForTransactionReceipt } from "wagmi/actions";
 import { parseUnits, formatUnits } from "viem";
 import {
   wagmiConfig, safeFeeOverrides, hasAllowance,
-  CHIPS_ABI, ALLIN, LIQUIDITY_POOL_ABI, LIQUIDITY_POOL, USDC_ADDR,
+  CHIPS_ABI, SALOON, LIQUIDITY_POOL_ABI, LIQUIDITY_POOL, USDC_ADDR,
 } from "./core";
 
 export function useLiquidityPool() {
@@ -56,7 +56,7 @@ export function useLiquidityPool() {
     return Number(formatUnits((chipsAmt * rateRaw) / 10n ** 18n, 6));
   }, [rateRaw]);
 
-  // Buy ALLIN with USDC (the leg the card on-ramp lands in, once USDC is in the wallet).
+  // Buy SALOON with USDC (the leg the card on-ramp lands in, once USDC is in the wallet).
   const buyChips = useCallback(async (usdcHuman) => {
     if (!address || !LIQUIDITY_POOL || !USDC_ADDR) return;
     try {
@@ -87,7 +87,7 @@ export function useLiquidityPool() {
     }
   }, [address, writeContractAsync, publicClient, refetchUsdc, refetchPoolChips]);
 
-  // Redeem ALLIN back for USDC, paid out of StablecoinPool.
+  // Redeem SALOON back for USDC, paid out of StablecoinPool.
   const redeemChips = useCallback(async (chipsHuman) => {
     if (!address || !LIQUIDITY_POOL) return;
     try {
@@ -97,7 +97,7 @@ export function useLiquidityPool() {
       if (!(await hasAllowance(publicClient, address, LIQUIDITY_POOL, chipsAmt))) {
         setStatus('approving');
         const approveTx = await writeContractAsync({
-          address: ALLIN, abi: CHIPS_ABI, functionName: "approve",
+          address: SALOON, abi: CHIPS_ABI, functionName: "approve",
           args: [LIQUIDITY_POOL, chipsAmt], ...feeOverrides,
         });
         await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });

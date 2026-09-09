@@ -1,4 +1,4 @@
-# All In — Brain Map & Reference
+# Saloon — Brain Map & Reference
 
 > Keep this file private. Contains wallet addresses and role descriptions.
 > Private keys are stored only in `.env` (encrypted as `.env.enc`).
@@ -9,7 +9,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        All In                              │
+│                        Saloon                              │
 │                                                                 │
 │  Players ──WS──► Game Server ──signs──► Settlement Sig         │
 │                      │                       │                  │
