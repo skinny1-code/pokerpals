@@ -35,12 +35,12 @@ function buildChips(amount, bigBlind, maxChips = 10) {
 
 function PotChips({ amount, bigBlind = 100 }) {
   if (!amount || amount <= 0) return null;
-  const maxC = Math.min(12, Math.max(3, Math.ceil(Math.log10(amount / bigBlind + 1)) + 2));
+  const maxC = Math.min(9, Math.max(3, Math.ceil(Math.log10(amount / bigBlind + 1)) + 2));
   const chips = buildChips(amount, bigBlind, maxC);
-  const chipD = 30, gap = 6; // round casino chips, stacked with a slight rise
+  const chipD = 24, gap = 5; // round casino chips, stacked with a slight rise
 
   // Split into up to 3 stacks
-  const colSize = Math.ceil(chips.length / 3);
+  const colSize = Math.max(4, Math.ceil(chips.length / 3));
   const cols = [];
   for (let i = 0; i < chips.length; i += colSize) cols.push(chips.slice(i, i + colSize));
 

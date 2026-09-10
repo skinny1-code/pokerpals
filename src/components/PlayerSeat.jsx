@@ -14,7 +14,7 @@ const CHIP_DENOMS = [
   { bbMult: 0,    color: '#3a3a3a', hi: '#7f8c8d' },
 ];
 
-function buildChips(amount, bigBlind, maxChips = 7) {
+function buildChips(amount, bigBlind, maxChips = 9) {
   const bb = bigBlind || 100;
   let rem = amount / bb;
   const chips = [];
@@ -210,6 +210,8 @@ export default function PlayerSeat({
   // How big is this bet relative to pot (for chip pile sizing)
   const betPct   = pot > 0 ? Math.min(betAmount / pot, 1) : 0;
   const chipCount = betAmount > 0 ? Math.max(3, Math.min(9, Math.ceil(betPct * 8) + 1)) : 0;
+  // Rendered height of the pile: chip diameter + rises + gap + amount label.
+  const pileH = 30 + Math.max(0, chipCount - 1) * 6 + 3 + 15;
 
   return (
     <div style={{
@@ -318,8 +320,11 @@ export default function PlayerSeat({
       {betAmount > 0 && (
         <div style={{
           position: 'absolute',
-          top: pos.label === 'bottom' ? '-84px' : pos.label === 'top' ? '84px' : '0',
-          left: pos.label === 'left' ? '84px' : pos.label === 'right' ? '-84px' : '50%',
+          // Offset scales with the pile: chips are 30px on a 6px rise, plus the
+          // gap and the amount label. A fixed offset let a 9-chip pile (78px)
+          // overlap the avatar / hole cards below it.
+          top: pos.label === 'bottom' ? `-${pileH + 8}px` : pos.label === 'top' ? `${pileH + 8}px` : '0',
+          left: pos.label === 'left' ? `${pileH + 8}px` : pos.label === 'right' ? `-${pileH + 8}px` : '50%',
           transform: pos.label === 'left' || pos.label === 'right' ? 'translateY(-50%)' : 'translateX(-50%)',
         }}>
           <ChipPile amount={betAmount} bigBlind={bigBlind} maxChips={chipCount} />

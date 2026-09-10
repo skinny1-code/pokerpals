@@ -224,14 +224,21 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
     }
 
     // ─── SETTLE ───────────────────────────────────────────────────────────────
+    /// @param potAmount  The size of THIS hand's pot. It is part of the signed
+    ///        digest, so the operator attests to it and a player cannot settle a
+    ///        small pot against the table's whole escrow. Without this the payout
+    ///        was `potTotal` — every seated player's buy-in — which let the winner
+    ///        of one blind-sized pot take the entire table and left everyone else
+    ///        unable to cash out (potTotal was zeroed).
     function settle(
-        uint256 tableId, uint256 handNonce,
+        uint256 tableId, uint256 handNonce, uint256 potAmount,
         address[] calldata winners, uint256[] calldata shares, bytes calldata sig
     ) external nonReentrant {
         Table storage t = tables[tableId];
         require(t.status == TableStatus.Active, "Not active");
         require(handNonce == t.handNonce, "Bad nonce");
         require(winners.length == shares.length && winners.length > 0);
+        require(potAmount > 0 && potAmount <= t.potTotal, "Bad pot");
         uint256 tot; for (uint i; i < shares.length; i++) tot += shares[i];
         require(tot == 1000);
 
@@ -239,7 +246,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         // on another chain (e.g. a testnet sig reused on mainnet) or on a redeployed
         // escrow sharing the same operator key and tableId/handNonce start values.
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(
-            keccak256(abi.encodePacked(block.chainid, address(this), tableId, handNonce, winners, shares))
+            keccak256(abi.encodePacked(block.chainid, address(this), tableId, handNonce, potAmount, winners, shares))
         );
         if (usedSettleHashes[digest]) revert AlreadySettled(digest);
         if (digest.recover(sig) != operatorSigner) revert InvalidSig();
@@ -249,7 +256,7 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         uint8 tier = address(stakingContract) != address(0)
             ? stakingContract.getTier(winners[0]) : 0;
         if (tier > 4) tier = 4;
-        uint256 totalRake = (t.potTotal * tierRakeNum[tier]) / rakeDen;
+        uint256 totalRake = (potAmount * tierRakeNum[tier]) / rakeDen;
         if (totalRake > rakeCapCHIPS) totalRake = rakeCapCHIPS;
 
         // ── Rake distribution ──────────────────────────────────────────────
@@ -319,14 +326,16 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         }
 
         // ── Pay winners ────────────────────────────────────────────────────
-        uint256 netPot = t.potTotal - totalRake;
+        uint256 netPot = potAmount - totalRake;
         uint256[] memory payouts = new uint256[](winners.length);
         for (uint i; i < winners.length; i++) {
             payouts[i] = (netPot * shares[i]) / 1000;
             chipsToken.safeTransfer(winners[i], payouts[i]);
         }
 
-        t.potTotal = 0;
+        // Only this hand's pot leaves the table escrow; the rest still backs the
+        // remaining players' chips so they can still cash out.
+        t.potTotal -= potAmount;
         t.handNonce++;
         emit HandSettled(tableId, handNonce, winners, payouts, totalRake, burnAmt, stakingAmt, referralPaid);
     }

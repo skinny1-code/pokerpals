@@ -14,10 +14,15 @@ import VerifyHumanBanner from '../../../components/VerifyHumanBanner';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 
-// Block explorer base for tx links (Arbitrum Sepolia by default, Arbitrum One on mainnet).
-const EXPLORER_TX = (Number(process.env.NEXT_PUBLIC_CHAIN_ID) === 42161
-  ? 'https://arbiscan.io/tx/'
-  : 'https://sepolia.arbiscan.io/tx/');
+// Block explorer base for tx links, per chain. Robinhood Chain is the mainnet
+// target, so an Arbitrum-only mapping sent every receipt link to a 404.
+const EXPLORERS = {
+  42161:  'https://arbiscan.io',
+  421614: 'https://sepolia.arbiscan.io',
+  4663:   'https://robinhoodchain.blockscout.com',
+  46630:  'https://explorer.testnet.chain.robinhood.com',
+};
+const EXPLORER_TX = `${EXPLORERS[Number(process.env.NEXT_PUBLIC_CHAIN_ID)] || EXPLORERS[421614]}/tx/`;
 
 // ── action label from server → badge key ─────────────────────────────────────
 function parseActionLabel(label) {

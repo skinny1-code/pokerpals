@@ -2,6 +2,12 @@
 // Table economics: buy-in/rebuy/cashout/refund, table creation, and the
 // on-chain hand-history stats contract.
 
+// Human-readable chain names for the wrong-network prompt. Hardcoding
+// "Arbitrum One" told Robinhood users to switch to the wrong network.
+const CHAIN_NAMES = {
+  42161: 'Arbitrum One', 421614: 'Arbitrum Sepolia',
+  4663: 'Robinhood Chain', 46630: 'Robinhood Chain Testnet',
+};
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicClient, useReadContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
@@ -250,7 +256,7 @@ export function useCreateTable() {
     if (!address) { setErrorMsg('Connect your wallet first.'); return null; }
     if (!ESCROW)  { setErrorMsg('Contract not configured — run npm run setup:env and restart.'); return null; }
     if (chainId !== EXPECTED_CHAIN) {
-      setErrorMsg(`Wrong network — switch MetaMask to ${EXPECTED_CHAIN === 421614 ? 'Arbitrum Sepolia' : 'Arbitrum One'} (chain ${EXPECTED_CHAIN}).`);
+      setErrorMsg(`Wrong network — switch MetaMask to ${CHAIN_NAMES[EXPECTED_CHAIN] || `chain ${EXPECTED_CHAIN}`} (chain ${EXPECTED_CHAIN}).`);
       return null;
     }
     setStatus('pending');

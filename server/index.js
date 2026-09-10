@@ -63,6 +63,7 @@ const operator   = new ethers.Wallet(OPERATOR_KEY, provider);
 // block.chainid or the contract's ecrecover check fails. Seeded from env for
 // immediate correctness, then reconciled against the live RPC at boot.
 let CHAIN_ID = BigInt(process.env.CHAIN_ID || process.env.NEXT_PUBLIC_CHAIN_ID || 0);
+let chainIdResolved = CHAIN_ID !== 0n;
 provider.getNetwork()
   .then(n => {
     const live = BigInt(n.chainId);
@@ -70,8 +71,20 @@ provider.getNetwork()
       console.warn(`[Server] ⚠️  CHAIN_ID env (${CHAIN_ID}) != RPC chain (${live}); using RPC chain for signing.`);
     }
     CHAIN_ID = live;
+    chainIdResolved = true;
   })
   .catch(e => console.error('[Server] getNetwork for CHAIN_ID failed:', e.message));
+
+// Never sign with an unknown chain id. If the env var is unset AND the boot
+// getNetwork() call failed, CHAIN_ID would stay 0 for the life of the process:
+// every settle/cashout signature would be bound to chain 0, the contract (which
+// hashes the real block.chainid) would reject all of them, and no hand could
+// ever settle. Fail loudly at signing time instead of emitting dead signatures.
+function assertChainIdReady() {
+  if (!chainIdResolved || CHAIN_ID === 0n) {
+    throw new Error('CHAIN_ID unresolved — refusing to sign. Set CHAIN_ID/NEXT_PUBLIC_CHAIN_ID or fix the RPC.');
+  }
+}
 
 // ─── OPERATOR GAS WATCHDOG ───────────────────────────────────────────────────
 // The operator wallet pays gas for markHuman / settle-adjacent txs. When it runs
@@ -347,7 +360,9 @@ class PokerTable {
 
   seat(player, preferredSeat) {
     if (this.players.length >= this.config.maxPlayers) return false;
-    if (this.players.find(p => p.addr === player.addr)) return false;
+    // Case-insensitive de-dupe: defense in depth behind the AUTH normalization,
+    // so one wallet can never occupy two seats via address casing.
+    if (this.players.find(p => String(p.addr).toLowerCase() === String(player.addr).toLowerCase())) return false;
     if (this.players.length === 0) this.creator = player.addr;
     const chips = player.onChainDeposit ?? this.config.buyIn;
     // Assign seat position: use preferred if free, else first open slot
@@ -540,18 +555,22 @@ class PokerTable {
     return { winners: winners.map(w => w.addr), results, pot: this.pot };
   }
 
-  async signAndSettle(winners, shares) {
+  async signAndSettle(winners, shares, potAmount) {
     // Digest must match PokerEscrow.settle: chainId + escrow address bind the sig
-    // to this chain/contract (blocks cross-chain / cross-deployment replay).
+    // to this chain/contract (blocks cross-chain / cross-deployment replay), and
+    // potAmount binds it to THIS hand's pot so the signature can't be used to
+    // sweep the table's entire escrow.
+    assertChainIdReady();
     const digest = ethers.solidityPackedKeccak256(
-      ['uint256','address','uint256','uint256','address[]','uint256[]'],
-      [CHAIN_ID, ESCROW_ADDR, BigInt(this.id), BigInt(this.handNonce), winners, shares.map(BigInt)]
+      ['uint256','address','uint256','uint256','uint256','address[]','uint256[]'],
+      [CHAIN_ID, ESCROW_ADDR, BigInt(this.id), BigInt(this.handNonce), BigInt(potAmount), winners, shares.map(BigInt)]
     );
     return operator.signMessage(ethers.getBytes(digest));
   }
 
   async signCashOut(player, amount, nonce) {
     // Must match PokerEscrow.cashOut's chainId + address-bound digest.
+    assertChainIdReady();
     const digest = ethers.solidityPackedKeccak256(
       ['string','uint256','address','uint256','address','uint256','uint256'],
       ['CASHOUT', CHAIN_ID, ESCROW_ADDR, BigInt(this.id), player, BigInt(amount), BigInt(nonce)]
@@ -1046,7 +1065,7 @@ async function handleHandOver(t, result) {
   const n      = result.winners.length;
   const base   = Math.floor(1000 / n);
   const shares = result.winners.map((_, i) => i === 0 ? base + (1000 - base * n) : base);
-  const sig    = await t.signAndSettle(result.winners, shares);
+  const sig    = await t.signAndSettle(result.winners, shares, result.pot);
 
   // Accumulate gameplay stats in memory; flushed to HandHistory on-chain periodically.
   const participantAddrs = result.results.map(r => r.p.addr);
@@ -1147,7 +1166,13 @@ wss.on('connection', (ws, req) => {
               return send(ws, { type: 'AUTH_FAIL', error: sigFailureMessage(check, address) });
             }
           }
-          clients.set(ws, { addr: address, tableId: null });
+          // Normalize at the trust boundary. Signature verification and the
+          // session-token check both compare case-insensitively, so a client
+          // could authenticate the SAME wallet twice under different casings
+          // (0xAbC… and 0xabc…). PokerTable.seat() de-dupes with strict ===, so
+          // those two forms took two seats — each credited with the full
+          // on-chain deposit from a single buy-in. Store one canonical form.
+          clients.set(ws, { addr: address.toLowerCase(), tableId: null });
           // Fresh token on every successful auth — a rolling window, so active
           // players never see a signature prompt again on this device.
           const session = issueSessionToken(address);

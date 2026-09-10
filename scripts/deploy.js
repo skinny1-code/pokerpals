@@ -122,15 +122,15 @@ async function main() {
   //     known native USDC for the chain. Unknown mainnets (e.g. Robinhood Chain)
   //     must pass USDC_ADDRESS — we never guess a real-money token address.
   let usdcAddr;
-  if (process.env.USDC_ADDRESS) {
-    usdcAddr = process.env.USDC_ADDRESS;
-    console.log("ℹ️  Using USDC from env:", usdcAddr);
-  } else if (isTestnet) {
+  if (isTestnet) {
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const mockUsdc = await MockUSDC.deploy();
     await mockUsdc.waitForDeployment();
     usdcAddr = await mockUsdc.getAddress();
     console.log("✅ MockUSDC:", usdcAddr);
+  } else if (process.env.USDC_ADDRESS) {
+    usdcAddr = process.env.USDC_ADDRESS;
+    console.log("ℹ️  Using USDC from env:", usdcAddr);
   } else if (networkName === "arbitrum") {
     usdcAddr = USDC_MAINNET;
     console.log("ℹ️  Using Arbitrum One USDC:", usdcAddr);
@@ -276,8 +276,12 @@ async function main() {
   );
   console.log(`\n✅ deployments/${networkName}.json saved`);
 
-  // Auto-write contract addresses into .env
+  // Auto-write contract addresses into .env.
+  // NEXT_PUBLIC_CHAIN_ID must be written too: EXPECTED_CHAIN defaults to the
+  // Arbitrum Sepolia id, so without it a mainnet deploy leaves the frontend
+  // loading mainnet ADDRESSES while forcing wallets onto the testnet chain.
   const envArgs = [
+    `NEXT_PUBLIC_CHAIN_ID=${CHAIN_IDS[networkName]}`,
     `NEXT_PUBLIC_CHIPS_TOKEN=${tokenAddr}`,
     `NEXT_PUBLIC_ESCROW=${escrowAddr}`,
     `NEXT_PUBLIC_STAKING=${stakingAddr}`,
