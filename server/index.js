@@ -563,7 +563,11 @@ class PokerTable {
     assertChainIdReady();
     const digest = ethers.solidityPackedKeccak256(
       ['uint256','address','uint256','uint256','uint256','address[]','uint256[]'],
-      [CHAIN_ID, ESCROW_ADDR, BigInt(this.id), BigInt(this.handNonce), BigInt(potAmount), winners, shares.map(BigInt)]
+      // Floor the pot: chain-loaded tables carry wei-scale amounts as JS Numbers,
+      // so pot arithmetic is floating point. BigInt() THROWS on a fractional
+      // value, and rounding up could push potAmount past the contract's
+      // `potAmount <= potTotal` check and revert the settlement.
+      [CHAIN_ID, ESCROW_ADDR, BigInt(this.id), BigInt(this.handNonce), BigInt(Math.floor(potAmount)), winners, shares.map(BigInt)]
     );
     return operator.signMessage(ethers.getBytes(digest));
   }
@@ -701,19 +705,35 @@ const tables  = new Map();
 const clients = new Map(); // ws => { addr, tableId }
 
 // Pre-seeded permanent tables — always available, reset (not deleted) when empty
+// Seeded tables live only in server memory. PokerEscrow allocates table ids from
+// `++tableCount` (starting at 1), so ids in the 9000s have NO on-chain
+// counterpart: getPlayerDeposit() returns 0 for them and no cashout can ever
+// settle. A table therefore cannot be both "seeded" and "real money" — that
+// state is incoherent, and previously left these two tables either unplayable
+// (endless SEAT_PICKER) or, before the deposit-verification fix, backed by
+// client-supplied stacks. They are play money until they are given a real
+// on-chain table id (see `onChainId` below).
 const SEED_TABLES = [
-  { id: 9001n, name: 'Micro — NLH 9-Max',      buyIn: 1000, minBuyIn: 1000, maxBuyIn: 10000, bigBlind: 20, maxPlayers: 9, gameType: 0 },
-  { id: 9002n, name: 'High Stakes — NLH 9-Max', buyIn: 5000, minBuyIn: 5000, maxBuyIn: 50000, bigBlind: 50, maxPlayers: 9, gameType: 0 },
+  { id: 9001n, name: 'Micro — NLH 9-Max (Play Money)',      buyIn: 1000, minBuyIn: 1000, maxBuyIn: 10000, bigBlind: 20, maxPlayers: 9, gameType: 0, playMoney: true },
+  { id: 9002n, name: 'High Stakes — NLH 9-Max (Play Money)', buyIn: 5000, minBuyIn: 5000, maxBuyIn: 50000, bigBlind: 50, maxPlayers: 9, gameType: 0, playMoney: true },
   // Staker freeroll: free fixed stacks, seating gated to staking tier >= 1.
   // Chips here are play money — never cashable (see signAndRemovePlayer);
   // prizes are paid separately from the PromotionsPool.
   { id: 9100n, name: 'Staker Freeroll — Bronze+', buyIn: 10000, minBuyIn: 10000, maxBuyIn: 10000, bigBlind: 100, maxPlayers: 9, gameType: 0, isFreeroll: true },
 ];
-for (const { id, name, isFreeroll, ...config } of SEED_TABLES) {
+for (const { id, name, isFreeroll, playMoney, ...config } of SEED_TABLES) {
   const t = new PokerTable(id, config);
   t.name = name;
   t.isPermanent = true;
   t.isFreeroll = !!isFreeroll;
+  // Chips are play money unless the table is backed by real on-chain deposits.
+  // A freeroll is one kind of play money; the seeded cash tables are another.
+  t.playMoney = !!playMoney || !!isFreeroll;
+  if (!t.playMoney) {
+    // Guard the incoherent state rather than silently shipping a table whose
+    // chips look real but have nothing behind them.
+    throw new Error(`Seeded table ${id} is marked real-money but has no on-chain table id.`);
+  }
   tables.set(String(id), t);
 }
 console.log(`[Server] Seeded ${SEED_TABLES.length} permanent tables`);
@@ -768,7 +788,7 @@ const server = createServer((req, res) => {
   }
   if (req.url === '/tables') {
     const list = [...tables.values()].map(t => ({
-      id: String(t.id), name: t.name || null, config: t.config, seated: t.players.length, phase: t.phase, isFreeroll: !!t.isFreeroll,
+      id: String(t.id), name: t.name || null, config: t.config, seated: t.players.length, phase: t.phase, isFreeroll: !!t.isFreeroll, playMoney: !!t.playMoney,
     }));
     res.writeHead(200);
     res.end(JSON.stringify({ tables: list }));
@@ -976,7 +996,7 @@ async function signAndRemovePlayer(t, addr, ws) {
     if (ws?.readyState === WebSocket.OPEN) {
       t.players = t.players.filter(x => x.addr !== addr);
       // Freeroll seats have no on-chain deposit — nothing to refund.
-      if (!t.isFreeroll) send(ws, { type: 'REFUND_AVAILABLE', tableId: String(t.id) });
+      if (!t.playMoney) send(ws, { type: 'REFUND_AVAILABLE', tableId: String(t.id) });
       if (t.players.length === 0 && !t.isPermanent) tables.delete(t.id);
       broadcastTable(t);
     } else {
@@ -1030,7 +1050,8 @@ async function signAndRemovePlayer(t, addr, ws) {
   // Sign a cashout if player has chips. Freeroll chips are play money with no
   // on-chain backing — never sign cashouts for them; prizes are paid from the
   // PromotionsPool separately.
-  if (amount > 0 && !t.isFreeroll) {
+  // Only chips backed by a verified on-chain deposit may become a cashout.
+  if (amount > 0 && !t.playMoney) {
     await relayOrSignCashOut(t, addr, amount, ws);
   }
 
@@ -1233,7 +1254,7 @@ wss.on('connection', (ws, req) => {
         // arbitrary `buyInAmount`, receive unbacked in-memory chips, and have the
         // operator sign a real cashout for chips it never verified.
         // SECURITY: TESTNET_SKIP_CHAIN_VERIFY must be false/unset on mainnet.
-        const skipChainVerify = (t?.isFreeroll === true) || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true';
+        const skipChainVerify = (t?.playMoney === true) || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true';
 
         // If not in memory, load config from chain (or use client-provided config in testnet mode)
         if (!t) {
@@ -1260,6 +1281,7 @@ wss.on('connection', (ws, req) => {
                 gameType:   Number(info[4]),
               };
               t = new PokerTable(BigInt(tableId), config);
+              t.playMoney = false; // deposits come from escrow.getPlayerDeposit
               t.handNonce = Number(info[7]);
               t.isActive  = Number(info[5]) === 1; // TableStatus.Active = 1
               tables.set(tidKey, t);
@@ -1465,7 +1487,7 @@ wss.on('connection', (ws, req) => {
         // Bots seat with unbacked in-memory chips, so they must never touch a
         // real-money table (they'd corrupt the pot and settlement). Allow only on
         // play-money freeroll/practice tables, testnet, or when explicitly enabled.
-        const botsAllowed = t.isFreeroll === true
+        const botsAllowed = t.playMoney === true
           || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true'
           || process.env.ENABLE_WS_BOTS === 'true';
         if (!botsAllowed) { send(ws, { type: 'ERROR', error: 'Bots are not available on this table.' }); break; }
@@ -1480,7 +1502,7 @@ wss.on('connection', (ws, req) => {
 
       case 'LIST_TABLES': {
         const list = [...tables.values()].map(t => ({
-          id: String(t.id), config: t.config, seated: t.players.length, phase: t.phase, name: t.name || null, isFreeroll: !!t.isFreeroll,
+          id: String(t.id), config: t.config, seated: t.players.length, phase: t.phase, name: t.name || null, isFreeroll: !!t.isFreeroll, playMoney: !!t.playMoney,
         }));
         send(ws, { type: 'TABLE_LIST', tables: list });
         break;
