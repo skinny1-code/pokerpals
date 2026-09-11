@@ -20,9 +20,13 @@ if [ -f "$CLAUDE_PROJECT_DIR/.env.enc" ]; then
     echo "⚠️  ENV_PASSPHRASE not set — add it in Claude Code environment secrets"
   else
     TMP_ENV=$(mktemp)
-    if openssl enc -d -aes-256-cbc -pbkdf2 -pass env:ENV_PASSPHRASE \
-      -in "$CLAUDE_PROJECT_DIR/.env.enc" \
-      -out "$TMP_ENV" 2>/dev/null; then
+    # scripts/encryptEnv.js writes with -iter 600000; files sealed before that
+    # change used openssl's 10k default, so try the strong params first and fall
+    # back to legacy. Drop the fallback once .env.enc has been rewritten by CI.
+    if openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:ENV_PASSPHRASE \
+         -in "$CLAUDE_PROJECT_DIR/.env.enc" -out "$TMP_ENV" 2>/dev/null \
+       || openssl enc -d -aes-256-cbc -pbkdf2 -pass env:ENV_PASSPHRASE \
+         -in "$CLAUDE_PROJECT_DIR/.env.enc" -out "$TMP_ENV" 2>/dev/null; then
       mv "$TMP_ENV" "$ENV_FILE"
       echo "✅ .env decrypted from .env.enc"
     else

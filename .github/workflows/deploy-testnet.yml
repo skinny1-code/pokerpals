@@ -115,7 +115,10 @@ jobs:
         run: |
           node scripts/setupEnv.js || echo "⚠️ setupEnv.js warnings (non-fatal in CI)"
           if [ -n "$ENV_PASSPHRASE" ]; then
-            openssl enc -aes-256-cbc -pbkdf2 -pass pass:"$ENV_PASSPHRASE" -in .env -out .env.enc
+            # encryptEnv.js refuses if .env holds a populated secret — .env.enc is
+            # committed, and committed ciphertext cannot be un-published. It also
+            # keeps the passphrase off the command line and raises PBKDF2 iterations.
+            node scripts/encryptEnv.js
             git add .env.enc
           fi
           git config user.name "github-actions[bot]"
