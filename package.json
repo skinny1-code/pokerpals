@@ -35,7 +35,9 @@
     "lottery:draw": "node scripts/lotteryDraw.js",
     "fund:rakeback": "node scripts/fundRakeback.js",
     "encrypt:env": "node scripts/encryptEnv.js",
-    "sync:artifacts": "node scripts/syncArtifacts.js"
+    "sync:artifacts": "node scripts/syncArtifacts.js",
+    "transfer:ownership": "node scripts/transferOwnership.js",
+    "slither": "node scripts/slitherCheck.js"
   },
   "dependencies": {
     "@farcaster/miniapp-sdk": "^0.3.0",

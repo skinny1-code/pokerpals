@@ -146,6 +146,10 @@ contract StakerLottery is Ownable, ReentrancyGuard {
         bytes32 revealHash = blockhash(drawRevealBlock);
         require(revealHash != bytes32(0), "Randomness expired - requestDraw() again");
 
+        // Slither flags any blockhash-derived value as a weak PRNG, and for a
+        // one-phase draw it would be right. revealHash belongs to a block chosen
+        // by requestDraw() before that block existed, with entries already
+        // frozen — see requestDraw() for what this does and does not defend.
         uint256 r = uint256(keccak256(abi.encodePacked(
             revealHash, address(this), epochId
         ))) % e.totalTickets;
@@ -166,6 +170,9 @@ contract StakerLottery is Ownable, ReentrancyGuard {
 
     /// @notice True once a pending request's block is too old for blockhash().
     function _requestExpired() internal view returns (bool) {
+        // The zero check is the point, not an accident: blockhash() returns
+        // exactly zero for a block outside its 256-block window, which is how a
+        // commit is known to have expired.
         return drawRevealBlock != 0
             && block.number > drawRevealBlock
             && blockhash(drawRevealBlock) == bytes32(0);

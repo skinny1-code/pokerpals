@@ -245,6 +245,12 @@ contract PokerEscrow is Ownable, ReentrancyGuard {
         // Bind chainId + this contract so an operator signature cannot be replayed
         // on another chain (e.g. a testnet sig reused on mainnet) or on a redeployed
         // escrow sharing the same operator key and tableId/handNonce start values.
+        // encodePacked with two dynamic arrays is ambiguous in general — no length
+        // prefixes, so a different split of the same bytes can hash identically.
+        // Not here: winners.length == shares.length is required above, so the
+        // packed tail is exactly 52n bytes for n winners. That fixes n, which
+        // fixes the 20n/32n boundary, so exactly one (winners, shares) pair maps
+        // to any given digest. Keep that require if this line ever moves.
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(
             keccak256(abi.encodePacked(block.chainid, address(this), tableId, handNonce, potAmount, winners, shares))
         );

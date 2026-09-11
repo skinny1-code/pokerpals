@@ -224,6 +224,9 @@ contract TournamentManager is Ownable, ReentrancyGuard {
 
         // Bind chainId + this contract so a signature cannot be replayed on
         // another chain or a redeployed instance sharing the operator key.
+        // Unambiguous only because winners.length == shares.length is required
+        // above: the packed tail is 52n bytes, which fixes n and so fixes the
+        // 20n/32n boundary. See the same note in PokerEscrow.settle.
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(
             keccak256(abi.encodePacked(block.chainid, address(this), tournId, winners, shares))
         );
