@@ -13,6 +13,7 @@ import { fullVerify, BehaviorMonitor } from "./antiBotOracle.js";
 import { getUsernames, claimUsername, storeStatus } from "./usernameStore.js";
 import { decide as botDecide } from "./botBrain.js";
 import { createCashoutRelay } from "./cashoutRelay.js";
+import { createOperatorQueue } from "./operatorQueue.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -147,6 +148,41 @@ const ESCROW_ABI = [
 ];
 const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, operator);
 
+// Every tx signed by the operator wallet goes through this one queue. ethers
+// assigns the wallet nonce at broadcast time, so two overlapping sends claim the
+// same nonce and one is dropped by the node. Sponsored cashouts, markHuman,
+// closeTable and HandHistory batches all share the wallet, so they share the
+// queue — a send that skipped it would collide with the ones that don't.
+const queueOperatorTx = createOperatorQueue();
+
+// Cashout messages owed to a player whose socket is closed, keyed by
+// "<tableId>:<addrLower>" so they OUTLIVE the table. The last player to leave a
+// non-permanent table triggers both the cashout and the table's deletion, so a
+// stash living on the table itself would be thrown away moments after it was
+// written — and the background receipt handlers (revert / timeout fallback) can
+// fire long after the table is gone. Delivered on the player's next AUTH or
+// JOIN_TABLE.
+const pendingCashouts = new Map(); // key -> { msg, at }
+const CASHOUT_STASH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const cashoutKey = (tableId, addr) => `${tableId}:${String(addr).toLowerCase()}`;
+
+function stashCashout(tableId, addr, msg) {
+  const now = Date.now();
+  for (const [k, v] of pendingCashouts)
+    if (now - v.at > CASHOUT_STASH_TTL_MS) pendingCashouts.delete(k);
+  pendingCashouts.set(cashoutKey(tableId, addr), { msg, at: now });
+}
+
+// Send every cashout owed to this address (across tables) and clear them.
+function flushPendingCashouts(addr, ws) {
+  const suffix = `:${String(addr).toLowerCase()}`;
+  for (const [k, v] of pendingCashouts) {
+    if (!k.endsWith(suffix)) continue;
+    send(ws, v.msg);
+    pendingCashouts.delete(k);
+  }
+}
+
 // ─── STAKING (freeroll tier gate) ────────────────────────────────────────────
 const STAKING_ADDR = resolveAddr('STAKING', _depl?.contracts?.ChipsStaking,
   process.env.NEXT_PUBLIC_STAKING);
@@ -208,7 +244,8 @@ async function flushHandHistory() {
     const handsPlayedDelta = players.map(a => BigInt(batch.get(a).handsPlayed));
     const handsWonDelta    = players.map(a => BigInt(batch.get(a).handsWon));
     const winningsDelta    = players.map(a => batch.get(a).winnings);
-    const tx = await handHistory.recordBatch(players, handsPlayedDelta, handsWonDelta, winningsDelta);
+    const tx = await queueOperatorTx(() =>
+      handHistory.recordBatch(players, handsPlayedDelta, handsWonDelta, winningsDelta));
     await tx.wait();
     console.log(`[Server] HandHistory batch flushed: ${players.length} players`);
   } catch (e) {
@@ -311,7 +348,7 @@ function bestOmaha(hole, comm) {
 async function verifyHuman(address) {
   if (process.env.TESTNET_SKIP_HUMAN_CHECK === 'true') {
     try {
-      const tx = await escrow.markHuman(address, true);
+      const tx = await queueOperatorTx(() => escrow.markHuman(address, true));
       await tx.wait();
       console.log(`[AntiBot] Testnet bypass: marked ${address} as human`);
       health.lastMarkHuman = { ok: true, address, at: Date.now() };
@@ -352,7 +389,6 @@ class PokerTable {
     this.actionIdx    = 0;
     this.handNonce    = 0;
     this.sideLog      = [];
-    this.pendingCashouts = new Map(); // addr => { amount, sig, nonce, tableId }
     this.bustedSeats     = new Map(); // addr => { seatIndex, ws }
     this.creator      = null;   // first player to sit
     this.isActive     = false;  // mirrors on-chain TableStatus.Active
@@ -857,7 +893,8 @@ function send(ws, data) {
 // Sponsored (gasless) cashout relay. On by default; SPONSOR_CASHOUT=false makes
 // players self-submit. Auto-pauses when the operator wallet is low on gas.
 const { relayOrSignCashOut } = createCashoutRelay({
-  escrow, health, send,
+  escrow, health, send, queueOperatorTx,
+  stashCashout: (t, addr, msg) => stashCashout(t.id, addr, msg),
   isSocketOpen: ws => ws?.readyState === WebSocket.OPEN,
   shortAddr,
   sponsorEnabled: () => process.env.SPONSOR_CASHOUT !== 'false',
@@ -1070,7 +1107,7 @@ async function signAndRemovePlayer(t, addr, ws) {
     } else {
       if (process.env.TESTNET_SKIP_CHAIN_VERIFY !== 'true') {
         try {
-          const tx = await escrow.closeTable(BigInt(t.id));
+          const tx = await queueOperatorTx(() => escrow.closeTable(BigInt(t.id)));
           await tx.wait();
         } catch (e) {
           console.error(`[Server] closeTable error:`, e.message);
@@ -1209,11 +1246,9 @@ wss.on('connection', (ws, req) => {
               .catch(() => {});
           }
 
-          // Deliver any pending cashout from a prior disconnection
-          for (const [, t] of tables) {
-            const pending = t.pendingCashouts.get(address);
-            if (pending) { send(ws, pending); t.pendingCashouts.delete(address); break; }
-          }
+          // Deliver any cashouts owed from a prior disconnection, including
+          // ones for tables that no longer exist.
+          flushPendingCashouts(address, ws);
         } catch {
           send(ws, { type: 'AUTH_FAIL', error: 'Invalid signature format' });
         }
@@ -1320,8 +1355,9 @@ wss.on('connection', (ws, req) => {
         }
 
         // Deliver pending cashout if this player has one from a prior disconnection
-        const pending = t.pendingCashouts.get(addr);
-        if (pending) { send(ws, pending); t.pendingCashouts.delete(addr); return; }
+        const pendingKey = cashoutKey(t.id, addr);
+        const pending = pendingCashouts.get(pendingKey);
+        if (pending) { send(ws, pending.msg); pendingCashouts.delete(pendingKey); return; }
 
         // If player is already seated (reconnect), just update their ws reference
         const existing = t.players.find(p => p.addr === addr);

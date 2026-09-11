@@ -3,6 +3,7 @@
  * Exercises every branch of the sponsored-cashout relay with mocked chain + socket.
  */
 import { createCashoutRelay } from '../server/cashoutRelay.js';
+import { createOperatorQueue } from '../server/operatorQueue.js';
 
 let passed = 0, failed = 0;
 function check(name, cond, detail = '') {
@@ -164,6 +165,171 @@ console.log('concurrent relays serialize submissions (wallet-nonce safety)');
   check('each used its own independent escrow nonce (0)',
     submitOrder.every(o => o.nonce === 0n), j(submitOrder));
   check('both got CASHOUT_RELAYED', sent.filter(m => m.type === 'CASHOUT_RELAYED').length === 2);
+}
+
+console.log('duplicate cashout while one is in flight → no second submission');
+{
+  // The gas-drain loop the audit found: LEAVE_TABLE → server broadcasts tx1 →
+  // rejoin → LEAVE_TABLE again before tx1 confirms. tx2 would carry the SAME
+  // escrow cashOutNonce, so it is guaranteed to revert once tx1 lands — the
+  // player pays nothing and the operator wallet eats the gas. The second
+  // request must fall back to self-submit instead.
+  const sent = [];
+  const submits = [];
+  const waits = []; // one resolver per submitted tx, so each can settle independently
+  const escrow = {
+    async cashOutNonce() { return 0n; },
+    async cashOut(tableId, player, amount, nonce) {
+      submits.push({ player, nonce });
+      return { hash: `0xtx${submits.length}`,
+        wait: () => new Promise(r => { waits.push(() => r({ status: 1 })); }) };
+    },
+  };
+  const t = { id: 9, pendingCashouts: new Map(),
+    async signCashOut(a, amt, n) { return `sig:${a}:${n}`; } };
+  const ws = { readyState: 1 };
+  const relay = createCashoutRelay({
+    escrow, health: { operator: { lowGas: false } },
+    send: (_w, m) => sent.push(m), isSocketOpen: () => true,
+    shortAddr: a => a, log: silent,
+  });
+
+  await relay.relayOrSignCashOut(t, '0xLoop', 500, ws);
+  await relay.relayOrSignCashOut(t, '0xLoop', 500, ws);
+  await tick();
+  check('only one on-chain submission', submits.length === 1, j(submits));
+  check('second request got CASHOUT_SIG instead',
+    sent.filter(m => m.type === 'CASHOUT_SIG').length === 1, j(sent));
+  check('no second CASHOUT_RELAYED',
+    sent.filter(m => m.type === 'CASHOUT_RELAYED').length === 1, j(sent));
+
+  // A different player at the same table is unaffected by the hold.
+  await relay.relayOrSignCashOut(t, '0xOther', 100, ws);
+  await tick();
+  check('a different player still gets sponsored', submits.length === 2, j(submits));
+
+  // Once the receipt lands the hold releases, so a legitimate later cashout
+  // (after a fresh on-chain buy-in) is sponsored again.
+  waits[0](); // settle 0xLoop's tx only
+  await tick();
+  check('confirmed after receipt',
+    sent.some(m => m.type === 'CASHOUT_CONFIRMED' && m.txHash === '0xtx1'), j(sent));
+  await relay.relayOrSignCashOut(t, '0xLoop', 500, ws);
+  await tick();
+  check('hold released after confirmation', submits.length === 3, j(submits));
+}
+
+console.log('receipt never arrives → self-submit fallback on timeout');
+{
+  const sent = [];
+  const escrow = {
+    async cashOutNonce() { return 3n; },
+    async cashOut() { return { hash: '0xstuck', wait: () => new Promise(() => {}) }; },
+  };
+  const t = { id: 11, pendingCashouts: new Map(),
+    async signCashOut(a, amt, n) { return `sig:${a}:${n}`; } };
+  const ws = { readyState: 1 };
+  const relay = createCashoutRelay({
+    escrow, health: { operator: { lowGas: false } },
+    send: (_w, m) => sent.push(m), isSocketOpen: () => true,
+    shortAddr: a => a, log: silent,
+    waitTimeoutMs: 20, inFlightMaxMs: 60,
+  });
+  await relay.relayOrSignCashOut(t, '0xStuck', 700, ws);
+  check('optimistic RELAYED first', sent[0]?.type === 'CASHOUT_RELAYED', j(sent[0]));
+  check('no fallback before the timeout', sent.length === 1, j(sent));
+  await new Promise(r => setTimeout(r, 40));
+  check('CASHOUT_SIG fallback after timeout', sent[1]?.type === 'CASHOUT_SIG', j(sent));
+  check('never falsely CONFIRMED', !sent.some(m => m.type === 'CASHOUT_CONFIRMED'), j(sent));
+  check('fallback carries the signed nonce', sent[1]?.nonce === 3 && typeof sent[1]?.sig === 'string');
+}
+
+console.log('in-flight hold is capped so a hung provider cannot block forever');
+{
+  const submits = [];
+  const escrow = {
+    async cashOutNonce() { return 0n; },
+    async cashOut() { submits.push(1); return { hash: '0xhang', wait: () => new Promise(() => {}) }; },
+  };
+  const t = { id: 12, pendingCashouts: new Map(),
+    async signCashOut(a, amt, n) { return `sig:${a}:${n}`; } };
+  const relay = createCashoutRelay({
+    escrow, health: { operator: { lowGas: false } },
+    send: () => {}, isSocketOpen: () => true, shortAddr: a => a, log: silent,
+    waitTimeoutMs: 10_000, inFlightMaxMs: 20,
+  });
+  await relay.relayOrSignCashOut(t, '0xHang', 100, { readyState: 1 });
+  await new Promise(r => setTimeout(r, 40));
+  await relay.relayOrSignCashOut(t, '0xHang', 100, { readyState: 1 });
+  check('hold expires after inFlightMaxMs', submits.length === 2, `submits=${submits.length}`);
+}
+
+console.log('an injected operator queue serializes relay + non-relay sends together');
+{
+  // markHuman / closeTable / HandHistory batches share the operator wallet, so
+  // they must share its submission queue or they collide on the wallet nonce.
+  const order = [];
+  let live = 0, maxLive = 0;
+  const queueOperatorTx = createOperatorQueue();
+  const busy = async (tag) => {
+    live++; maxLive = Math.max(maxLive, live);
+    order.push(tag);
+    await new Promise(r => setTimeout(r, 10));
+    live--;
+  };
+  const escrow = {
+    async cashOutNonce() { return 0n; },
+    async cashOut() { await busy('cashOut'); return { hash: '0xq', wait: () => Promise.resolve({ status: 1 }) }; },
+  };
+  const t = { id: 13, pendingCashouts: new Map(),
+    async signCashOut(a, amt, n) { return `sig:${a}:${n}`; } };
+  const relay = createCashoutRelay({
+    escrow, health: { operator: { lowGas: false } },
+    send: () => {}, isSocketOpen: () => true, shortAddr: a => a, log: silent,
+    queueOperatorTx,
+  });
+  await Promise.all([
+    relay.relayOrSignCashOut(t, '0xQ', 10, { readyState: 1 }),
+    queueOperatorTx(() => busy('markHuman')),
+    queueOperatorTx(() => busy('closeTable')),
+  ]);
+  await tick();
+  check('relay and direct sends never overlap', maxLive === 1, `maxLive=${maxLive}`);
+  check('all three submitted', order.length === 3, j(order));
+  check('relay exposes the shared queue', relay.queueOperatorTx === queueOperatorTx);
+}
+
+console.log('a rejected queued send does not stall the queue');
+{
+  const queueOperatorTx = createOperatorQueue();
+  let after = null;
+  await queueOperatorTx(() => Promise.reject(new Error('boom'))).catch(() => {});
+  await queueOperatorTx(async () => { after = 'ran'; });
+  check('next send still runs after a rejection', after === 'ran');
+}
+
+console.log('an injected stash outlives the table (last player out deletes it)');
+{
+  // The last player to leave a non-permanent table triggers the cashout AND the
+  // table's deletion, and the revert/timeout fallbacks fire later still — so the
+  // server parks undelivered messages in a store it owns, not on the table.
+  const durable = new Map();
+  const escrow = {
+    async cashOutNonce() { return 0n; },
+    async cashOut() { return { hash: '0xgone', wait: () => Promise.resolve({ status: 0 }) }; },
+  };
+  const t = { id: 21, pendingCashouts: new Map(),
+    async signCashOut(a, amt, n) { return `sig:${a}:${n}`; } };
+  const relay = createCashoutRelay({
+    escrow, health: { operator: { lowGas: false } },
+    send: () => {}, isSocketOpen: () => false, shortAddr: a => a, log: silent,
+    stashCashout: (tbl, addr, msg) => durable.set(`${tbl.id}:${addr}`, msg),
+  });
+  await relay.relayOrSignCashOut(t, '0xGone', 250, { readyState: 3 });
+  await tick();
+  check('nothing written to the table map', t.pendingCashouts.size === 0);
+  check('stashed in the injected store', durable.get('21:0xGone')?.type === 'CASHOUT_SIG',
+    j([...durable]));
 }
 
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
