@@ -34,7 +34,8 @@
     "deploy:lottery": "node scripts/deployLottery.js",
     "lottery:draw": "node scripts/lotteryDraw.js",
     "fund:rakeback": "node scripts/fundRakeback.js",
-    "encrypt:env": "node scripts/encryptEnv.js"
+    "encrypt:env": "node scripts/encryptEnv.js",
+    "sync:artifacts": "node scripts/syncArtifacts.js"
   },
   "dependencies": {
     "@farcaster/miniapp-sdk": "^0.3.0",

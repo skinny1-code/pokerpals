@@ -1,7 +1,11 @@
 // scripts/lotteryDraw.js — weekly lottery routine (owner):
 //   1. If the current epoch's prize is below LOTTERY_PRIZE (default 100,000
 //      SALOON), pull the difference from the PromotionsPool and fund it.
-//   2. If the epoch has ended, draw() and report the winner.
+//   2. If the epoch has ended, settle it and report the winner. Settling is two
+//      phases — requestDraw() commits to a future block, then draw() reads that
+//      block's hash — so this script does both in one run, and waits between
+//      them. Doing it in one run also closes the only window in which someone
+//      could let a commit expire and re-request for a fresh roll.
 // Safe to run any time; each step no-ops when not applicable.
 // Usage: npm run lottery:draw   (DEPLOYER_KEY in .env)
 import "dotenv/config";
@@ -37,7 +41,9 @@ async function main() {
   const lottery = new ethers.Contract(c.StakerLottery, [
     "function currentEpoch() view returns (uint256 id, uint256 endsAt, uint256 prize, uint256 entrants, uint256 totalTickets)",
     "function fundPrize(uint256) external",
+    "function requestDraw() external",
     "function draw() external",
+    "function drawStatus() view returns (uint256 revealBlock, bool requested, bool ready, bool expired)",
     "function epochWinner(uint256) view returns (address winner, uint256 prize)",
   ], owner);
   const token = new ethers.Contract(c.ChipsToken, [
@@ -64,8 +70,8 @@ async function main() {
 
   // 2. Settle if the epoch is over
   if (BigInt(Math.floor(Date.now() / 1000)) >= endsAt) {
-    console.log("Epoch ended — drawing...");
-    await (await lottery.draw()).wait();
+    console.log("Epoch ended — settling...");
+    await settleEpoch(lottery, provider);
     const [winner, wonPrize] = await lottery.epochWinner(id);
     if (winner === ethers.ZeroAddress) {
       console.log("Nobody entered — prize rolled into the new epoch.");
@@ -77,6 +83,39 @@ async function main() {
   } else {
     console.log("Epoch still running — nothing to draw yet.");
   }
+}
+
+/**
+ * Commit to a future block, wait for it, then draw. Re-commits if the previous
+ * request aged past blockhash()'s 256-block window before we got there.
+ */
+async function settleEpoch(lottery, provider) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let [revealBlock, requested, ready, expired] = await lottery.drawStatus();
+
+    if (ready) { // empty epoch, or a matured commit is already waiting
+      await (await lottery.draw()).wait();
+      return;
+    }
+    if (!requested || expired) {
+      console.log(expired ? "Previous commit expired — re-requesting..." : "Committing to a future block...");
+      await (await lottery.requestDraw()).wait();
+      [revealBlock] = await lottery.drawStatus();
+    }
+
+    console.log(`Waiting for block ${revealBlock} (randomness reveal)...`);
+    while ((await provider.getBlockNumber()) <= Number(revealBlock)) {
+      await new Promise(r => setTimeout(r, 3000));
+    }
+
+    try {
+      await (await lottery.draw()).wait();
+      return;
+    } catch (e) {
+      console.log(`Draw attempt ${attempt} failed (${e.shortMessage || e.message}) — retrying`);
+    }
+  }
+  throw new Error("Could not settle the epoch after 3 attempts");
 }
 
 main().catch(e => { console.error("❌", e.message); process.exit(1); });

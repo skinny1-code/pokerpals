@@ -22,6 +22,15 @@ describe("StakerLottery", () => {
     await ethers.provider.send("evm_increaseTime", [secs]);
     await ethers.provider.send("evm_mine", []);
   };
+  const mine = async (n) => {
+    for (let i = 0; i < n; i++) await ethers.provider.send("evm_mine", []);
+  };
+  // Settling is two-phase now: commit to a future block, let it pass, then draw.
+  const settle = async () => {
+    await lottery.requestDraw();
+    await mine(Number(await lottery.drawDelayBlocks()) + 1);
+    await lottery.draw();
+  };
 
   beforeEach(async () => {
     ({ ethers } = await network.create());
@@ -69,7 +78,7 @@ describe("StakerLottery", () => {
 
     await warp(WEEK + 1);
     const balBefore = [await token.balanceOf(bronze.address), await token.balanceOf(whale.address)];
-    await lottery.draw();
+    await settle();
 
     const [winner, prize] = await lottery.epochWinner(0);
     expect([bronze.address, whale.address]).to.include(winner);
@@ -108,6 +117,100 @@ describe("StakerLottery", () => {
     await expectReverted(lottery.sweep(await token.getAddress(), owner.address));
   });
 
+  it("draw: refuses to settle a contested epoch without a committed block", async () => {
+    // The old contract read blockhash(block.number - 1) inside draw(), a hash
+    // that already exists when the call is built — so an entrant could simulate
+    // the result and only submit in blocks where they win. Randomness must now
+    // be committed to before it exists.
+    await token.approve(await lottery.getAddress(), parseUnits("1000", 18));
+    await lottery.fundPrize(parseUnits("1000", 18));
+    await lottery.connect(bronze).enter();
+    await lottery.connect(whale).enter();
+    await warp(WEEK + 1);
+
+    await expectReverted(lottery.draw());              // nothing committed
+    await lottery.requestDraw();
+    await expectReverted(lottery.draw());              // committed, not matured
+
+    const [revealBlock, requested, readyEarly] = await lottery.drawStatus();
+    expect(requested).to.equal(true);
+    expect(readyEarly).to.equal(false);
+    expect(revealBlock > BigInt(await ethers.provider.getBlockNumber())).to.equal(true);
+
+    await mine(Number(await lottery.drawDelayBlocks()) + 1);
+    const [, , readyNow] = await lottery.drawStatus();
+    expect(readyNow).to.equal(true);
+    await lottery.draw();
+    const [winner] = await lottery.epochWinner(0);
+    expect([bronze.address, whale.address]).to.include(winner);
+  });
+
+  it("requestDraw: rejected while the epoch runs, and not repeatable while live", async () => {
+    await lottery.connect(bronze).enter();
+    await expectReverted(lottery.requestDraw());       // epoch still running
+    await warp(WEEK + 1);
+    await lottery.requestDraw();
+    await expectReverted(lottery.requestDraw());       // a live commit stands
+  });
+
+  it("the committed block is fixed before its hash exists", async () => {
+    await lottery.connect(bronze).enter();
+    await warp(WEEK + 1);
+    const tx = await lottery.requestDraw();
+    const rcpt = await tx.wait();
+    const [revealBlock] = await lottery.drawStatus();
+    // Committed strictly in the future — its hash cannot be known to the caller.
+    expect(revealBlock > BigInt(rcpt.blockNumber)).to.equal(true);
+    expect(revealBlock - BigInt(rcpt.blockNumber)).to.equal(await lottery.drawDelayBlocks());
+  });
+
+  it("a commit older than blockhash's 256-block window expires and is re-made", async () => {
+    await token.approve(await lottery.getAddress(), parseUnits("1000", 18));
+    await lottery.fundPrize(parseUnits("1000", 18));
+    await lottery.connect(whale).enter();
+    await warp(WEEK + 1);
+    await lottery.requestDraw();
+
+    await mine(300); // blockhash(revealBlock) is now zero
+    const [, , ready, expired] = await lottery.drawStatus();
+    expect(expired).to.equal(true);
+    expect(ready).to.equal(false);
+    await expectReverted(lottery.draw());
+
+    await lottery.requestDraw();                       // allowed once expired
+    await mine(Number(await lottery.drawDelayBlocks()) + 1);
+    await lottery.draw();
+    const [winner] = await lottery.epochWinner(0);
+    expect(winner).to.equal(whale.address);
+  });
+
+  it("an empty epoch rolls over without needing a commit", async () => {
+    await token.approve(await lottery.getAddress(), parseUnits("50000", 18));
+    await lottery.fundPrize(parseUnits("50000", 18));
+    await warp(WEEK + 1);
+    const [, , ready] = await lottery.drawStatus();
+    expect(ready).to.equal(true);                      // no randomness required
+    await lottery.draw();
+    expect(await lottery.drawRevealBlock()).to.equal(0n);
+  });
+
+  it("settling clears the commit so the next epoch starts uncommitted", async () => {
+    await lottery.connect(whale).enter();
+    await warp(WEEK + 1);
+    await settle();
+    expect(await lottery.drawRevealBlock()).to.equal(0n);
+    const [, requested] = await lottery.drawStatus();
+    expect(requested).to.equal(false);
+  });
+
+  it("setDrawDelayBlocks: owner-only and bounded inside the blockhash window", async () => {
+    await expectReverted(lottery.connect(bronze).setDrawDelayBlocks(10));
+    await expectReverted(lottery.setDrawDelayBlocks(0));
+    await expectReverted(lottery.setDrawDelayBlocks(101));
+    await lottery.setDrawDelayBlocks(20);
+    expect(await lottery.drawDelayBlocks()).to.equal(20n);
+  });
+
   it("whale weighting: with a 200:1 ticket ratio the whale nearly always wins", async () => {
     // Not a statistical test — just verifies weighted selection is wired by
     // running one draw where whale holds 5,000,000 of 5,025,000 tickets.
@@ -116,7 +219,7 @@ describe("StakerLottery", () => {
     await lottery.connect(bronze).enter();
     await lottery.connect(whale).enter();
     await warp(WEEK + 1);
-    await lottery.draw();
+    await settle();
     const [winner] = await lottery.epochWinner(0);
     expect([bronze.address, whale.address]).to.include(winner);
   });

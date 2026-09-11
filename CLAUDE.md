@@ -38,6 +38,9 @@ npm run distribute-profits             # harvest yield/vest then split splitter 
 npm run deploy:lottery                 # deploy StakerLottery (weekly no-loss staker draw) → manifest
 npm run lottery:draw                   # weekly: top prize up from PromotionsPool (LOTTERY_PRIZE, default 100k) + settle epoch
 npm run fund:rakeback -- 100000        # top up PokerEscrow's rakeback pool from PromotionsPool (5% accrual needs pool > 0)
+
+npm run sync:artifacts                 # refresh scripts/artifacts/*.json from the Hardhat build (run after `npm run compile` when a contract with a standalone deploy script changes — PinnedArtifacts.test.js fails until you do)
+npm run encrypt:env                    # ENV_PASSPHRASE=… → re-seal .env.enc; refuses if .env holds a populated secret
 ```
 
 ### First-time testnet setup
@@ -72,7 +75,7 @@ The system has three independent runtime layers:
 - `StablecoinPool` — on-network USDC reserve. Funded by USDC proceeds from chip purchases. ChipsLiquidityPool is authorized to call `notifyDeposit()` and `authorizedPayout()`.
 - `ChipsLiquidityPool` — 500M SALOON — SALOON↔USDC swap pool at a fixed owner-set peg. Player USDC flows directly to StablecoinPool; player receives SALOON from this pool. `rateUsdcPerChip` = USDC-wei per 1e18 SALOON (default 1000 = $0.001/CHIP). `setRate` is capped at **±10% per day** (`MAX_RATE_CHANGE_BPS` / `RATE_UPDATE_COOLDOWN`): `StablecoinPool.authorizedPayout` is exempt from that pool's redemption floor, so an unbounded peg let the owner mint one huge redemption and walk the whole USDC reserve out. A larger repeg is a sequence of daily steps.
 - `MockUSDC` — testnet USDC stand-in (6 decimals). Mainnet uses `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`.
-- `StakerLottery` — weekly no-loss draw for stakers (deployed by `npm run deploy:lottery`, not part of `deploy.js`). Tier >= 1 stakers `enter()` free each epoch; tickets = staked SALOON; `draw()` pays the whole prize (funded from PromotionsPool by `lottery:draw`) to a weighted-random entrant. Blockhash randomness — swap for VRF before mainnet. Address in manifest → `NEXT_PUBLIC_LOTTERY`.
+- `StakerLottery` — weekly no-loss draw for stakers (deployed by `npm run deploy:lottery`, not part of `deploy.js`). Tier >= 1 stakers `enter()` free each epoch; tickets = staked SALOON; settling is two-phase: `requestDraw()` commits the finished epoch to a future block, then `draw()` derives the weighted-random winner from **that** block's hash and pays the whole prize (funded from PromotionsPool by `lottery:draw`). The commit matters — reading `blockhash(block.number - 1)` inside `draw()` decides nothing, since that hash already exists when the call is built, so any entrant could simulate the result and submit only in blocks where they win. A commit that nobody settles within blockhash's 256-block window expires and must be re-made; `npm run lottery:draw` does request→wait→draw in one run so that window stays closed. Address in manifest → `NEXT_PUBLIC_LOTTERY`.
 - `ProfitSplitter` — optional owner-income router (deployed by `npm run setup:profit-split -- 0xADDR`, not part of `deploy.js`). Set as `rakeRecipient` on PokerEscrow/TournamentManager/TableRegistry and `devWallet` on ChipsToken. Public `distribute()` splits its SALOON balance `payoutBps` (default 50%) → payout wallet, remainder → staked in ChipsStaking under the splitter (yield harvestable via `harvestYield()`, principal unstakeable to the payout wallet by owner via `unstakeToPayout()`).
 
 Post-deploy wiring (done in `scripts/deploy.js`):
