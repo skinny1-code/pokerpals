@@ -31,6 +31,21 @@ contract ChipsLiquidityPool is Ownable, ReentrancyGuard {
     uint256 public rateUsdcPerChip; // USDC-wei per 1e18 SALOON-wei
     bool    public paused;
 
+    /// @notice Timestamp of the last `setRate` call. Zero until the first one, so
+    ///         a deploy-time peg can be corrected immediately.
+    uint256 public lastRateUpdate;
+
+    /// The peg is the only thing standing between `redeemChips` and the USDC in
+    /// StablecoinPool: `authorizedPayout` is exempt from that pool's redemption
+    /// floor (it is what the floor exists to serve), so an unbounded `setRate`
+    /// let the owner mint an arbitrarily large redemption and walk the reserve
+    /// out through the front door — and a fat-fingered rate did the same by
+    /// accident. Rate moves are capped at 10% per day in either direction, which
+    /// leaves normal peg maintenance intact while making a drain slow, visible
+    /// on-chain, and interruptible with `setPaused`.
+    uint256 public constant MAX_RATE_CHANGE_BPS = 1_000; // 10%
+    uint256 public constant RATE_UPDATE_COOLDOWN = 1 days;
+
     event ChipsBought(address indexed buyer, uint256 usdcIn, uint256 chipsOut);
     event ChipsRedeemed(address indexed redeemer, uint256 chipsIn, uint256 usdcOut);
     event RateUpdated(uint256 newRate);
@@ -43,6 +58,8 @@ contract ChipsLiquidityPool is Ownable, ReentrancyGuard {
     error InsufficientChips();
     error ZeroAmount();
     error ZeroRate();
+    error RateChangeTooLarge(uint256 minRate, uint256 maxRate);
+    error RateUpdateTooSoon(uint256 retryAt);
 
     constructor(
         address _chipsToken,
@@ -95,9 +112,24 @@ contract ChipsLiquidityPool is Ownable, ReentrancyGuard {
 
     // ─── OWNER ACTIONS ────────────────────────────────────────────────────────
 
+    /// @notice Move the peg, by at most MAX_RATE_CHANGE_BPS and at most once per
+    ///         RATE_UPDATE_COOLDOWN. A larger repeg is a sequence of steps, not a
+    ///         single call — deliberately, see MAX_RATE_CHANGE_BPS above.
     function setRate(uint256 newRate) external onlyOwner {
         if (newRate == 0) revert ZeroRate();
+
+        uint256 nextAllowed = lastRateUpdate + RATE_UPDATE_COOLDOWN;
+        if (lastRateUpdate != 0 && block.timestamp < nextAllowed)
+            revert RateUpdateTooSoon(nextAllowed);
+
+        uint256 current = rateUsdcPerChip;
+        uint256 delta   = (current * MAX_RATE_CHANGE_BPS) / 10_000;
+        uint256 minRate = current - delta;
+        uint256 maxRate = current + delta;
+        if (newRate < minRate || newRate > maxRate) revert RateChangeTooLarge(minRate, maxRate);
+
         rateUsdcPerChip = newRate;
+        lastRateUpdate  = block.timestamp;
         emit RateUpdated(newRate);
     }
 
