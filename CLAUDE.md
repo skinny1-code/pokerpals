@@ -195,6 +195,8 @@ See `.env.example` for all required variables. Key groups:
 
 ## Security notes
 
+Mainnet launch runbook: `docs/LAUNCH-CHECKLIST.md` (key rotation → deploy → verify → multisig handover, in that order — the handover is irreversible and must come last). Slither triage: `docs/SLITHER.md`.
+
 - `npm run slither` runs Slither against the Hardhat build and fails on any High/Medium finding not in `security/slither-baseline.json`. All 24 current findings are triaged in `docs/SLITHER.md` — none are exploitable, and no detector is disabled. Needs `pip install slither-analyzer`; run `npm run compile` first. `myth analyze contracts/PokerEscrow.sol` still needs a machine that can download a solc binary.
 - Replace deployer/owner with a Gnosis Safe multisig before mainnet: `npm run transfer:ownership -- 0xSAFE` (dry run) then `-- 0xSAFE --confirm`. Ownable's handover is one-step and irreversible, so the script refuses a target with no contract code. It also reports the privileged roles ownership does *not* cover (`operatorSigner`, `rakeRecipient`, `antiBotOracle`, `devWallet`) — rotate those separately.
 - `ChipsToken.faucet()` (owner-mint) has been removed — supply is fixed at the 1B minted in the constructor. (`npm run faucet` still works on testnet: it transfers from the deployer's balance, it never minted.)
