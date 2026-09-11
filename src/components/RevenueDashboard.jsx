@@ -25,6 +25,14 @@ const ESCROW_ABI = [
   { name:"tierRakeNum",   type:"function", stateMutability:"view", inputs:[{type:"uint256"}], outputs:[{type:"uint256"}] },
   { name:"seatFeeCHIPS",  type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
   { name:"tableCount",    type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  // Rake economics — all owner-settable via setRakeParams() / setRakeSplit()
+  { name:"rakeCapCHIPS",    type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"referralBps",     type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"rakeBurnBps",     type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"rakeStakingBps",  type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"rakeTreasuryBps", type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"rakeKingsBps",    type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"rakebackBps",     type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
 ];
 const TOURN_ABI = [
   { name:"getRevenue",      type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
@@ -120,6 +128,27 @@ export default function RevenueDashboard({ address: ownerAddr }) {
     address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'seatFeeCHIPS',
   });
 
+  // Every number in this panel that describes the economics is owner-settable
+  // on-chain (setRakeParams / setRakeSplit / setTierThresholds / setTierAPR), so
+  // read it instead of restating it: the copy that used to be hardcoded here had
+  // drifted to four wrong tier thresholds and four wrong APRs. The contract's
+  // deploy-time defaults stand in only until the reads resolve.
+  const { data: rakeParams } = useReadContracts({
+    contracts: [
+      ...[0, 1, 2, 3, 4].map(i => ({
+        address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'tierRakeNum', args: [BigInt(i)],
+      })),
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'rakeCapCHIPS' },
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'referralBps' },
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'rakeBurnBps' },
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'rakeStakingBps' },
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'rakeTreasuryBps' },
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'rakeKingsBps' },
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'rakebackBps' },
+    ],
+    query: { refetchInterval: 60000 },
+  });
+
   // Pool balances
   const { data: kingsBalance }  = useReadContracts({ contracts: [
     { address: CHIPS_ADDR, abi: BALANCE_ABI, functionName: 'balanceOf', args: [KINGS_POOL_ADDR] },
@@ -151,6 +180,30 @@ export default function RevenueDashboard({ address: ownerAddr }) {
 
   const TIERS = ['Standard','Bronze','Silver','Gold','Whale'];
   const TIER_COLORS = ['#645f54','#cd7f32','#aaa','#d9c08a','#00e5ff'];
+
+  // Fall back to the contract's constructor defaults while the reads are in flight.
+  const rp = (i, fallback) => {
+    const v = rakeParams?.[i]?.result;
+    return typeof v === 'bigint' ? v : fallback;
+  };
+  const TIER_RAKE_DEFAULT   = [15n, 13n, 11n, 9n, 6n];              // numerator over rakeDen (1000)
+  const TIER_THRESH_DEFAULT = [0n, 25_000n, 250_000n, 1_000_000n, 5_000_000n].map(v => v * 10n ** 18n);
+  const TIER_APR_DEFAULT    = [0n, 500n, 800n, 1200n, 1800n];       // basis points
+
+  const tierRake   = i => rp(i, TIER_RAKE_DEFAULT[i]);
+  const tierThresh = i => tierStats?.[0]?.[i] ?? TIER_THRESH_DEFAULT[i];
+  const tierApr    = i => tierStats?.[1]?.[i] ?? TIER_APR_DEFAULT[i];
+
+  const rakeCap     = rp(5,  50n * 10n ** 18n);
+  const refBps      = rp(6,  1000n);
+  const burnBps     = rp(7,  1500n);
+  const stakeBps    = rp(8,  4500n);
+  const treasuryBps = rp(9,  2000n);
+  const kingsBps    = rp(10, 1000n);
+  const rakebackBps = rp(11, 500n);
+
+  const pct     = bps => `${Number(bps) / 100}%`;
+  const rakePct = num => `${Number(num) / 10}%`;  // tierRakeNum is out of rakeDen = 1000
 
   const TABS = ['overview','streams','pools','staking','referrals'];
 
@@ -237,15 +290,16 @@ export default function RevenueDashboard({ address: ownerAddr }) {
             {[
               { icon:'♠', title:'Cash Game Rake', color:gold,
                 lines:[
-                  ['Rate','Standard 1.5% → Whale 0.6%'],
-                  ['Cap','50 SALOON per pot max'],
+                  ['Rate',`Standard ${rakePct(tierRake(0))} → Whale ${rakePct(tierRake(4))}`],
+                  ['Cap',`${fmt(rakeCap)} SALOON per pot max`],
+                  ['Rakeback',`${pct(rakebackBps)} of rake accrues back to players (needs a funded rakeback pool)`],
                   ['When','Every hand settled via PokerEscrow.settle()'],
                   ['Contract','PokerEscrow.sol → tierRakeNum[]'],
                 ]},
               { icon:'🪑', title:'Seat Fees', color:'#29b6f6',
                 lines:[
-                  ['Rate','2 SALOON per buy-in, 1 SALOON per rebuy'],
-                  ['When','Charged at buyIn() + rebuy() calls'],
+                  ['Rate',`${fmt(seatFee ?? 2n * 10n ** 18n)} SALOON per buy-in, half that per rebuy`],
+                  ['When','Only on tables linked to a TableRegistry room — open tables (roomId 0) are free to join'],
                   ['Note','Instant transfer to rakeRecipient — never in escrow'],
                   ['Tune','escrow.setRakeParams() — owner only'],
                 ]},
@@ -258,17 +312,17 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                 ]},
               { icon:'💎', title:'VIP Staking', color:'#ab47bc',
                 lines:[
-                  ['Bronze 1k SALOON','1.3% rake + 2% APR yield'],
-                  ['Silver 10k SALOON','1.1% rake + 4% APR yield'],
-                  ['Gold 50k SALOON', '0.9% rake + 7% APR yield'],
-                  ['Whale 200k SALOON','0.6% rake + 12% APR yield'],
+                  ...[1,2,3,4].map(i => [
+                    `${TIERS[i]} ${fmt(tierThresh(i))} SALOON`,
+                    `${rakePct(tierRake(i))} rake + ${pct(tierApr(i))} APR yield`,
+                  ]),
                   ['Yield source','Funded from rake via fundYieldPool()'],
                 ]},
               { icon:'👥', title:'Referrals', color:'#4caf50',
                 lines:[
-                  ['Split','20% of rake on every referred player hand'],
-                  ['L2','Referrer-of-referrer gets 5% of that 20%'],
-                  ['Net cost','~1.2% from your rake — drives free user acquisition'],
+                  ['Split',`${pct(refBps)} of the rake when a referred player wins the pot`],
+                  ['L2','Tracked in ReferralRegistry — PokerEscrow does not pay it out yet'],
+                  ['Net cost',`${pct(refBps)} of rake, and only on referred winners — drives free user acquisition`],
                   ['Code','keccak(address)[0:8] — shareable link'],
                 ]},
               { icon:'◈', title:'SALOON Token Float', color:'#00e5ff',
@@ -312,11 +366,11 @@ export default function RevenueDashboard({ address: ownerAddr }) {
             <div style={{background:'#0d0d0f88',border:'1px solid #191920',borderRadius:10,
               padding:'16px 18px',marginTop:4}}>
               <div style={{fontSize:10,color:'#57544b',letterSpacing:2,marginBottom:12}}>RAKE FLOW</div>
-              <Bar label="Burn (15%)"              value={escrowSummary?.[1]||0n} max={rake||1n} color='#ef5350'/>
-              <Bar label="Staking yield (45%)"     value={escrowSummary?.[2]||0n} max={rake||1n} color='#ab47bc'/>
-              <Bar label="King of Spades (10%)"    value={(rake * 1000n / 10000n)} max={rake||1n} color='#c9b075'/>
-              <Bar label="Treasury — owner (20%)"  value={(rake * 2000n / 10000n)} max={rake||1n} color='#4caf50'/>
-              <Bar label="Referrals (10%)"         value={escrowSummary?.[4]||0n} max={rake||1n} color='#29b6f6'/>
+              <Bar label={`Burn (${pct(burnBps)})`}             value={escrowSummary?.[1]||0n} max={rake||1n} color='#ef5350'/>
+              <Bar label={`Staking yield (${pct(stakeBps)})`}   value={escrowSummary?.[2]||0n} max={rake||1n} color='#ab47bc'/>
+              <Bar label={`King of Spades (${pct(kingsBps)})`}   value={(rake * kingsBps / 10000n)}    max={rake||1n} color='#c9b075'/>
+              <Bar label={`Treasury — owner (${pct(treasuryBps)})`} value={(rake * treasuryBps / 10000n)} max={rake||1n} color='#4caf50'/>
+              <Bar label={`Referrals (${pct(refBps)})`}         value={escrowSummary?.[4]||0n} max={rake||1n} color='#29b6f6'/>
             </div>
           </div>
         )}
