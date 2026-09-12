@@ -14,6 +14,7 @@ import { getUsernames, claimUsername, storeStatus } from "./usernameStore.js";
 import { decide as botDecide } from "./botBrain.js";
 import { createCashoutRelay } from "./cashoutRelay.js";
 import { createOperatorQueue } from "./operatorQueue.js";
+import { createConnectionGuard, clientIp } from "./connectionGuard.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -881,6 +882,11 @@ const server = createServer((req, res) => {
 
 const wss = new WebSocketServer({ server, maxPayload: 65536 });
 
+// Per-IP connection caps, a per-socket message budget, and an AUTH attempt
+// budget. Tuned so ordinary play never notices: see server/connectionGuard.js
+// for what each limit is actually defending.
+const guard = createConnectionGuard();
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function send(ws, data) {
   // Null-safe: bots (and busted/disconnected players) have ws === null. Callers
@@ -1182,12 +1188,44 @@ async function handleHandOver(t, result) {
 
 // ─── WebSocket message handler ────────────────────────────────────────────────
 wss.on('connection', (ws, req) => {
-  console.log(`[WS] New connection from ${req.socket.remoteAddress}`);
+  const ip = clientIp(req);
+  const conn = guard.open(ip);
+  if (!conn.ok) {
+    console.warn(`[WS] refused connection from ${ip}: ${conn.reason}`);
+    send(ws, { type: 'ERROR', error: 'Too many connections from your network — try again shortly.' });
+    return ws.close(1013, 'too many connections');
+  }
+  console.log(`[WS] New connection from ${ip}`);
   const challenge = crypto.randomUUID();
   clients.set(ws, { addr: null, tableId: null, challenge });
   send(ws, { type: 'AUTH_CHALLENGE', nonce: challenge });
-  ws.on('close', () => console.log(`[WS] Connection closed`));
+
+  // A socket that never authenticates holds a slot forever. Reclaim it.
+  const authDeadline = setTimeout(() => {
+    if (!clients.get(ws)?.addr) {
+      console.log(`[WS] closing unauthenticated connection from ${ip}`);
+      ws.close(1008, 'authentication timeout');
+    }
+  }, guard.authGraceMs);
+  authDeadline.unref?.();
+
+  ws.on('close', () => {
+    clearTimeout(authDeadline);
+    conn.release();
+    console.log(`[WS] Connection closed`);
+  });
+  // Frames already in flight keep arriving after close() begins its handshake,
+  // so without this a single flood logs a line per buffered frame — an attacker
+  // choosing how much log volume we pay for. Log once, then drop in silence and
+  // terminate rather than negotiate.
+  let abusive = false;
   ws.on('message', async (raw) => {
+    if (abusive) return;
+    if (!conn.allowMessage()) {
+      abusive = true;
+      console.warn(`[WS] rate limit hit by ${ip} — closing`);
+      return ws.terminate();
+    }
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     const { type, payload } = msg;
@@ -1218,6 +1256,13 @@ wss.on('connection', (ws, req) => {
                 error: 'Session expired — sign with your wallet to continue.' });
             }
           } else {
+            // Each attempt costs two ECDSA recoveries and, for a contract
+            // account, an RPC round trip. Cheap to send, expensive to serve.
+            if (!conn.allowAuthAttempt()) {
+              console.warn(`[WS] AUTH attempt budget exhausted for ${ip} — closing`);
+              send(ws, { type: 'AUTH_FAIL', error: 'Too many failed attempts — reconnect and try again.' });
+              return ws.close(1008, 'auth attempts exceeded');
+            }
             const check = await verifyWalletSignature(`PVP-AUTH:${nonce}`, signature, address);
             if (!check.ok) {
               console.warn(`[WS] AUTH sig mismatch: sent=${shortAddr(String(address))} recovered=${check.recovered ? shortAddr(check.recovered) : 'n/a'}`);
@@ -1231,6 +1276,8 @@ wss.on('connection', (ws, req) => {
           // those two forms took two seats — each credited with the full
           // on-chain deposit from a single buy-in. Store one canonical form.
           clients.set(ws, { addr: address.toLowerCase(), tableId: null });
+          conn.authSucceeded();
+          clearTimeout(authDeadline);
           // Fresh token on every successful auth — a rolling window, so active
           // players never see a signature prompt again on this device.
           const session = issueSessionToken(address);

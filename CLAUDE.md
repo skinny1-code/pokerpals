@@ -98,6 +98,8 @@ Post-deploy wiring (done in `scripts/deploy.js`):
 - Broadcasts per-player `GAME_STATE` (hole cards hidden for opponents) after every action
 - On `HAND_OVER`, emits the operator signature so any player can submit it to `PokerEscrow.settle()` on-chain
 
+Abuse limits live in `server/connectionGuard.js`: a per-IP connection cap (`WS_MAX_CONNS_PER_IP`, default 25), a per-socket token bucket (`WS_MSGS_PER_SEC` 25 / `WS_MSG_BURST` 60), an AUTH attempt budget (`WS_MAX_AUTH_TRIES`, default 12 — each attempt costs two ECDSA recoveries and possibly an ERC-1271 RPC call), and an unauthenticated-socket timeout (`WS_AUTH_GRACE_MS`, default 60s). The client IP comes from `fly-client-ip` (Fly sets it and strips client copies); `x-forwarded-for` is honoured only when `TRUST_PROXY=true`, since it is otherwise a client-supplied header. None of this protects money — it keeps the process, which holds every table's state in memory, alive.
+
 The server uses `crypto.randomInt` for shuffling (cryptographically random). Hand evaluation in `server/index.js` uses string card notation (`"AH"`, `"TS"`). The separate module `src/games/omaha.js` uses object notation (`{s, r}`) — these are two independent implementations and the notations must not be mixed.
 
 **3. Anti-bot oracle** (`server/antiBotOracle.js`) — runs as a standalone process. Runs three parallel checks before calling `escrow.markHuman(address, true)` on-chain:
