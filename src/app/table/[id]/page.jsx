@@ -197,8 +197,15 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
   }, [identity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!handOver) return null;
+  // `winners` is the settlement payee list: with side pots more than one player
+  // can be owed money, in different amounts, and one of them may be collecting
+  // an uncalled bet back rather than winning anything. `showdownWinners` is who
+  // actually won the hand.
   const winners  = handOver.winners || [];
+  const payouts  = handOver.payouts || {};
+  const showdownWinners = handOver.showdownWinners || winners;
   const results  = handOver.results || [];
+  const amountFor = a => payouts[a] ?? payouts[a?.toLowerCase()] ?? handOver.pot;
   // Non-winners who showed their cards (losers at showdown)
   const losers   = results.filter(r => !winners.includes(r.addr) && r.cards?.length);
 
@@ -223,7 +230,7 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
             <div key={i} style={{ marginBottom: losers.length ? 16 : 0 }}>
               <div style={{ fontSize:20, color:'#d9c08a', fontWeight:700,
                 fontFamily:"'Playfair Display',serif" }}>
-                {displayName} wins
+                {displayName} {showdownWinners.includes(w) ? 'wins' : 'gets back'}
               </div>
               {res?.hand && (
                 <div style={{ fontSize:11, color:'#d9c08a99', letterSpacing:1, marginTop:2 }}>
@@ -241,7 +248,7 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
               )}
               <div style={{ fontSize:15, color:'#10b981', fontWeight:700, marginTop:8,
                 fontFamily:"'JetBrains Mono',monospace" }}>
-                ◈ {handOver.pot?.toLocaleString()}
+                ◈ {amountFor(w)?.toLocaleString()}
               </div>
             </div>
           );
@@ -541,12 +548,16 @@ function TablePageInner() {
   useEffect(() => {
     if (!handOver) return;
     setShowHandOver(true);
-    const names = handOver.winners?.map(w =>
-      handleMap[w?.toLowerCase()] || w.slice(0,8)+'…'
+    // Name each payee with what they actually took, rather than one name and
+    // the whole pot — a side pot splits the pot across seats.
+    const won = (handOver.showdownWinners?.length ? handOver.showdownWinners : handOver.winners) || [];
+    const amountFor = a => handOver.payouts?.[a] ?? handOver.payouts?.[a?.toLowerCase()] ?? handOver.pot;
+    const names = won.map(w =>
+      `${handleMap[w?.toLowerCase()] || w.slice(0,8)+'…'} ◈${amountFor(w)?.toLocaleString()}`
     ).join(', ') || '?';
     setLog(prev => [...prev.slice(-60), {
       type: 'winner',
-      text: `Winner: ${names}  ◈${handOver.pot?.toLocaleString()}  (${handOver.results?.[0]?.hand || ''})`,
+      text: `Winner: ${names}  (pot ◈${handOver.pot?.toLocaleString()}, ${handOver.results?.[0]?.hand || ''})`,
     }]);
   }, [handOver, handleMap]);
 
@@ -822,7 +833,9 @@ function TablePageInner() {
             street={gameState?.phase || 'preflop'}
             winners={showHandOver && handOver ? handOver.winners?.map(w => ({
               address: w,
-              amount: handOver.pot,
+              // What this player actually collected. With side pots the whole
+              // pot no longer goes to one seat.
+              amount: handOver.payouts?.[w] ?? handOver.payouts?.[w?.toLowerCase()] ?? handOver.pot,
               hand: handOver.results?.find(r => r.addr === w)?.hand,
             })) : []}
             tableInfo={gameState?.config ? {

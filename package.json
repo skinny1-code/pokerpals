@@ -21,7 +21,7 @@
     "deploy:arbitrum-one": "DEPLOY_NETWORK=arbitrum npx hardhat run scripts/deploy.js",
     "deploy:robinhood-testnet": "DEPLOY_NETWORK=robinhoodTestnet npx hardhat run scripts/deploy.js",
     "deploy:robinhood": "DEPLOY_NETWORK=robinhood npx hardhat run scripts/deploy.js",
-    "test": "node test/holdem.test.mjs && node test/botBrain.test.mjs && node test/ambientEngine.test.mjs && node test/cashoutRelay.test.mjs && node test/appUrl.test.mjs && node test/dashboardEconomics.test.mjs && node test/encryptEnv.test.mjs && node test/connectionGuard.test.mjs",
+    "test": "node test/holdem.test.mjs && node test/botBrain.test.mjs && node test/ambientEngine.test.mjs && node test/cashoutRelay.test.mjs && node test/appUrl.test.mjs && node test/dashboardEconomics.test.mjs && node test/encryptEnv.test.mjs && node test/connectionGuard.test.mjs && node test/sidePots.test.mjs",
     "test:contracts": "npx hardhat test",
     "setup:wallets": "node scripts/generateWallets.js",
     "setup:env": "node scripts/setupEnv.js",

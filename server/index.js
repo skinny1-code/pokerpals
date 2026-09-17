@@ -15,6 +15,7 @@ import { decide as botDecide } from "./botBrain.js";
 import { createCashoutRelay } from "./cashoutRelay.js";
 import { createOperatorQueue } from "./operatorQueue.js";
 import { createConnectionGuard, clientIp } from "./connectionGuard.js";
+import { buildSidePots, awardPots, payoutsToShares } from "./sidePots.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -411,7 +412,7 @@ class PokerTable {
       ...player,
       chips,
       onChainDeposit: chips,
-      hand: [], bet: 0, folded: false, allIn: false, actionLabel: '',
+      hand: [], bet: 0, committed: 0, folded: false, allIn: false, actionLabel: '',
       cashoutLockedUntil: 0,
       seatIndex,
     });
@@ -431,19 +432,30 @@ class PokerTable {
     const holeCount = this.config.gameType === 1 ? 4 : 2;
 
     this.players.forEach(p => {
-      p.hand = []; p.bet = 0; p.folded = false; p.allIn = false; p.actionLabel = '';
+      p.hand = []; p.bet = 0; p.committed = 0; p.folded = false; p.allIn = false; p.actionLabel = ''; p.leaving = false;
       for (let j = 0; j < holeCount; j++) p.hand.push(this.deck.shift());
     });
 
     // Heads-up (2-player): dealer IS the small blind and acts first preflop
     const sbIdx = n === 2 ? this.dealerIdx : (this.dealerIdx + 1) % n;
     const bbIdx = n === 2 ? (this.dealerIdx + 1) % n : (this.dealerIdx + 2) % n;
-    const sb    = this.config.bigBlind / 2;
-    const bb    = this.config.bigBlind;
-    this.players[sbIdx].chips -= sb; this.players[sbIdx].bet = sb;
-    this.players[bbIdx].chips -= bb; this.players[bbIdx].bet = bb;
-    this.pot    = sb + bb;
-    this.maxBet = bb;
+    // A player left with less than a blind is still dealt in — they are only
+    // removed once they hit zero. Posting the full blind regardless drove their
+    // stack negative, and a negative stack then flows straight into the pot
+    // (`pay = Math.min(due, p.chips)`), shrinking it and destroying chips. Post
+    // at most what they have, and mark them all-in for it.
+    const postBlind = (p, blind) => {
+      const pay = Math.min(blind, p.chips);
+      p.chips     -= pay;
+      p.bet        = pay;
+      p.committed += pay;
+      if (p.chips === 0) p.allIn = true;
+      return pay;
+    };
+    const sbPaid = postBlind(this.players[sbIdx], this.config.bigBlind / 2);
+    const bbPaid = postBlind(this.players[bbIdx], this.config.bigBlind);
+    this.pot    = sbPaid + bbPaid;
+    this.maxBet = Math.max(sbPaid, bbPaid);
     // Preflop: in HU the SB/dealer acts first; multi-way starts left of BB
     this.actionIdx = n === 2 ? sbIdx : (bbIdx + 1) % n;
     this.turnStartedAt = Date.now();
@@ -508,24 +520,33 @@ class PokerTable {
       p.actionLabel = 'CHECK';
     } else if (action === 'call') {
       const pay = Math.min(due, p.chips);
-      p.chips -= pay; p.bet += pay; this.pot += pay;
+      p.chips -= pay; p.bet += pay; p.committed += pay; this.pot += pay;
       if (p.chips === 0) p.allIn = true;
       p.actionLabel = `CALL ${pay}`;
     } else if (action === 'raise') {
       const minRaise = Math.max(this.config.bigBlind, this.lastRaiseAmount || this.config.bigBlind);
       if (amount < minRaise) return { error: `Minimum raise is ${minRaise}` };
+      const prevMax = this.maxBet;
       const total = this.maxBet + amount;
       const pay   = Math.min(total - p.bet, p.chips);
-      p.chips -= pay; p.bet += pay; this.pot += pay;
-      this.maxBet = p.bet;
-      this.lastRaiseAmount = amount;
+      p.chips -= pay; p.bet += pay; p.committed += pay; this.pot += pay;
+      // `pay` is capped by the stack, so a player who cannot cover the current
+      // bet ends up below it. Assigning maxBet = p.bet unconditionally then
+      // moved the bar DOWN: later players owed the smaller amount, and whoever
+      // had already bet more could never satisfy `bet === maxBet`, so the street
+      // never completed and the whole table sat until everyone timed out.
+      this.maxBet = Math.max(prevMax, p.bet);
+      // Record the raise that actually happened, not the one that was asked
+      // for: an unbounded `amount` became the next minimum raise and locked
+      // everyone out of raising for the rest of the street.
+      this.lastRaiseAmount = Math.max(0, this.maxBet - prevMax);
       if (p.chips === 0) p.allIn = true;
-      p.actionLabel = `RAISE +${amount}`;
+      p.actionLabel = p.bet < this.maxBet ? `ALL IN ${p.bet}` : `RAISE +${this.lastRaiseAmount}`;
       // After a raise, prior actors must respond again — clear the acted set
       this.streetActed = new Set();
     } else if (action === 'allin') {
       const pay = p.chips;
-      p.chips = 0; p.bet += pay; this.pot += pay;
+      p.chips = 0; p.bet += pay; p.committed += pay; this.pot += pay;
       this.maxBet = Math.max(this.maxBet, p.bet);
       p.allIn = true; p.actionLabel = 'ALL IN';
       // All-in acts as an implicit raise if it exceeds current maxBet — clear acted set
@@ -572,24 +593,70 @@ class PokerTable {
 
   doShowdown(alive) {
     this.phase = 'showdown';
-    // Single remaining player wins uncontested — skip hand evaluation entirely
-    if (alive.length === 1) {
-      alive[0].chips += this.pot;
-      return { winners:[alive[0].addr], results:[{p:alive[0],h:{r:-1,n:'Uncontested',kickers:[]}}], pot:this.pot };
+
+    // Rank the surviving hands, best first, with ties grouped. One player left
+    // needs no evaluation, but it still goes through the pot split below: their
+    // opponent may have folded after betting more than they could call, and that
+    // uncalled remainder belongs back to whoever bet it.
+    const results = alive.length === 1
+      ? [{ p: alive[0], h: { r: -1, n: 'Uncontested', kickers: [] } }]
+      : alive.map(p => ({
+          p,
+          h: this.config.gameType === 1
+            ? bestOmaha(p.hand, this.community)
+            : best7([...p.hand, ...this.community]),
+        })).sort((a, b) => compareHands(b.h, a.h));
+
+    const rankedGroups = [];
+    for (const r of results) {
+      const last = rankedGroups[rankedGroups.length - 1];
+      if (last && compareHands(results.find(x => x.p.addr === last[0]).h, r.h) === 0) last.push(r.p.addr);
+      else rankedGroups.push([r.p.addr]);
     }
-    const results = alive.map(p => {
-      const h = this.config.gameType === 1
-        ? bestOmaha(p.hand, this.community)
-        : best7([...p.hand, ...this.community]);
-      return { p, h };
-    }).sort((a,b) => compareHands(b.h, a.h));
 
-    const topHand = results[0].h;
-    const winners = results.filter(r => compareHands(r.h, topHand) === 0).map(r => r.p);
-    const share   = Math.floor(this.pot / winners.length);
-    winners.forEach(w => w.chips += share);
+    // Every chip in the pot must be attributable to somebody's commitment,
+    // otherwise the split below cannot be right. This catches any future path
+    // that adds to `pot` without recording it on the player — the failure mode
+    // it replaces is a silently mis-sized settlement that the operator signs.
+    const committed = this.players.reduce((a, p) => a + (p.committed || 0), 0);
+    if (committed !== this.pot) {
+      console.error(`[Server] table ${this.id} hand ${this.handNonce}: pot accounting mismatch — ` +
+        `pot=${this.pot} committed=${committed}. Settling against committed totals.`);
+      this.pot = committed;
+    }
 
-    return { winners: winners.map(w => w.addr), results, pot: this.pot };
+    // Split by all-in level rather than handing the whole pot to the best hand:
+    // a short stack can only win what each opponent also put in. See
+    // server/sidePots.js.
+    const pots = buildSidePots(this.players);
+    const { won, refunds } = awardPots(pots, rankedGroups);
+
+    // Uncalled money goes back to its owner before anything is settled, exactly
+    // as a card room returns an uncalled bet before raking the pot. Those chips
+    // stay backed by the same escrow deposit they came from, so they leave
+    // `pot` — settling them would rake a pot nobody contested, charging the
+    // player a slice of their own returned bet.
+    for (const [addr, amount] of refunds) {
+      const p = this.players.find(x => x.addr === addr);
+      if (p) p.chips += amount;
+      this.pot -= amount;
+    }
+    for (const [addr, amount] of won) {
+      const p = this.players.find(x => x.addr === addr);
+      if (p) p.chips += amount;
+    }
+    const payouts = won;
+
+    // `winners` is what the hand's showdown decided — the top group that could
+    // actually win something. A player collecting only an uncalled bet back is
+    // in `payouts`, not here.
+    const topGroup = rankedGroups[0] || [];
+    const winners  = topGroup.filter(a => (payouts.get(a) || 0) > 0);
+
+    return {
+      winners: winners.length ? winners : [...payouts.keys()],
+      results, pot: this.pot, payouts, refunds, pots,
+    };
   }
 
   async signAndSettle(winners, shares, potAmount) {
@@ -1072,22 +1139,52 @@ async function signAndRemovePlayer(t, addr, ws) {
   p.cashoutLockedUntil = 0;
 
   const amount = p.chips;
-  // If it's their turn in an active hand, fold them first
-  if (t.phase !== 'waiting' && t.phase !== 'showdown' && t.players[t.actionIdx]?.addr === addr) {
-    t.foldPlayer(addr);
-    const result = t.advance();
-    if (result?.winners) {
-      broadcastTable(t); // broadcast showdown state before hand-over
-      try { await handleHandOver(t, result); }
-      catch (e) { console.error('[Server] handleHandOver in signAndRemovePlayer:', e.message); }
+  const midHand = t.phase !== 'waiting' && t.phase !== 'showdown';
+
+  if (midHand) {
+    // Leaving mid-hand does NOT take the player out of t.players. Whatever they
+    // already put in this hand is dead money that still belongs to the pot, and
+    // the side-pot split reads contributions off the seated players — dropping
+    // them here left those chips in `pot` attributed to nobody, which the
+    // showdown's accounting check then had to write off, underpaying whoever
+    // was still in the hand. (Seen live: pot=4050 against committed=4040, one
+    // small blind short, after a player left between the blinds and showdown.)
+    //
+    // So: fold them, zero the stack they are cashing out, and mark the seat for
+    // removal once the hand is settled.
+    p.folded  = true;
+    p.allIn   = false;
+    p.chips   = 0;
+    p.leaving = true;
+    p.actionLabel = 'LEFT';
+
+    const wasTheirTurn = t.players[t.actionIdx]?.addr === addr;
+    if (wasTheirTurn) {
+      const result = t.advance();
+      if (result?.winners) {
+        broadcastTable(t); // broadcast showdown state before hand-over
+        try { await handleHandOver(t, result); }
+        catch (e) { console.error('[Server] handleHandOver in signAndRemovePlayer:', e.message); }
+      } else {
+        t._nextActionIdx();
+      }
     }
+  } else {
+    t.players = t.players.filter(x => x.addr !== addr);
   }
 
-  t.players = t.players.filter(x => x.addr !== addr);
-
-  // Pause if fewer than 2 players remain mid-hand
-  if (t.phase !== 'waiting' && t.phase !== 'showdown' && t.players.filter(x => !x.folded).length < 2) {
-    t.phase = 'waiting';
+  // If the leave emptied the hand, finish it rather than abandoning it. Setting
+  // the phase straight back to 'waiting' left the pot sitting in `t.pot` until
+  // the next start() zeroed it — the player who was still in the hand simply
+  // lost chips they had already won uncontested.
+  if (t.phase !== 'waiting' && t.phase !== 'showdown') {
+    const stillIn = t.players.filter(x => !x.folded);
+    if (stillIn.length < 2) {
+      const result = t.doShowdown(stillIn);
+      broadcastTable(t);
+      try { await handleHandOver(t, result); }
+      catch (e) { console.error('[Server] handleHandOver after last-player leave:', e.message); }
+    }
   }
 
   // Sign a cashout if player has chips. Freeroll chips are play money with no
@@ -1098,8 +1195,9 @@ async function signAndRemovePlayer(t, addr, ws) {
     await relayOrSignCashOut(t, addr, amount, ws);
   }
 
-  // Close or reset table when last player exits
-  if (t.players.length === 0) {
+  // Close or reset table when last player exits. A seat kept only so its dead
+  // money stays in the hand does not count as a player.
+  if (t.players.filter(x => !x.leaving).length === 0 && !midHand) {
     if (t.isPermanent) {
       // Reset permanent table so it's ready for the next game
       t.phase     = 'waiting';
@@ -1126,45 +1224,81 @@ async function signAndRemovePlayer(t, addr, ws) {
 
 // Handle a hand-over result: sign settlement, broadcast, schedule next hand.
 async function handleHandOver(t, result) {
-  const n      = result.winners.length;
-  const base   = Math.floor(1000 / n);
-  const shares = result.winners.map((_, i) => i === 0 ? base + (1000 - base * n) : base);
-  const sig    = await t.signAndSettle(result.winners, shares, result.pot);
+  // The settlement pair comes from the side-pot payouts, not from splitting the
+  // pot evenly across showdown winners: with side pots two players can both be
+  // owed money in different proportions, and one of them may be collecting an
+  // uncalled bet rather than winning anything.
+  const payouts = result.payouts
+    || new Map(result.winners.map(a => [a, Math.floor(result.pot / result.winners.length)]));
+  const { winners: paidTo, shares } = payoutsToShares(payouts, result.pot);
+
+  // A hand can end with nothing to settle — every chip was an uncalled bet
+  // returned to its owner, so no money changed hands and the contract (which
+  // requires winners.length > 0) has nothing to do. Still tell the table the
+  // hand is over, or it sits in showdown forever.
+  if (!paidTo.length || result.pot <= 0) {
+    console.log(`[Server] table ${t.id} hand ${t.handNonce}: nothing contested — no settlement needed`);
+    broadcastToTable(t, {
+      type: 'HAND_OVER', winners: [], shares: [],
+      showdownWinners: result.winners,
+      payouts: Object.fromEntries(result.payouts || []),
+      results: result.results.map(r => ({ addr: r.p.addr, hand: r.h.n, cards: r.p.hand || [] })),
+      pot: result.pot, sig: null, tableId: String(t.id), handNonce: t.handNonce,
+    });
+    scheduleNextHand(t);
+    return;
+  }
+
+  const sig = await t.signAndSettle(paidTo, shares, result.pot);
 
   // Accumulate gameplay stats in memory; flushed to HandHistory on-chain periodically.
   const participantAddrs = result.results.map(r => r.p.addr);
   const winningsByAddr   = new Map();
-  result.winners.forEach((addr, i) => {
-    const won = Math.floor(result.pot * (shares[i] / 1000));
-    winningsByAddr.set(addr, (winningsByAddr.get(addr) || 0n) + BigInt(won));
-  });
+  for (const [addr, amount] of payouts) {
+    winningsByAddr.set(addr, (winningsByAddr.get(addr) || 0n) + BigInt(Math.floor(amount)));
+  }
   recordHandStatsLocally(participantAddrs, result.winners, winningsByAddr);
 
   broadcastToTable(t, {
     type:      'HAND_OVER',
-    winners:   result.winners,
+    // winners/shares are the settlement pair and must stay paired with `sig`.
+    winners:   paidTo,
+    shares,
+    // Who actually won the showdown, and what each player collected — the pot
+    // is no longer one number handed to one player.
+    showdownWinners: result.winners,
+    payouts:   Object.fromEntries(payouts),
     results:   result.results.map(r => ({ addr: r.p.addr, hand: r.h.n, cards: r.p.hand || [] })),
     pot:       result.pot,
     sig,
     tableId:   String(t.id),
     handNonce: t.handNonce,
-    shares,
   });
 
   // Anti-snipe lock: if a winner's share of this pot ≥ 50% of all chips at the table,
   // lock their cashout for 7 more hands (lockedUntil = current nonce + 8).
   const totalChips = t.players.reduce((sum, p) => sum + p.chips, 0);
-  const perWinner  = result.pot / result.winners.length;
-  if (totalChips > 0 && perWinner >= totalChips * 0.5) {
-    for (const winnerAddr of result.winners) {
-      const winner = t.players.find(x => x.addr === winnerAddr);
+  if (totalChips > 0) {
+    for (const [addr, won] of payouts) {
+      if (won < totalChips * 0.5) continue;   // what THIS player took, not pot/n
+      const winner = t.players.find(x => x.addr === addr);
       if (winner) winner.cashoutLockedUntil = t.handNonce + 8;
     }
   }
 
+  scheduleNextHand(t);
+}
+
+// Clear the busted seats and deal the next hand. Every path that ends a hand
+// must call this, including one that settles nothing — otherwise the table sits
+// in showdown forever.
+function scheduleNextHand(t) {
   setTimeout(() => {
     // Remove bust players (0 chips) before the next hand, but keep their seat
     // reserved in bustedSeats so a REBUY_CONFIRMED can re-seat them.
+    // Seats held only to keep a departed player's dead money in the finished
+    // hand go now, silently — they already cashed out and want no rebuy.
+    t.players = t.players.filter(p => !p.leaving);
     const busted = t.players.filter(p => p.chips <= 0);
     t.players = t.players.filter(p => p.chips > 0);
     for (const p of busted) {
