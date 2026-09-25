@@ -303,16 +303,30 @@ export default function PlayerSeat({
         {lastAction && <ActionBadge action={lastAction} />}
         <div style={{
           fontSize: player.handle ? 11 : 9,
-          color: player.isHero ? '#d9c08a' : avatarUrl ? '#ece7db' : '#b3ad9f',
+          color: player.isBot ? '#5b8cb8'
+            : player.isHero ? '#d9c08a' : avatarUrl ? '#ece7db' : '#b3ad9f',
           fontWeight: 700, maxWidth: 80, overflow: 'hidden',
           textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           textAlign: 'center',
           textShadow: player.handle ? '0 0 8px rgba(0,0,0,0.8)' : 'none',
         }}>
-          {player.handle
-            ? `@${player.handle}`
-            : (player.address ? `${player.address.slice(0,6)}…` : 'Player')}
+          {player.isBot
+            ? 'House Bot'
+            : player.handle
+              ? `@${player.handle}`
+              : (player.address ? `${player.address.slice(0,6)}…` : 'Player')}
         </div>
+        {/* Bots are labelled outright. A player betting real money is entitled to
+            know which opponents the house supplied, and guessing from an address
+            is not a disclosure. */}
+        {player.isBot && (
+          <div style={{
+            fontSize: 7, letterSpacing: 1, fontWeight: 800,
+            color: '#5b8cb8', background: 'rgba(91,140,184,.14)',
+            border: '1px solid rgba(91,140,184,.45)', borderRadius: 3,
+            padding: '1px 5px', marginTop: 1,
+          }}>BOT</div>
+        )}
         <ChipCount amount={player.chips || 0} />
       </div>
 

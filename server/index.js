@@ -16,6 +16,8 @@ import { createCashoutRelay } from "./cashoutRelay.js";
 import { createOperatorQueue } from "./operatorQueue.js";
 import { createConnectionGuard, clientIp } from "./connectionGuard.js";
 import { buildSidePots, awardPots, payoutsToShares } from "./sidePots.js";
+import { canRevealHand, canElectToShow } from "./reveal.js";
+import { chooseSeat } from "./seating.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -403,11 +405,17 @@ class PokerTable {
     if (this.players.find(p => String(p.addr).toLowerCase() === String(player.addr).toLowerCase())) return false;
     if (this.players.length === 0) this.creator = player.addr;
     const chips = player.onChainDeposit ?? this.config.buyIn;
-    // Assign seat position: use preferred if free, else first open slot
-    const taken = new Set(this.players.map(p => p.seatIndex));
-    let seatIndex = (preferredSeat != null && !taken.has(preferredSeat))
-      ? preferredSeat
-      : [...Array(this.config.maxPlayers).keys()].find(i => !taken.has(i)) ?? 0;
+    // Seat position. A player who asked for a specific seat gets that seat or
+    // nothing: quietly dropping them somewhere else is worse than telling them
+    // it was taken, because they chose it for a reason (position relative to
+    // the players they want to sit behind).
+    const picked = chooseSeat({
+      taken: this.players.map(p => p.seatIndex),
+      maxPlayers: this.config.maxPlayers,
+      preferredSeat,
+    });
+    if (!picked.ok) return false;
+    const seatIndex = picked.seatIndex;
     this.players.push({
       ...player,
       chips,
@@ -428,11 +436,16 @@ class PokerTable {
     this.lastRaiseAmount = 0;
     this.phase           = 'preflop';
     this.streetActed     = new Set(); // tracks who has acted this betting round
+    // A hand only shows cards if two or more players were still in it at the
+    // end. Folding everyone out wins the pot without showing anything.
+    this.wentToShowdown  = false;
+    this.showdownSeats   = new Set();
     const n         = this.players.length;
     const holeCount = this.config.gameType === 1 ? 4 : 2;
 
     this.players.forEach(p => {
       p.hand = []; p.bet = 0; p.committed = 0; p.folded = false; p.allIn = false; p.actionLabel = ''; p.leaving = false;
+      p.revealed = false;   // only set when a player chooses to show
       for (let j = 0; j < holeCount; j++) p.hand.push(this.deck.shift());
     });
 
@@ -593,6 +606,11 @@ class PokerTable {
 
   doShowdown(alive) {
     this.phase = 'showdown';
+    // Cards go face up only when the pot was actually contested to the end.
+    // With one player left everyone else folded, so there is nothing to beat
+    // and no obligation to show — see pubState and the SHOW_CARDS handler.
+    this.wentToShowdown = alive.length > 1;
+    this.showdownSeats  = new Set(alive.map(p => p.addr));
 
     // Rank the surviving hands, best first, with ties grouped. One player left
     // needs no evaluation, but it still goes through the pot split below: their
@@ -659,6 +677,29 @@ class PokerTable {
     };
   }
 
+  /** Whether `p`'s hole cards are visible to `forAddr`. See server/reveal.js. */
+  canReveal(p, forAddr) {
+    return canRevealHand({
+      player: p, forAddr,
+      phase: this.phase,
+      wentToShowdown: this.wentToShowdown,
+      showdownSeats: this.showdownSeats,
+    });
+  }
+
+  /**
+   * A player elects to show their cards. Only meaningful for a hand that was
+   * not contested to the end — the point of it is the winner choosing to show
+   * a bluff — and only while that hand is still on screen.
+   */
+  showCards(addr) {
+    const p = this.players.find(x => x.addr === addr);
+    const allowed = canElectToShow({ player: p, phase: this.phase });
+    if (!allowed.ok) return { error: allowed.error };
+    p.revealed = true;   // idempotent
+    return { ok: true };
+  }
+
   async signAndSettle(winners, shares, potAmount) {
     // Digest must match PokerEscrow.settle: chainId + escrow address bind the sig
     // to this chain/contract (blocks cross-chain / cross-deployment replay), and
@@ -715,9 +756,13 @@ class PokerTable {
         actionLabel:        p.actionLabel,
         cashoutLockedUntil: p.cashoutLockedUntil ?? 0,
         seatIndex:          p.seatIndex ?? null,
-        hand: p.addr === forAddr || this.phase === 'showdown'
-          ? p.hand
-          : p.hand.map(() => '??'),
+        // You always see your own cards. Everyone else's are face down unless
+        // this hand was contested to the end and they were still in it, or they
+        // chose to show. Revealing on `phase === 'showdown'` alone exposed the
+        // winner of a hand nobody called, and exposed folded players' cards too.
+        hand: this.canReveal(p, forAddr) ? p.hand : p.hand.map(() => '??'),
+        revealed: !!p.revealed,
+        isBot:    !!p.isBot,
       })),
     };
   }
@@ -1242,7 +1287,12 @@ async function handleHandOver(t, result) {
       type: 'HAND_OVER', winners: [], shares: [],
       showdownWinners: result.winners,
       payouts: Object.fromEntries(result.payouts || []),
-      results: result.results.map(r => ({ addr: r.p.addr, hand: r.h.n, cards: r.p.hand || [] })),
+      results: result.results.map(r => ({
+        addr: r.p.addr,
+        hand: t.canReveal(r.p, null) ? r.h.n : null,
+        cards: t.canReveal(r.p, null) ? (r.p.hand || []) : [],
+      })),
+      wentToShowdown: t.wentToShowdown,
       pot: result.pot, sig: null, tableId: String(t.id), handNonce: t.handNonce,
     });
     scheduleNextHand(t);
@@ -1268,7 +1318,15 @@ async function handleHandOver(t, result) {
     // is no longer one number handed to one player.
     showdownWinners: result.winners,
     payouts:   Object.fromEntries(payouts),
-    results:   result.results.map(r => ({ addr: r.p.addr, hand: r.h.n, cards: r.p.hand || [] })),
+    // Same reveal rule as pubState: a hand nobody called shows no cards, and a
+    // fold is never shown. `canShow` tells the client a voluntary reveal is
+    // still available to the player who won it.
+    results:   result.results.map(r => ({
+      addr: r.p.addr,
+      hand: t.canReveal(r.p, null) ? r.h.n : null,
+      cards: t.canReveal(r.p, null) ? (r.p.hand || []) : [],
+    })),
+    wentToShowdown: t.wentToShowdown,
     pot:       result.pot,
     sig,
     tableId:   String(t.id),
@@ -1526,12 +1584,21 @@ wss.on('connection', (ws, req) => {
             return send(ws, { type: 'ERROR', error: 'Could not verify buy-in' });
           }
         }
-        if (onChainDeposit === 0) {
-          // Player hasn't bought in yet — send current seat occupancy so UI can show seat picker
-          const takenSeats = t.players.map(p => ({ addr: p.addr, seatIndex: p.seatIndex }));
+        // Offer the seat picker when the player has not chosen a seat yet, or has
+        // not bought in. It used to be gated on `onChainDeposit === 0`, which is
+        // never true on a play-money table — so on the only tables most players
+        // ever see, they were dropped into whichever seat happened to be free
+        // and never got to choose. Already-seated players skip this (handled
+        // below as a reconnect), as do busted players waiting on a rebuy.
+        const alreadySeated = t.players.some(p => p.addr === addr) || t.bustedSeats.has(addr);
+        if (!alreadySeated && (onChainDeposit === 0 || seatIndex == null)) {
+          const takenSeats = t.players.map(p => ({
+            addr: p.addr, seatIndex: p.seatIndex, isBot: !!p.isBot,
+          }));
           return send(ws, { type: 'SEAT_PICKER', tableId: tidKey, maxPlayers: t.config.maxPlayers, takenSeats,
             minBuyIn: t.config.minBuyIn ?? t.config.buyIn,
             maxBuyIn: t.config.maxBuyIn ?? t.config.buyIn,
+            needsBuyIn: onChainDeposit === 0,
           });
         }
 
@@ -1561,7 +1628,22 @@ wss.on('connection', (ws, req) => {
         }
 
         const seated = t.seat({ addr, ws, onChainDeposit }, seatIndex ?? null);
-        if (!seated) return send(ws, { type: 'ERROR', error: 'Cannot join table' });
+        if (!seated) {
+          // Almost always the requested seat was taken while the picker was
+          // open. Re-send it with current occupancy rather than a dead end.
+          const takenSeats = t.players.map(p => ({
+            addr: p.addr, seatIndex: p.seatIndex, isBot: !!p.isBot,
+          }));
+          return send(ws, {
+            type: 'SEAT_PICKER', tableId: tidKey, maxPlayers: t.config.maxPlayers, takenSeats,
+            minBuyIn: t.config.minBuyIn ?? t.config.buyIn,
+            maxBuyIn: t.config.maxBuyIn ?? t.config.buyIn,
+            needsBuyIn: false,
+            error: t.players.length >= t.config.maxPlayers
+              ? 'That table just filled up.'
+              : 'That seat was just taken — pick another.',
+          });
+        }
 
         clients.set(ws, { ...client, tableId: tidKey });
         console.log(`[WS] Seated ${addr.slice(0,10)} at table ${tidKey} (${t.players.length}/${t.config.maxPlayers})`);
@@ -1606,6 +1688,26 @@ wss.on('connection', (ws, req) => {
         break;
       }
 
+      // A player choosing to show a hand nobody called. Voluntary: winning a pot
+      // by folding everyone out never exposes cards on its own.
+      case 'SHOW_CARDS': {
+        if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+        const t = tables.get(String(payload?.tableId));
+        if (!t) return;
+        const result = t.showCards(client.addr);
+        if (result.error) return send(ws, { type: 'ERROR', error: result.error });
+        console.log(`[Server] ${shortAddr(client.addr)} showed their hand at table ${t.id}`);
+        // Re-send the finished hand with the newly visible cards, then refresh
+        // the table so the seats show them too.
+        broadcastToTable(t, {
+          type: 'CARDS_SHOWN', tableId: String(t.id), handNonce: t.handNonce,
+          addr: client.addr,
+          cards: t.players.find(x => x.addr === client.addr)?.hand || [],
+        });
+        broadcastTable(t);
+        break;
+      }
+
       case 'CHAT': {
         if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
         const now = Date.now();
@@ -1646,7 +1748,15 @@ wss.on('connection', (ws, req) => {
               return send(ws, { type: 'ERROR', error: 'Rebuy not detected on-chain yet' });
             }
             t.bustedSeats.delete(addr);
-            t.seat({ addr, ws, onChainDeposit }, bustedInfo.seatIndex);
+            // Prefer their old seat, but a rebuy must never be refused because
+            // someone sat down there while they were busted — seat() is strict
+            // about a requested seat now, so fall back to any free one.
+            if (!t.seat({ addr, ws, onChainDeposit }, bustedInfo.seatIndex)) {
+              if (!t.seat({ addr, ws, onChainDeposit }, null)) {
+                t.bustedSeats.set(addr, bustedInfo);
+                return send(ws, { type: 'ERROR', error: 'Table is full — no seat to rebuy into' });
+              }
+            }
             broadcastTable(t);
             maybeAutoStart(t);
             send(ws, { type: 'REBUY_OK', amount: onChainDeposit, newStack: onChainDeposit });
