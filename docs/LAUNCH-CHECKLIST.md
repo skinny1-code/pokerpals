@@ -34,15 +34,51 @@ and nowhere else — not in `.env.enc`, not in CI, not in a session.
 `npm run encrypt:env` refuses to seal any of these into the committed `.env.enc`.
 Leave those slots blank in the `.env` you encrypt.
 
-## 2. Set the deploy config
+## 2. The stablecoin — read this before setting anything
+
+**Robinhood Chain has no Circle USDC.** Its native stablecoin is **USDG** (Global
+Dollar, Paxos) at `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` — verified on
+Blockscout, ~$3.2B circulating, and **6 decimals**, the same as USDC, so the peg
+math (`rateUsdcPerChip` = stablecoin-wei per 1e18 SALOON) is unchanged.
+
+Two ways to get this permanently wrong, because `StablecoinPool` and
+`ChipsLiquidityPool` take the token in their constructors and never let go:
+
+- **Pasting Arbitrum One's USDC address** (`0xaf88d0…`). Nothing is deployed at
+  it on Robinhood Chain. Both pools would point at a dead address forever.
+- **Grabbing a lookalike.** Every token on that chain calling itself "USDC" is
+  an impostor — unverified, 18 decimals, 1e27 supply minted to nobody:
+  "Universal Stable Digital Coin", "United States Central Dollar", "UpSideDownCat
+  on robinhood", and one with 400 characters of tickers in its name. An
+  18-decimal token would misprice every swap by 1e12.
+
+The deploy now verifies the token on-chain before using it — contract code
+present, 6 decimals, expected symbol — and refuses otherwise. USDG is the
+built-in default for `robinhood`, so the correct setting is **nothing**:
 
 ```
-USDC_ADDRESS=<real USDC on Robinhood Chain>
 NEXT_PUBLIC_CHAIN_ID=4663
+# stablecoin defaults to verified USDG; override only with a reason:
+# STABLECOIN_ADDRESS=0x…   STABLECOIN_SYMBOL=…
 ```
 
-`deploy:mainnet` refuses to run without `USDC_ADDRESS` — there is no MockUSDC
-outside testnet.
+Decide deliberately whether USDG is the stablecoin you want this product settled
+in. It is the right technical choice on this chain; whether the liquidity suits
+your players is a business call, and it cannot be changed after deploy without
+redeploying both pools.
+
+### Rehearse first
+
+```bash
+npx hardhat node &
+DEPLOYER_KEY=<a funded local key> npm run rehearse:deploy
+```
+
+This runs the **mainnet** path — no MockUSDC shortcut — against a throwaway
+chain, proves the stablecoin guard rejects a no-code address, a malformed
+address, a symbol mismatch and an 18-decimal token, then deploys all 14 contracts
+and verifies every post-deploy wiring. A broken mainnet deploy costs real gas and
+leaves dead contracts behind; this costs nothing.
 
 ## 3. Deploy
 

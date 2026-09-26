@@ -37,7 +37,8 @@
     "encrypt:env": "node scripts/encryptEnv.js",
     "sync:artifacts": "node scripts/syncArtifacts.js",
     "transfer:ownership": "node scripts/transferOwnership.js",
-    "slither": "node scripts/slitherCheck.js"
+    "slither": "node scripts/slitherCheck.js",
+    "rehearse:deploy": "node scripts/rehearseDeploy.mjs"
   },
   "dependencies": {
     "@farcaster/miniapp-sdk": "^0.3.0",

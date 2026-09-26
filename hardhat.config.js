@@ -63,6 +63,16 @@ export default defineConfig({
       accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],
       chainId:  4663,
     },
+    // Dress rehearsal: a local node that takes the MAINNET deploy path, so a
+    // broken mainnet deploy is found here instead of on a chain where each
+    // attempt costs real gas and leaves dead contracts behind. Start
+    // `npx hardhat node` first; see `npm run rehearse:deploy`.
+    rehearsal: {
+      type:     "http",
+      url:      process.env.REHEARSAL_RPC || "http://127.0.0.1:8545",
+      accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],
+      chainId:  Number(process.env.REHEARSAL_CHAIN_ID) || 31337,
+    },
   },
   etherscan: {
     apiKey: { arbitrumOne: process.env.ARBISCAN_API_KEY || "" },

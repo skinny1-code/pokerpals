@@ -10,12 +10,91 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const VALID_NETWORKS = ["arbitrumSepolia", "arbitrum", "robinhoodTestnet", "robinhood"];
-const CHAIN_IDS      = { arbitrumSepolia: "421614", arbitrum: "42161", robinhoodTestnet: "46630", robinhood: "4663" };
+const VALID_NETWORKS = ["arbitrumSepolia", "arbitrum", "robinhoodTestnet", "robinhood", "rehearsal"];
+const CHAIN_IDS      = { arbitrumSepolia: "421614", arbitrum: "42161", robinhoodTestnet: "46630", robinhood: "4663",
+                         rehearsal: String(Number(process.env.REHEARSAL_CHAIN_ID) || 31337) };
+// `rehearsal` is deliberately NOT a testnet: the whole point is to run the
+// mainnet path (no MockUSDC shortcut, stablecoin validated) against a local node.
 const TESTNETS       = new Set(["arbitrumSepolia", "robinhoodTestnet"]);
 
-// Real USDC on Arbitrum One (native)
-const USDC_MAINNET = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
+// Known-good stablecoins per chain, with the symbol and decimals we expect to
+// find at that address. Verified on-chain before use — see assertStablecoin().
+//
+// Robinhood Chain has NO Circle USDC. Its native stablecoin is USDG (Global
+// Dollar, Paxos), and every token on that chain calling itself "USDC" is an
+// impostor: unverified, 18 decimals, and a 1e27 supply minted to nobody
+// ("Universal Stable Digital Coin", "United States Central Dollar",
+// "UpSideDownCat on robinhood", …). Pasting Arbitrum One's USDC address there
+// is just as bad — no contract lives at it. Both mistakes are permanent,
+// because StablecoinPool and ChipsLiquidityPool take the token in their
+// constructors and never let go of it.
+//
+// USDG is 6 decimals, same as USDC, so the peg math is unchanged:
+// rateUsdcPerChip stays "stablecoin-wei per 1e18 SALOON".
+const KNOWN_STABLECOINS = {
+  arbitrum:  { address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", symbol: "USDC", decimals: 6 },
+  robinhood: { address: "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168", symbol: "USDG", decimals: 6 },
+};
+
+/**
+ * Refuse to deploy against a stablecoin that is not what the operator thinks it
+ * is. Checks the address actually holds a token, that its decimals match what
+ * the peg math assumes, and that its symbol is the one expected.
+ */
+async function assertStablecoin(ethers, address, expected) {
+  let checksummed;
+  try { checksummed = ethers.getAddress(address); }
+  catch { throw new Error(`Stablecoin address "${address}" is not a valid address.`); }
+
+  const code = await ethers.provider.getCode(checksummed);
+  if (code === "0x") {
+    throw new Error(
+      `No contract at ${checksummed} on this chain. A stablecoin address from ` +
+      `another chain does not carry over — Arbitrum One's USDC, for instance, ` +
+      `does not exist on Robinhood Chain.`
+    );
+  }
+
+  const token = new ethers.Contract(checksummed, [
+    "function symbol() view returns (string)",
+    "function decimals() view returns (uint8)",
+    "function totalSupply() view returns (uint256)",
+  ], ethers.provider);
+
+  let symbol, decimals, supply;
+  try {
+    [symbol, decimals, supply] = await Promise.all([
+      token.symbol(), token.decimals(), token.totalSupply(),
+    ]);
+  } catch (e) {
+    throw new Error(`${checksummed} does not answer as an ERC-20 (${e.shortMessage || e.message}).`);
+  }
+  decimals = Number(decimals);
+
+  console.log(`   stablecoin at ${checksummed}: ${symbol}, ${decimals} decimals, supply ${supply}`);
+
+  // Decimals are load-bearing: rateUsdcPerChip is denominated in the token's
+  // smallest unit, so 18 decimals silently misprices every swap by 1e12.
+  const wantDecimals = expected?.decimals ?? 6;
+  if (decimals !== wantDecimals) {
+    throw new Error(
+      `${symbol} at ${checksummed} has ${decimals} decimals, expected ${wantDecimals}. ` +
+      `The swap peg is denominated in the token's smallest unit, so this would ` +
+      `misprice every trade by 1e${Math.abs(decimals - wantDecimals)}. Every fake ` +
+      `"USDC" on Robinhood Chain has 18 decimals — check you have the right token.`
+    );
+  }
+
+  const wantSymbol = process.env.STABLECOIN_SYMBOL || expected?.symbol;
+  if (wantSymbol && symbol !== wantSymbol) {
+    throw new Error(
+      `Token at ${checksummed} reports symbol "${symbol}", expected "${wantSymbol}". ` +
+      `Set STABLECOIN_SYMBOL to override if this is deliberate.`
+    );
+  }
+
+  return checksummed;
+}
 
 const networkName = process.env.DEPLOY_NETWORK || "arbitrumSepolia";
 if (!VALID_NETWORKS.includes(networkName)) {
@@ -128,14 +207,22 @@ async function main() {
     await mockUsdc.waitForDeployment();
     usdcAddr = await mockUsdc.getAddress();
     console.log("✅ MockUSDC:", usdcAddr);
-  } else if (process.env.USDC_ADDRESS) {
-    usdcAddr = process.env.USDC_ADDRESS;
-    console.log("ℹ️  Using USDC from env:", usdcAddr);
-  } else if (networkName === "arbitrum") {
-    usdcAddr = USDC_MAINNET;
-    console.log("ℹ️  Using Arbitrum One USDC:", usdcAddr);
   } else {
-    throw new Error(`No USDC address known for "${networkName}". Set USDC_ADDRESS to the chain's USDC token.`);
+    // Whatever the source, the token is checked on-chain before it goes into
+    // two constructors that can never be changed.
+    const known = KNOWN_STABLECOINS[networkName];
+    const requested = process.env.STABLECOIN_ADDRESS || process.env.USDC_ADDRESS || known?.address;
+    if (!requested) {
+      throw new Error(
+        `No stablecoin address known for "${networkName}". Set STABLECOIN_ADDRESS ` +
+        `to the chain's stablecoin — and verify it on a block explorer first.`
+      );
+    }
+    const fromEnv = !!(process.env.STABLECOIN_ADDRESS || process.env.USDC_ADDRESS);
+    console.log(`ℹ️  Stablecoin ${fromEnv ? "from env" : `default for ${networkName}`}: ${requested}`);
+    // An env override of a chain we have a default for is expected to be that
+    // same token unless STABLECOIN_SYMBOL says otherwise.
+    usdcAddr = await assertStablecoin(ethers, requested, known);
   }
 
   // 11. StablecoinPool — USDC reserve for on-network use (prizes, payouts, promos)
