@@ -18,6 +18,8 @@ import { createConnectionGuard, clientIp } from "./connectionGuard.js";
 import { buildSidePots, awardPots, payoutsToShares } from "./sidePots.js";
 import { canRevealHand, canElectToShow } from "./reveal.js";
 import { chooseSeat } from "./seating.js";
+import { parseFrame, logSafe } from "./frame.js";
+import { SUITS, RANKS, RV, makeDeck, shuffle, evalFive, compareHands, best7, bestOmaha } from "./handEval.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -272,79 +274,9 @@ if (handHistory) {
   console.log('[Server] HandHistory not deployed — gameplay stats will not be recorded on-chain');
 }
 
-// ─── CARD ENGINE ─────────────────────────────────────────────────────────────
-const SUITS = ["S","H","D","C"];
-const RANKS = ["2","3","4","5","6","7","8","9","T","J","Q","K","A"];
-const RV    = Object.fromEntries(RANKS.map((r,i)=>[r,i+2]));
-
-function makeDeck() {
-  return SUITS.flatMap(s => RANKS.map(r => `${r}${s}`));
-}
-function shuffle(deck) {
-  const d = [...deck];
-  for (let i = d.length - 1; i > 0; i--) {
-    const j = crypto.randomInt(0, i + 1);
-    [d[i], d[j]] = [d[j], d[i]];
-  }
-  return d;
-}
-
-// ─── HAND EVALUATOR ──────────────────────────────────────────────────────────
-function evalFive(cs) {
-  const v = cs.map(c => RV[c[0] === 'T' ? 'T' : c[0]]).sort((a,b)=>b-a);
-  const ss = cs.map(c => c.slice(-1));
-  const flush = ss.every(x => x === ss[0]);
-  const uniq = [...new Set(v)];
-  const cnts = uniq.map(x=>({x,n:v.filter(y=>y===x).length})).sort((a,b)=>b.n-a.n||b.x-a.x);
-  const str   = uniq.length===5 && v[0]-v[4]===4;
-  const wheel = uniq.length===5 && v[0]===14 && v[1]===5;
-  // kickers: tiebreak values ordered by group size desc, then rank desc
-  const kickers = cnts.map(c => c.x);
-  if (flush && str && v[0]===14) return {r:9,n:"Royal Flush",        kickers:[14]};
-  if (flush && (str||wheel))    return {r:8,n:"Straight Flush",      kickers:wheel?[5]:[v[0]]};
-  if (cnts[0].n===4)            return {r:7,n:"Four of a Kind",      kickers};
-  if (cnts[0].n===3&&cnts[1]?.n===2) return {r:6,n:"Full House",    kickers};
-  if (flush)                    return {r:5,n:"Flush",               kickers:v};
-  if (str||wheel)               return {r:4,n:"Straight",            kickers:wheel?[5]:[v[0]]};
-  if (cnts[0].n===3)            return {r:3,n:"Three of a Kind",     kickers};
-  if (cnts[0].n===2&&cnts[1]?.n===2) return {r:2,n:"Two Pair",      kickers};
-  if (cnts[0].n===2)            return {r:1,n:"One Pair",            kickers};
-  return {r:0,n:"High Card",kickers:v};
-}
-// Compare two evaluated hands: >0 means a wins, 0 means tie, <0 means b wins
-function compareHands(a, b) {
-  if (a.r !== b.r) return a.r - b.r;
-  for (let i = 0; i < Math.max(a.kickers.length, b.kickers.length); i++) {
-    const ak = a.kickers[i] ?? 0, bk = b.kickers[i] ?? 0;
-    if (ak !== bk) return ak - bk;
-  }
-  return 0;
-}
-function best7(cs) {
-  let b = null;
-  for (let i=0;i<cs.length-1;i++)
-    for (let j=i+1;j<cs.length;j++) {
-      const e = evalFive(cs.filter((_,k)=>k!==i&&k!==j));
-      if (!b || compareHands(e,b) > 0) b = e;
-    }
-  return b || evalFive(cs);
-}
-function bestOmaha(hole, comm) {
-  let best = null;
-  const holePairs = [];
-  for (let i=0;i<hole.length-1;i++)
-    for (let j=i+1;j<hole.length;j++) holePairs.push([hole[i],hole[j]]);
-  const commTrips = [];
-  for (let i=0;i<comm.length-2;i++)
-    for (let j=i+1;j<comm.length-1;j++)
-      for (let k=j+1;k<comm.length;k++) commTrips.push([comm[i],comm[j],comm[k]]);
-  for (const hp of holePairs)
-    for (const ct of commTrips) {
-      const e = evalFive([...hp,...ct]);
-      if (!best || compareHands(e,best) > 0) best = e;
-    }
-  return best;
-}
+// ─── CARD ENGINE + HAND EVALUATOR ────────────────────────────────────────────
+// In server/handEval.js so the tests exercise the same code the server runs,
+// rather than a copy of it.
 
 // ─── ANTI-BOT VERIFICATION ───────────────────────────────────────────────────
 // Real verification delegates to antiBotOracle.js's fullVerify() (2-of-3 checks).
@@ -1418,422 +1350,430 @@ wss.on('connection', (ws, req) => {
       console.warn(`[WS] rate limit hit by ${ip} — closing`);
       return ws.terminate();
     }
-    let msg;
-    try { msg = JSON.parse(raw); } catch { return; }
-    const { type, payload } = msg;
+    // Validated in server/frame.js: a malformed frame is dropped like
+    // unparseable JSON, and a missing payload arrives as {}.
+    const frame = parseFrame(raw);
+    if (!frame) return;
+    const { type, payload } = frame;
     const client = clients.get(ws);
     if (!client) return;
-    // Sanitize attacker-controlled fields before logging to prevent ANSI/control-char console spoofing.
-    const clean = s => String(s).replace(/[^\x20-\x7E]/g, '?').slice(0, 42);
-    const safeType = clean(type).slice(0, 32);
-    const safeDetail = payload?.tableId ? `tableId=${clean(payload.tableId)}`
-      : payload?.address ? `addr=${clean(payload.address).slice(0,10)}` : '';
+    const safeType = logSafe(type, 32);
+    const safeDetail = payload.tableId ? `tableId=${logSafe(payload.tableId)}`
+      : payload.address ? `addr=${logSafe(payload.address).slice(0,10)}` : '';
     console.log(`[WS] ← ${safeType}`, safeDetail);
 
-    switch (type) {
+    try {
+      switch (type) {
 
-      case 'AUTH': {
-        try {
-          const { address, signature, token } = payload;
-          const nonce = client.challenge;
-          if (!nonce) return send(ws, { type: 'AUTH_FAIL', error: 'No challenge' });
+        case 'AUTH': {
+          try {
+            const { address, signature, token } = payload;
+            const nonce = client.challenge;
+            if (!nonce) return send(ws, { type: 'AUTH_FAIL', error: 'No challenge' });
 
-          if (token) {
-            // Session-pass path: no wallet prompt. On failure the challenge stays
-            // valid, so the client falls back to a signature on this connection.
-            const t = verifySessionToken(token, address);
-            if (!t.ok) {
-              console.log(`[WS] session token rejected (${t.reason}) for ${shortAddr(String(address))}`);
-              return send(ws, { type: 'AUTH_FAIL', tokenExpired: true,
-                error: 'Session expired — sign with your wallet to continue.' });
+            if (token) {
+              // Session-pass path: no wallet prompt. On failure the challenge stays
+              // valid, so the client falls back to a signature on this connection.
+              const t = verifySessionToken(token, address);
+              if (!t.ok) {
+                console.log(`[WS] session token rejected (${t.reason}) for ${shortAddr(String(address))}`);
+                return send(ws, { type: 'AUTH_FAIL', tokenExpired: true,
+                  error: 'Session expired — sign with your wallet to continue.' });
+              }
+            } else {
+              // Each attempt costs two ECDSA recoveries and, for a contract
+              // account, an RPC round trip. Cheap to send, expensive to serve.
+              if (!conn.allowAuthAttempt()) {
+                console.warn(`[WS] AUTH attempt budget exhausted for ${ip} — closing`);
+                send(ws, { type: 'AUTH_FAIL', error: 'Too many failed attempts — reconnect and try again.' });
+                return ws.close(1008, 'auth attempts exceeded');
+              }
+              const check = await verifyWalletSignature(`PVP-AUTH:${nonce}`, signature, address);
+              if (!check.ok) {
+                console.warn(`[WS] AUTH sig mismatch: sent=${shortAddr(String(address))} recovered=${check.recovered ? shortAddr(check.recovered) : 'n/a'}`);
+                return send(ws, { type: 'AUTH_FAIL', error: sigFailureMessage(check, address) });
+              }
             }
-          } else {
-            // Each attempt costs two ECDSA recoveries and, for a contract
-            // account, an RPC round trip. Cheap to send, expensive to serve.
-            if (!conn.allowAuthAttempt()) {
-              console.warn(`[WS] AUTH attempt budget exhausted for ${ip} — closing`);
-              send(ws, { type: 'AUTH_FAIL', error: 'Too many failed attempts — reconnect and try again.' });
-              return ws.close(1008, 'auth attempts exceeded');
+            // Normalize at the trust boundary. Signature verification and the
+            // session-token check both compare case-insensitively, so a client
+            // could authenticate the SAME wallet twice under different casings
+            // (0xAbC… and 0xabc…). PokerTable.seat() de-dupes with strict ===, so
+            // those two forms took two seats — each credited with the full
+            // on-chain deposit from a single buy-in. Store one canonical form.
+            clients.set(ws, { addr: address.toLowerCase(), tableId: null });
+            conn.authSucceeded();
+            clearTimeout(authDeadline);
+            // Fresh token on every successful auth — a rolling window, so active
+            // players never see a signature prompt again on this device.
+            const session = issueSessionToken(address);
+            send(ws, { type: 'AUTH_OK', address, sessionToken: session.token, sessionExpiresAt: session.expiresAt });
+            console.log(`[WS] → AUTH_OK for ${address.slice(0,10)}${token ? ' (session pass)' : ' (signature)'}`);
+
+            // Testnet: auto-verify immediately on auth so players never see or need
+            // the manual "Request Verification" gate while this flag is on — fire
+            // and forget so the mark-human tx doesn't block the auth handshake.
+            if (process.env.TESTNET_SKIP_HUMAN_CHECK === 'true') {
+              verifyHuman(address)
+                .then(result => send(ws, { type: 'VERIFY_RESULT', ...result }))
+                .catch(() => {});
             }
-            const check = await verifyWalletSignature(`PVP-AUTH:${nonce}`, signature, address);
-            if (!check.ok) {
-              console.warn(`[WS] AUTH sig mismatch: sent=${shortAddr(String(address))} recovered=${check.recovered ? shortAddr(check.recovered) : 'n/a'}`);
-              return send(ws, { type: 'AUTH_FAIL', error: sigFailureMessage(check, address) });
-            }
+
+            // Deliver any cashouts owed from a prior disconnection, including
+            // ones for tables that no longer exist.
+            flushPendingCashouts(address, ws);
+          } catch {
+            send(ws, { type: 'AUTH_FAIL', error: 'Invalid signature format' });
           }
-          // Normalize at the trust boundary. Signature verification and the
-          // session-token check both compare case-insensitively, so a client
-          // could authenticate the SAME wallet twice under different casings
-          // (0xAbC… and 0xabc…). PokerTable.seat() de-dupes with strict ===, so
-          // those two forms took two seats — each credited with the full
-          // on-chain deposit from a single buy-in. Store one canonical form.
-          clients.set(ws, { addr: address.toLowerCase(), tableId: null });
-          conn.authSucceeded();
-          clearTimeout(authDeadline);
-          // Fresh token on every successful auth — a rolling window, so active
-          // players never see a signature prompt again on this device.
-          const session = issueSessionToken(address);
-          send(ws, { type: 'AUTH_OK', address, sessionToken: session.token, sessionExpiresAt: session.expiresAt });
-          console.log(`[WS] → AUTH_OK for ${address.slice(0,10)}${token ? ' (session pass)' : ' (signature)'}`);
-
-          // Testnet: auto-verify immediately on auth so players never see or need
-          // the manual "Request Verification" gate while this flag is on — fire
-          // and forget so the mark-human tx doesn't block the auth handshake.
-          if (process.env.TESTNET_SKIP_HUMAN_CHECK === 'true') {
-            verifyHuman(address)
-              .then(result => send(ws, { type: 'VERIFY_RESULT', ...result }))
-              .catch(() => {});
-          }
-
-          // Deliver any cashouts owed from a prior disconnection, including
-          // ones for tables that no longer exist.
-          flushPendingCashouts(address, ws);
-        } catch {
-          send(ws, { type: 'AUTH_FAIL', error: 'Invalid signature format' });
-        }
-        break;
-      }
-
-      case 'VERIFY_HUMAN': {
-        const address = client.addr;
-        if (!address) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
-        send(ws, { type: 'VERIFY_PENDING' });
-        const result = await verifyHuman(address);
-        send(ws, { type: 'VERIFY_RESULT', ...result });
-        break;
-      }
-
-      case 'JOIN_TABLE': {
-        const { tableId, seatIndex, config: clientConfig } = payload;
-        const tidKey = String(tableId);
-        let t = tables.get(tidKey);
-
-        const addr = client.addr;
-        if (!addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
-
-        // Freeroll tables are a staker perk — tier >= 1 (25K+ SALOON staked) to sit.
-        if (t?.isFreeroll) {
-          const tier = await getStakeTier(addr);
-          if (tier < 1) {
-            return send(ws, { type: 'ERROR',
-              error: 'Freerolls are for stakers — stake 25,000+ SALOON on the Stake page to enter.' });
-          }
+          break;
         }
 
-        // Only skip on-chain buy-in verification for play-money freeroll tables
-        // (which can never trigger an on-chain cashout — see the !isFreeroll guard
-        // in signAndRemovePlayer) or when the explicit testnet flag is set. Real-
-        // money tables (incl. the permanent cash tables 9001/9002) MUST read the
-        // player's actual on-chain deposit — otherwise a client could claim an
-        // arbitrary `buyInAmount`, receive unbacked in-memory chips, and have the
-        // operator sign a real cashout for chips it never verified.
-        // SECURITY: TESTNET_SKIP_CHAIN_VERIFY must be false/unset on mainnet.
-        const skipChainVerify = (t?.playMoney === true) || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true';
+        case 'VERIFY_HUMAN': {
+          const address = client.addr;
+          if (!address) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+          send(ws, { type: 'VERIFY_PENDING' });
+          const result = await verifyHuman(address);
+          send(ws, { type: 'VERIFY_RESULT', ...result });
+          break;
+        }
 
-        // If not in memory, load config from chain (or use client-provided config in testnet mode)
-        if (!t) {
+        case 'JOIN_TABLE': {
+          const { tableId, seatIndex, config: clientConfig } = payload;
+          const tidKey = String(tableId);
+          let t = tables.get(tidKey);
+
+          const addr = client.addr;
+          if (!addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+
+          // Freeroll tables are a staker perk — tier >= 1 (25K+ SALOON staked) to sit.
+          if (t?.isFreeroll) {
+            const tier = await getStakeTier(addr);
+            if (tier < 1) {
+              return send(ws, { type: 'ERROR',
+                error: 'Freerolls are for stakers — stake 25,000+ SALOON on the Stake page to enter.' });
+            }
+          }
+
+          // Only skip on-chain buy-in verification for play-money freeroll tables
+          // (which can never trigger an on-chain cashout — see the !isFreeroll guard
+          // in signAndRemovePlayer) or when the explicit testnet flag is set. Real-
+          // money tables (incl. the permanent cash tables 9001/9002) MUST read the
+          // player's actual on-chain deposit — otherwise a client could claim an
+          // arbitrary `buyInAmount`, receive unbacked in-memory chips, and have the
+          // operator sign a real cashout for chips it never verified.
+          // SECURITY: TESTNET_SKIP_CHAIN_VERIFY must be false/unset on mainnet.
+          const skipChainVerify = (t?.playMoney === true) || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true';
+
+          // If not in memory, load config from chain (or use client-provided config in testnet mode)
+          if (!t) {
+            if (skipChainVerify) {
+              const cfg = clientConfig || { buyIn: 1000, bigBlind: 20, maxPlayers: 6, gameType: 0 };
+              // Clamp client-supplied config so a malicious payload (e.g. bigBlind:0) can't corrupt blind math.
+              cfg.bigBlind   = (Number(cfg.bigBlind) >= 1) ? Math.floor(cfg.bigBlind) : 20;
+              cfg.maxPlayers = (cfg.maxPlayers >= 2 && cfg.maxPlayers <= 9) ? Math.floor(cfg.maxPlayers) : 6;
+              cfg.buyIn      = (Number(cfg.buyIn) >= cfg.bigBlind * 10) ? Math.floor(cfg.buyIn) : cfg.bigBlind * 100;
+              cfg.gameType   = [0,1,2,3].includes(Number(cfg.gameType)) ? Number(cfg.gameType) : 0;
+              t = new PokerTable(BigInt(tableId), cfg);
+              tables.set(tidKey, t);
+              console.log(`[Server] Created table ${tidKey} from client config (TESTNET_SKIP_CHAIN_VERIFY)`);
+            } else {
+              try {
+                const info = await escrow.getTableInfo(BigInt(tableId));
+                if (!info || info[0] === 0n) {
+                  return send(ws, { type: 'ERROR', error: 'Table not found on chain' });
+                }
+                const config = {
+                  buyIn:      Number(info[1]),
+                  bigBlind:   Number(info[2]),
+                  maxPlayers: Number(info[3]),
+                  gameType:   Number(info[4]),
+                };
+                t = new PokerTable(BigInt(tableId), config);
+                t.playMoney = false; // deposits come from escrow.getPlayerDeposit
+                t.handNonce = Number(info[7]);
+                t.isActive  = Number(info[5]) === 1; // TableStatus.Active = 1
+                tables.set(tidKey, t);
+                console.log(`[Server] Loaded table ${tidKey} from chain`);
+              } catch (e) {
+                console.error(`[Server] getTableInfo(${tidKey}) failed:`, e.message);
+                return send(ws, { type: 'ERROR', error: 'Table not found' });
+              }
+            }
+          }
+
+          // Verify player has bought in on-chain before seating them (skipped in testnet mode)
+          let onChainDeposit;
           if (skipChainVerify) {
-            const cfg = clientConfig || { buyIn: 1000, bigBlind: 20, maxPlayers: 6, gameType: 0 };
-            // Clamp client-supplied config so a malicious payload (e.g. bigBlind:0) can't corrupt blind math.
-            cfg.bigBlind   = (Number(cfg.bigBlind) >= 1) ? Math.floor(cfg.bigBlind) : 20;
-            cfg.maxPlayers = (cfg.maxPlayers >= 2 && cfg.maxPlayers <= 9) ? Math.floor(cfg.maxPlayers) : 6;
-            cfg.buyIn      = (Number(cfg.buyIn) >= cfg.bigBlind * 10) ? Math.floor(cfg.buyIn) : cfg.bigBlind * 100;
-            cfg.gameType   = [0,1,2,3].includes(Number(cfg.gameType)) ? Number(cfg.gameType) : 0;
-            t = new PokerTable(BigInt(tableId), cfg);
-            tables.set(tidKey, t);
-            console.log(`[Server] Created table ${tidKey} from client config (TESTNET_SKIP_CHAIN_VERIFY)`);
+            const min = t.config.minBuyIn ?? t.config.buyIn;
+            const max = t.config.maxBuyIn ?? t.config.buyIn;
+            const req = payload.buyInAmount;
+            onChainDeposit = (typeof req === 'number' && isFinite(req) && req > 0)
+              ? Math.max(min, Math.min(max, req))
+              : min;
           } else {
             try {
-              const info = await escrow.getTableInfo(BigInt(tableId));
-              if (!info || info[0] === 0n) {
-                return send(ws, { type: 'ERROR', error: 'Table not found on chain' });
-              }
-              const config = {
-                buyIn:      Number(info[1]),
-                bigBlind:   Number(info[2]),
-                maxPlayers: Number(info[3]),
-                gameType:   Number(info[4]),
-              };
-              t = new PokerTable(BigInt(tableId), config);
-              t.playMoney = false; // deposits come from escrow.getPlayerDeposit
-              t.handNonce = Number(info[7]);
-              t.isActive  = Number(info[5]) === 1; // TableStatus.Active = 1
-              tables.set(tidKey, t);
-              console.log(`[Server] Loaded table ${tidKey} from chain`);
+              onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
             } catch (e) {
-              console.error(`[Server] getTableInfo(${tidKey}) failed:`, e.message);
-              return send(ws, { type: 'ERROR', error: 'Table not found' });
+              console.error(`[Server] getPlayerDeposit error:`, e.message);
+              return send(ws, { type: 'ERROR', error: 'Could not verify buy-in' });
             }
           }
-        }
-
-        // Verify player has bought in on-chain before seating them (skipped in testnet mode)
-        let onChainDeposit;
-        if (skipChainVerify) {
-          const min = t.config.minBuyIn ?? t.config.buyIn;
-          const max = t.config.maxBuyIn ?? t.config.buyIn;
-          const req = payload.buyInAmount;
-          onChainDeposit = (typeof req === 'number' && isFinite(req) && req > 0)
-            ? Math.max(min, Math.min(max, req))
-            : min;
-        } else {
-          try {
-            onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
-          } catch (e) {
-            console.error(`[Server] getPlayerDeposit error:`, e.message);
-            return send(ws, { type: 'ERROR', error: 'Could not verify buy-in' });
+          // Offer the seat picker when the player has not chosen a seat yet, or has
+          // not bought in. It used to be gated on `onChainDeposit === 0`, which is
+          // never true on a play-money table — so on the only tables most players
+          // ever see, they were dropped into whichever seat happened to be free
+          // and never got to choose. Already-seated players skip this (handled
+          // below as a reconnect), as do busted players waiting on a rebuy.
+          const alreadySeated = t.players.some(p => p.addr === addr) || t.bustedSeats.has(addr);
+          if (!alreadySeated && (onChainDeposit === 0 || seatIndex == null)) {
+            const takenSeats = t.players.map(p => ({
+              addr: p.addr, seatIndex: p.seatIndex, isBot: !!p.isBot,
+            }));
+            return send(ws, { type: 'SEAT_PICKER', tableId: tidKey, maxPlayers: t.config.maxPlayers, takenSeats,
+              minBuyIn: t.config.minBuyIn ?? t.config.buyIn,
+              maxBuyIn: t.config.maxBuyIn ?? t.config.buyIn,
+              needsBuyIn: onChainDeposit === 0,
+            });
           }
-        }
-        // Offer the seat picker when the player has not chosen a seat yet, or has
-        // not bought in. It used to be gated on `onChainDeposit === 0`, which is
-        // never true on a play-money table — so on the only tables most players
-        // ever see, they were dropped into whichever seat happened to be free
-        // and never got to choose. Already-seated players skip this (handled
-        // below as a reconnect), as do busted players waiting on a rebuy.
-        const alreadySeated = t.players.some(p => p.addr === addr) || t.bustedSeats.has(addr);
-        if (!alreadySeated && (onChainDeposit === 0 || seatIndex == null)) {
-          const takenSeats = t.players.map(p => ({
-            addr: p.addr, seatIndex: p.seatIndex, isBot: !!p.isBot,
-          }));
-          return send(ws, { type: 'SEAT_PICKER', tableId: tidKey, maxPlayers: t.config.maxPlayers, takenSeats,
-            minBuyIn: t.config.minBuyIn ?? t.config.buyIn,
-            maxBuyIn: t.config.maxBuyIn ?? t.config.buyIn,
-            needsBuyIn: onChainDeposit === 0,
-          });
-        }
 
-        // Deliver pending cashout if this player has one from a prior disconnection
-        const pendingKey = cashoutKey(t.id, addr);
-        const pending = pendingCashouts.get(pendingKey);
-        if (pending) { send(ws, pending.msg); pendingCashouts.delete(pendingKey); return; }
+          // Deliver pending cashout if this player has one from a prior disconnection
+          const pendingKey = cashoutKey(t.id, addr);
+          const pending = pendingCashouts.get(pendingKey);
+          if (pending) { send(ws, pending.msg); pendingCashouts.delete(pendingKey); return; }
 
-        // If player is already seated (reconnect), just update their ws reference
-        const existing = t.players.find(p => p.addr === addr);
-        if (existing) {
-          existing.ws = ws;
+          // If player is already seated (reconnect), just update their ws reference
+          const existing = t.players.find(p => p.addr === addr);
+          if (existing) {
+            existing.ws = ws;
+            clients.set(ws, { ...client, tableId: tidKey });
+            broadcastTable(t);
+            return;
+          }
+
+          // Busted and waiting on a rebuy — update their ws reference instead of
+          // re-seating them (REBUY_CONFIRMED handles re-seating), so a page
+          // refresh while waiting doesn't lose the spectator connection.
+          const bustedExisting = t.bustedSeats.get(addr);
+          if (bustedExisting) {
+            bustedExisting.ws = ws;
+            clients.set(ws, { ...client, tableId: tidKey });
+            send(ws, { type: 'GAME_STATE', state: t.pubState(addr) });
+            return;
+          }
+
+          const seated = t.seat({ addr, ws, onChainDeposit }, seatIndex ?? null);
+          if (!seated) {
+            // Almost always the requested seat was taken while the picker was
+            // open. Re-send it with current occupancy rather than a dead end.
+            const takenSeats = t.players.map(p => ({
+              addr: p.addr, seatIndex: p.seatIndex, isBot: !!p.isBot,
+            }));
+            return send(ws, {
+              type: 'SEAT_PICKER', tableId: tidKey, maxPlayers: t.config.maxPlayers, takenSeats,
+              minBuyIn: t.config.minBuyIn ?? t.config.buyIn,
+              maxBuyIn: t.config.maxBuyIn ?? t.config.buyIn,
+              needsBuyIn: false,
+              error: t.players.length >= t.config.maxPlayers
+                ? 'That table just filled up.'
+                : 'That seat was just taken — pick another.',
+            });
+          }
+
           clients.set(ws, { ...client, tableId: tidKey });
+          console.log(`[WS] Seated ${addr.slice(0,10)} at table ${tidKey} (${t.players.length}/${t.config.maxPlayers})`);
           broadcastTable(t);
-          return;
+          maybeAutoStart(t);
+          break;
         }
 
-        // Busted and waiting on a rebuy — update their ws reference instead of
-        // re-seating them (REBUY_CONFIRMED handles re-seating), so a page
-        // refresh while waiting doesn't lose the spectator connection.
-        const bustedExisting = t.bustedSeats.get(addr);
-        if (bustedExisting) {
-          bustedExisting.ws = ws;
-          clients.set(ws, { ...client, tableId: tidKey });
-          send(ws, { type: 'GAME_STATE', state: t.pubState(addr) });
-          return;
+        case 'ACTION': {
+          if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+          const now = Date.now();
+          if (client.lastAction && now - client.lastAction < 100)
+            return send(ws, { type: 'ERROR', error: 'Too fast' });
+          client.lastAction = now;
+          const { tableId, action, amount } = payload;
+          const safeAmount = typeof amount === 'number' && isFinite(amount) && amount >= 0 ? amount : 0;
+          const t = tables.get(String(tableId));
+          if (!t) return;
+          const reactionMs = t.turnStartedAt ? Date.now() - t.turnStartedAt : null;
+          const result = t.applyAction(client.addr, action, safeAmount);
+          if (result?.error) return send(ws, { type: 'ERROR', error: result.error });
+          // recordAction() already console.warns internally on WARNING/FLAGGED — log-only, no enforcement.
+          behaviorMonitor.recordAction(client.addr, action, reactionMs);
+          broadcastTable(t);
+          if (result?.winners) await handleHandOver(t, result);
+          break;
         }
 
-        const seated = t.seat({ addr, ws, onChainDeposit }, seatIndex ?? null);
-        if (!seated) {
-          // Almost always the requested seat was taken while the picker was
-          // open. Re-send it with current occupancy rather than a dead end.
-          const takenSeats = t.players.map(p => ({
-            addr: p.addr, seatIndex: p.seatIndex, isBot: !!p.isBot,
-          }));
-          return send(ws, {
-            type: 'SEAT_PICKER', tableId: tidKey, maxPlayers: t.config.maxPlayers, takenSeats,
-            minBuyIn: t.config.minBuyIn ?? t.config.buyIn,
-            maxBuyIn: t.config.maxBuyIn ?? t.config.buyIn,
-            needsBuyIn: false,
-            error: t.players.length >= t.config.maxPlayers
-              ? 'That table just filled up.'
-              : 'That seat was just taken — pick another.',
+        case 'EXTEND_TURN': {
+          if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+          const { tableId } = payload;
+          const t = tables.get(String(tableId));
+          if (!t) return;
+          const active = t.players[t.actionIdx];
+          if (!active || active.addr !== client.addr)
+            return send(ws, { type: 'ERROR', error: 'Not your turn' });
+          if (t.turnExtended)
+            return send(ws, { type: 'ERROR', error: 'Turn already extended' });
+          t.turnExtraMs = TURN_EXTENSION_MS;
+          t.turnExtended = true;
+          broadcastTable(t);
+          break;
+        }
+
+        // A player choosing to show a hand nobody called. Voluntary: winning a pot
+        // by folding everyone out never exposes cards on its own.
+        case 'SHOW_CARDS': {
+          if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+          const t = tables.get(String(payload?.tableId));
+          if (!t) return;
+          const result = t.showCards(client.addr);
+          if (result.error) return send(ws, { type: 'ERROR', error: result.error });
+          console.log(`[Server] ${shortAddr(client.addr)} showed their hand at table ${t.id}`);
+          // Re-send the finished hand with the newly visible cards, then refresh
+          // the table so the seats show them too.
+          broadcastToTable(t, {
+            type: 'CARDS_SHOWN', tableId: String(t.id), handNonce: t.handNonce,
+            addr: client.addr,
+            cards: t.players.find(x => x.addr === client.addr)?.hand || [],
           });
+          broadcastTable(t);
+          break;
         }
 
-        clients.set(ws, { ...client, tableId: tidKey });
-        console.log(`[WS] Seated ${addr.slice(0,10)} at table ${tidKey} (${t.players.length}/${t.config.maxPlayers})`);
-        broadcastTable(t);
-        maybeAutoStart(t);
-        break;
-      }
-
-      case 'ACTION': {
-        if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
-        const now = Date.now();
-        if (client.lastAction && now - client.lastAction < 100)
-          return send(ws, { type: 'ERROR', error: 'Too fast' });
-        client.lastAction = now;
-        const { tableId, action, amount } = payload;
-        const safeAmount = typeof amount === 'number' && isFinite(amount) && amount >= 0 ? amount : 0;
-        const t = tables.get(String(tableId));
-        if (!t) return;
-        const reactionMs = t.turnStartedAt ? Date.now() - t.turnStartedAt : null;
-        const result = t.applyAction(client.addr, action, safeAmount);
-        if (result?.error) return send(ws, { type: 'ERROR', error: result.error });
-        // recordAction() already console.warns internally on WARNING/FLAGGED — log-only, no enforcement.
-        behaviorMonitor.recordAction(client.addr, action, reactionMs);
-        broadcastTable(t);
-        if (result?.winners) await handleHandOver(t, result);
-        break;
-      }
-
-      case 'EXTEND_TURN': {
-        if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
-        const { tableId } = payload;
-        const t = tables.get(String(tableId));
-        if (!t) return;
-        const active = t.players[t.actionIdx];
-        if (!active || active.addr !== client.addr)
-          return send(ws, { type: 'ERROR', error: 'Not your turn' });
-        if (t.turnExtended)
-          return send(ws, { type: 'ERROR', error: 'Turn already extended' });
-        t.turnExtraMs = TURN_EXTENSION_MS;
-        t.turnExtended = true;
-        broadcastTable(t);
-        break;
-      }
-
-      // A player choosing to show a hand nobody called. Voluntary: winning a pot
-      // by folding everyone out never exposes cards on its own.
-      case 'SHOW_CARDS': {
-        if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
-        const t = tables.get(String(payload?.tableId));
-        if (!t) return;
-        const result = t.showCards(client.addr);
-        if (result.error) return send(ws, { type: 'ERROR', error: result.error });
-        console.log(`[Server] ${shortAddr(client.addr)} showed their hand at table ${t.id}`);
-        // Re-send the finished hand with the newly visible cards, then refresh
-        // the table so the seats show them too.
-        broadcastToTable(t, {
-          type: 'CARDS_SHOWN', tableId: String(t.id), handNonce: t.handNonce,
-          addr: client.addr,
-          cards: t.players.find(x => x.addr === client.addr)?.hand || [],
-        });
-        broadcastTable(t);
-        break;
-      }
-
-      case 'CHAT': {
-        if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
-        const now = Date.now();
-        if (client.lastChat && now - client.lastChat < 500)
-          return send(ws, { type: 'ERROR', error: 'Too fast' });
-        const { tableId, text } = payload;
-        const t = tables.get(String(tableId));
-        if (!t) return;
-        if (!t.players.find(p => p.addr === client.addr)) {
-          return send(ws, { type: 'ERROR', error: 'Not seated at this table' });
+        case 'CHAT': {
+          if (!client.addr) return send(ws, { type: 'ERROR', error: 'Not authenticated' });
+          const now = Date.now();
+          if (client.lastChat && now - client.lastChat < 500)
+            return send(ws, { type: 'ERROR', error: 'Too fast' });
+          const { tableId, text } = payload;
+          const t = tables.get(String(tableId));
+          if (!t) return;
+          if (!t.players.find(p => p.addr === client.addr)) {
+            return send(ws, { type: 'ERROR', error: 'Not seated at this table' });
+          }
+          // Strip control chars (terminal/log injection) but keep normal unicode (emoji etc.) for chat text.
+          const safeText = String(text || '').replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 200);
+          if (!safeText) return;
+          client.lastChat = now;
+          broadcastToTable(t, { type: 'CHAT', tableId: String(t.id), addr: client.addr, text: safeText, ts: now });
+          break;
         }
-        // Strip control chars (terminal/log injection) but keep normal unicode (emoji etc.) for chat text.
-        const safeText = String(text || '').replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 200);
-        if (!safeText) return;
-        client.lastChat = now;
-        broadcastToTable(t, { type: 'CHAT', tableId: String(t.id), addr: client.addr, text: safeText, ts: now });
-        break;
-      }
 
-      case 'REBUY_CONFIRMED': {
-        // Client sends this after their on-chain rebuy transaction confirms.
-        // Server verifies by reading the updated deposit from chain.
-        const { tableId } = payload;
-        const t = tables.get(String(tableId));
-        if (!t) return send(ws, { type: 'ERROR', error: 'Table not found' });
-        const addr = client.addr;
-        if (!addr) return;
-        const p = t.players.find(x => x.addr === addr);
+        case 'REBUY_CONFIRMED': {
+          // Client sends this after their on-chain rebuy transaction confirms.
+          // Server verifies by reading the updated deposit from chain.
+          const { tableId } = payload;
+          const t = tables.get(String(tableId));
+          if (!t) return send(ws, { type: 'ERROR', error: 'Table not found' });
+          const addr = client.addr;
+          if (!addr) return;
+          const p = t.players.find(x => x.addr === addr);
 
-        if (!p) {
-          // Player busted out of a previous hand — re-seat them in their old spot
-          // instead of rejecting, so a rebuy actually gets them back into play.
-          const bustedInfo = t.bustedSeats.get(addr);
-          if (!bustedInfo) return send(ws, { type: 'ERROR', error: 'Not seated at table' });
+          if (!p) {
+            // Player busted out of a previous hand — re-seat them in their old spot
+            // instead of rejecting, so a rebuy actually gets them back into play.
+            const bustedInfo = t.bustedSeats.get(addr);
+            if (!bustedInfo) return send(ws, { type: 'ERROR', error: 'Not seated at table' });
+            try {
+              const onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+              if (onChainDeposit <= 0) {
+                return send(ws, { type: 'ERROR', error: 'Rebuy not detected on-chain yet' });
+              }
+              t.bustedSeats.delete(addr);
+              // Prefer their old seat, but a rebuy must never be refused because
+              // someone sat down there while they were busted — seat() is strict
+              // about a requested seat now, so fall back to any free one.
+              if (!t.seat({ addr, ws, onChainDeposit }, bustedInfo.seatIndex)) {
+                if (!t.seat({ addr, ws, onChainDeposit }, null)) {
+                  t.bustedSeats.set(addr, bustedInfo);
+                  return send(ws, { type: 'ERROR', error: 'Table is full — no seat to rebuy into' });
+                }
+              }
+              broadcastTable(t);
+              maybeAutoStart(t);
+              send(ws, { type: 'REBUY_OK', amount: onChainDeposit, newStack: onChainDeposit });
+            } catch (e) {
+              console.error(`[Server] REBUY_CONFIRMED (busted) error:`, e.message);
+              send(ws, { type: 'ERROR', error: 'Could not verify rebuy on-chain' });
+            }
+            return;
+          }
+
           try {
-            const onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
-            if (onChainDeposit <= 0) {
+            const newDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+            const rebuyAmount = newDeposit - p.onChainDeposit;
+            if (rebuyAmount <= 0) {
               return send(ws, { type: 'ERROR', error: 'Rebuy not detected on-chain yet' });
             }
-            t.bustedSeats.delete(addr);
-            // Prefer their old seat, but a rebuy must never be refused because
-            // someone sat down there while they were busted — seat() is strict
-            // about a requested seat now, so fall back to any free one.
-            if (!t.seat({ addr, ws, onChainDeposit }, bustedInfo.seatIndex)) {
-              if (!t.seat({ addr, ws, onChainDeposit }, null)) {
-                t.bustedSeats.set(addr, bustedInfo);
-                return send(ws, { type: 'ERROR', error: 'Table is full — no seat to rebuy into' });
-              }
-            }
+            p.chips          += rebuyAmount;
+            p.onChainDeposit  = newDeposit;
             broadcastTable(t);
-            maybeAutoStart(t);
-            send(ws, { type: 'REBUY_OK', amount: onChainDeposit, newStack: onChainDeposit });
+            send(ws, { type: 'REBUY_OK', amount: rebuyAmount, newStack: p.chips });
           } catch (e) {
-            console.error(`[Server] REBUY_CONFIRMED (busted) error:`, e.message);
+            console.error(`[Server] REBUY_CONFIRMED error:`, e.message);
             send(ws, { type: 'ERROR', error: 'Could not verify rebuy on-chain' });
           }
-          return;
+          break;
         }
 
-        try {
-          const newDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
-          const rebuyAmount = newDeposit - p.onChainDeposit;
-          if (rebuyAmount <= 0) {
-            return send(ws, { type: 'ERROR', error: 'Rebuy not detected on-chain yet' });
+        case 'LEAVE_TABLE': {
+          const { tableId } = payload;
+          const t = tables.get(String(tableId));
+          if (t) {
+            // Creator restriction: can't leave while another player has an active lock
+            const isCreator = t.creator === client.addr;
+            const anyLocked = t.players.some(
+              x => x.addr !== client.addr && (x.cashoutLockedUntil ?? 0) > t.handNonce
+            );
+            if (isCreator && anyLocked) {
+              send(ws, { type: 'TABLE_LOCKED', reason: 'A player is locked in; wait for 7 hands or all others to leave.' });
+              break;
+            }
+            await signAndRemovePlayer(t, client.addr, ws);
+            broadcastTable(t);
           }
-          p.chips          += rebuyAmount;
-          p.onChainDeposit  = newDeposit;
-          broadcastTable(t);
-          send(ws, { type: 'REBUY_OK', amount: rebuyAmount, newStack: p.chips });
-        } catch (e) {
-          console.error(`[Server] REBUY_CONFIRMED error:`, e.message);
-          send(ws, { type: 'ERROR', error: 'Could not verify rebuy on-chain' });
+          clients.set(ws, { ...client, tableId: null });
+          break;
         }
-        break;
-      }
 
-      case 'LEAVE_TABLE': {
-        const { tableId } = payload;
-        const t = tables.get(String(tableId));
-        if (t) {
-          // Creator restriction: can't leave while another player has an active lock
-          const isCreator = t.creator === client.addr;
-          const anyLocked = t.players.some(
-            x => x.addr !== client.addr && (x.cashoutLockedUntil ?? 0) > t.handNonce
-          );
-          if (isCreator && anyLocked) {
-            send(ws, { type: 'TABLE_LOCKED', reason: 'A player is locked in; wait for 7 hands or all others to leave.' });
-            break;
+        case 'SPAWN_BOT': {
+          // Require authentication (mirrors ACTION/JOIN/CHAT) — the handler used to
+          // accept SPAWN_BOT from any unauthenticated socket on any table.
+          if (!client.addr) { send(ws, { type: 'ERROR', error: 'Not authenticated' }); break; }
+          const tidKey = String(payload?.tableId || client.tableId || '9001');
+          const t = tables.get(tidKey);
+          if (!t) { send(ws, { type: 'ERROR', error: 'Table not found' }); break; }
+          // Bots seat with unbacked in-memory chips, so they must never touch a
+          // real-money table (they'd corrupt the pot and settlement). Allow only on
+          // play-money freeroll/practice tables, testnet, or when explicitly enabled.
+          const botsAllowed = t.playMoney === true
+            || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true'
+            || process.env.ENABLE_WS_BOTS === 'true';
+          if (!botsAllowed) { send(ws, { type: 'ERROR', error: 'Bots are not available on this table.' }); break; }
+          const count = Math.max(1, Math.min(8, Number(payload?.count) || 1));
+          const result = spawnBot(t, Number(payload?.buyIn) || undefined, count);
+          if (!result.ok) {
+            send(ws, { type: 'ERROR', error: result.error }); break;
           }
-          await signAndRemovePlayer(t, client.addr, ws);
-          broadcastTable(t);
+          send(ws, { type: 'BOT_STATUS', status: 'seated', chips: result.chips, addrs: result.addrs });
+          break;
         }
-        clients.set(ws, { ...client, tableId: null });
-        break;
-      }
 
-      case 'SPAWN_BOT': {
-        // Require authentication (mirrors ACTION/JOIN/CHAT) — the handler used to
-        // accept SPAWN_BOT from any unauthenticated socket on any table.
-        if (!client.addr) { send(ws, { type: 'ERROR', error: 'Not authenticated' }); break; }
-        const tidKey = String(payload?.tableId || client.tableId || '9001');
-        const t = tables.get(tidKey);
-        if (!t) { send(ws, { type: 'ERROR', error: 'Table not found' }); break; }
-        // Bots seat with unbacked in-memory chips, so they must never touch a
-        // real-money table (they'd corrupt the pot and settlement). Allow only on
-        // play-money freeroll/practice tables, testnet, or when explicitly enabled.
-        const botsAllowed = t.playMoney === true
-          || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true'
-          || process.env.ENABLE_WS_BOTS === 'true';
-        if (!botsAllowed) { send(ws, { type: 'ERROR', error: 'Bots are not available on this table.' }); break; }
-        const count = Math.max(1, Math.min(8, Number(payload?.count) || 1));
-        const result = spawnBot(t, Number(payload?.buyIn) || undefined, count);
-        if (!result.ok) {
-          send(ws, { type: 'ERROR', error: result.error }); break;
+        case 'LIST_TABLES': {
+          const list = [...tables.values()].map(t => ({
+            id: String(t.id), config: t.config, seated: t.players.length, phase: t.phase, name: t.name || null, isFreeroll: !!t.isFreeroll, playMoney: !!t.playMoney,
+          }));
+          send(ws, { type: 'TABLE_LIST', tables: list });
+          break;
         }
-        send(ws, { type: 'BOT_STATUS', status: 'seated', chips: result.chips, addrs: result.addrs });
-        break;
       }
-
-      case 'LIST_TABLES': {
-        const list = [...tables.values()].map(t => ({
-          id: String(t.id), config: t.config, seated: t.players.length, phase: t.phase, name: t.name || null, isFreeroll: !!t.isFreeroll, playMoney: !!t.playMoney,
-        }));
-        send(ws, { type: 'TABLE_LIST', tables: list });
-        break;
-      }
+    } catch (e) {
+      // A throw in one case must cost that frame and nothing else. Without
+      // this it surfaces as an unhandledRejection — logged by a process-level
+      // handler, from which Node cannot promise the process is still coherent.
+      console.error(`[WS] handler error for ${safeType} from ${ip}: ${e.message}`);
+      send(ws, { type: 'ERROR', error: 'Could not process that request.' });
     }
   });
 

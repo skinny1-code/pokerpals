@@ -10,45 +10,21 @@
 //
 // decide(ctx, rng) is pure given its rng — pass a seeded rng in tests.
 
-const RANKS = ["2","3","4","5","6","7","8","9","T","J","Q","K","A"];
-const RV    = Object.fromEntries(RANKS.map((r, i) => [r, i + 2]));
+import { evalFive, best7, compareHands, RV, RANKS } from './handEval.js';
 
-// ─── Evaluator (same algorithm family as server/index.js evalFive) ───────────
-function evalFive(cs) {
-  const v = cs.map(c => RV[c[0]]).sort((a, b) => b - a);
-  const ss = cs.map(c => c.slice(-1));
-  const flush = ss.every(x => x === ss[0]);
-  const uniq = [...new Set(v)];
-  const cnts = uniq.map(x => ({ x, n: v.filter(y => y === x).length }))
-                   .sort((a, b) => b.n - a.n || b.x - a.x);
-  const str   = uniq.length === 5 && v[0] - v[4] === 4;
-  const wheel = uniq.length === 5 && v[0] === 14 && v[1] === 5;
-  const kick  = cnts.map(c => c.x);
-  if (flush && (str || wheel)) return { r: str && v[0] === 14 ? 9 : 8, kick };
-  if (cnts[0].n === 4)               return { r: 7, kick };
-  if (cnts[0].n === 3 && cnts[1]?.n === 2) return { r: 6, kick };
-  if (flush)                          return { r: 5, kick };
-  if (str || wheel)                   return { r: 4, kick };
-  if (cnts[0].n === 3)                return { r: 3, kick };
-  if (cnts[0].n === 2 && cnts[1]?.n === 2) return { r: 2, kick };
-  if (cnts[0].n === 2)                return { r: 1, kick };
-  return { r: 0, kick };
-}
+
+// ─── Evaluator ───────────────────────────────────────────────────────────────
+// Imported, not reimplemented. This file used to carry its own third copy of
+// evalFive, and its best-of-7 selection compared hands with
+// `h.kickers.join(',') > top.kickers.join(',')` — a STRING comparison of numbers, so
+// "10,9" sorted below "9,8" and any two-digit rank (T through A) lost to a
+// single-digit one. The bot therefore picked the wrong best five from seven
+// cards whenever its real best hand contained a ten or higher, and then bet on
+// that misreading. House bots play with house chips, so that was the house
+// paying for it.
 
 function best(cards) {
-  if (cards.length === 5) return evalFive(cards);
-  let top = null;
-  const n = cards.length;
-  for (let a = 0; a < n - 4; a++)
-    for (let b = a + 1; b < n - 3; b++)
-      for (let c = b + 1; c < n - 2; c++)
-        for (let d = c + 1; d < n - 1; d++)
-          for (let e = d + 1; e < n; e++) {
-            const h = evalFive([cards[a], cards[b], cards[c], cards[d], cards[e]]);
-            if (!top || h.r > top.r ||
-                (h.r === top.r && h.kick.join(',') > top.kick.join(','))) top = h;
-          }
-  return top;
+  return cards.length === 5 ? evalFive(cards) : best7(cards);
 }
 
 // ─── Preflop: Chen formula ───────────────────────────────────────────────────
@@ -104,7 +80,7 @@ function bucket(hand, community) {
   if (h.r >= 2) return 3;
   if (h.r === 1) {
     const boardTop = Math.max(...community.map(c => RV[c[0]]));
-    const pairRank = h.kick[0];
+    const pairRank = h.kickers[0];
     const holeVals = hand.map(c => RV[c[0]]);
     const usesHole = holeVals.includes(pairRank);
     if (usesHole && pairRank >= boardTop) return 2;  // top pair or overpair

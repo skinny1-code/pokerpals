@@ -21,7 +21,7 @@
     "deploy:arbitrum-one": "DEPLOY_NETWORK=arbitrum npx hardhat run scripts/deploy.js",
     "deploy:robinhood-testnet": "DEPLOY_NETWORK=robinhoodTestnet npx hardhat run scripts/deploy.js",
     "deploy:robinhood": "DEPLOY_NETWORK=robinhood npx hardhat run scripts/deploy.js",
-    "test": "node test/holdem.test.mjs && node test/botBrain.test.mjs && node test/ambientEngine.test.mjs && node test/cashoutRelay.test.mjs && node test/appUrl.test.mjs && node test/dashboardEconomics.test.mjs && node test/encryptEnv.test.mjs && node test/connectionGuard.test.mjs && node test/sidePots.test.mjs && node test/reveal.test.mjs",
+    "test": "node test/holdem.test.mjs && node test/botBrain.test.mjs && node test/ambientEngine.test.mjs && node test/cashoutRelay.test.mjs && node test/appUrl.test.mjs && node test/dashboardEconomics.test.mjs && node test/encryptEnv.test.mjs && node test/connectionGuard.test.mjs && node test/sidePots.test.mjs && node test/reveal.test.mjs && node test/frame.test.mjs && node test/handEval.test.mjs",
     "test:contracts": "npx hardhat test",
     "setup:wallets": "node scripts/generateWallets.js",
     "setup:env": "node scripts/setupEnv.js",
@@ -38,7 +38,8 @@
     "sync:artifacts": "node scripts/syncArtifacts.js",
     "transfer:ownership": "node scripts/transferOwnership.js",
     "slither": "node scripts/slitherCheck.js",
-    "rehearse:deploy": "node scripts/rehearseDeploy.mjs"
+    "rehearse:deploy": "node scripts/rehearseDeploy.mjs",
+    "test:eval-full": "EVAL_EXHAUSTIVE=true node test/handEval.test.mjs"
   },
   "dependencies": {
     "@farcaster/miniapp-sdk": "^0.3.0",
