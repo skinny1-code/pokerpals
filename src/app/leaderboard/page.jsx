@@ -166,7 +166,7 @@ export default function LeaderboardPage() {
           <div className="animate-up s3" style={{
             fontSize:13, color:'var(--text-secondary)', letterSpacing:.2, opacity:0,
           }}>
-            Ranked by CHIPS staked · VIP tier determines your rake discount
+            Ranked by SALOON staked · VIP tier determines your rake discount
           </div>
         </div>
       </div>

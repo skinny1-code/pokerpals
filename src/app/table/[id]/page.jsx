@@ -14,10 +14,15 @@ import VerifyHumanBanner from '../../../components/VerifyHumanBanner';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 
-// Block explorer base for tx links (Arbitrum Sepolia by default, Arbitrum One on mainnet).
-const EXPLORER_TX = (Number(process.env.NEXT_PUBLIC_CHAIN_ID) === 42161
-  ? 'https://arbiscan.io/tx/'
-  : 'https://sepolia.arbiscan.io/tx/');
+// Block explorer base for tx links, per chain. Robinhood Chain is the mainnet
+// target, so an Arbitrum-only mapping sent every receipt link to a 404.
+const EXPLORERS = {
+  42161:  'https://arbiscan.io',
+  421614: 'https://sepolia.arbiscan.io',
+  4663:   'https://robinhoodchain.blockscout.com',
+  46630:  'https://explorer.testnet.chain.robinhood.com',
+};
+const EXPLORER_TX = `${EXPLORERS[Number(process.env.NEXT_PUBLIC_CHAIN_ID)] || EXPLORERS[421614]}/tx/`;
 
 // ── action label from server → badge key ─────────────────────────────────────
 function parseActionLabel(label) {
@@ -56,6 +61,7 @@ function mapToSeats(state, heroAddr, handleMap = {}, avatarMap = {}, now = Date.
         isHero:    p.addr?.toLowerCase() === heroAddr?.toLowerCase(),
         isFolded:  p.folded,
         isAllIn:   p.allIn,
+        isBot:     !!p.isBot,
       },
       cards:      (p.hand || []).map(c => c === '??' ? { faceDown: true } : c),
       isActive,
@@ -179,7 +185,7 @@ function ChatPanel({ messages, onSend }) {
 }
 
 // ── hand-over overlay ─────────────────────────────────────────────────────────
-function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
+function HandOverOverlay({ handOver, handleMap = {}, onDismiss, heroAddr, onShowCards }) {
   const [secs, setSecs] = useState(6);
   const identity = handOver?.handNonce ?? 0;
 
@@ -192,10 +198,25 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
   }, [identity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!handOver) return null;
+  // `winners` is the settlement payee list: with side pots more than one player
+  // can be owed money, in different amounts, and one of them may be collecting
+  // an uncalled bet back rather than winning anything. `showdownWinners` is who
+  // actually won the hand.
   const winners  = handOver.winners || [];
+  const payouts  = handOver.payouts || {};
+  const showdownWinners = handOver.showdownWinners || winners;
   const results  = handOver.results || [];
+  const amountFor = a => payouts[a] ?? payouts[a?.toLowerCase()] ?? handOver.pot;
   // Non-winners who showed their cards (losers at showdown)
   const losers   = results.filter(r => !winners.includes(r.addr) && r.cards?.length);
+
+  // Nobody called, so no cards were exposed. The player who took the pot may
+  // choose to show — the point of the option is showing a bluff — but only they
+  // can decide, and only until this overlay closes.
+  const hero = heroAddr?.toLowerCase();
+  const heroTookIt = showdownWinners.some(w => w?.toLowerCase() === hero);
+  const alreadyShown = (handOver.shown || []).some(a => a?.toLowerCase() === hero);
+  const canOfferShow = handOver.wentToShowdown === false && heroTookIt && !alreadyShown;
 
   return (
     <div style={{
@@ -218,13 +239,17 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
             <div key={i} style={{ marginBottom: losers.length ? 16 : 0 }}>
               <div style={{ fontSize:20, color:'#d9c08a', fontWeight:700,
                 fontFamily:"'Playfair Display',serif" }}>
-                {displayName} wins
+                {displayName} {showdownWinners.includes(w) ? 'wins' : 'gets back'}
               </div>
-              {res?.hand && (
+              {res?.hand ? (
                 <div style={{ fontSize:11, color:'#d9c08a99', letterSpacing:1, marginTop:2 }}>
                   {res.hand}
                 </div>
-              )}
+              ) : handOver.wentToShowdown === false ? (
+                <div style={{ fontSize:11, color:'#7d786c', letterSpacing:1, marginTop:2 }}>
+                  uncalled — cards not shown
+                </div>
+              ) : null}
               {res?.cards?.length > 0 && (
                 <div style={{ display:'flex', gap:4, justifyContent:'center', marginTop:8 }}>
                   {res.cards.map((c, ci) => (
@@ -236,7 +261,7 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
               )}
               <div style={{ fontSize:15, color:'#10b981', fontWeight:700, marginTop:8,
                 fontFamily:"'JetBrains Mono',monospace" }}>
-                ◈ {handOver.pot?.toLocaleString()}
+                ◈ {amountFor(w)?.toLocaleString()}
               </div>
             </div>
           );
@@ -265,6 +290,26 @@ function HandOverOverlay({ handOver, handleMap = {}, onDismiss }) {
           </div>
         )}
 
+        {canOfferShow && (
+          <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid var(--border)' }}>
+            <div style={{ fontSize:9, color:'#57544b', letterSpacing:1, marginBottom:8 }}>
+              NOBODY CALLED — YOUR CARDS STAY DOWN
+            </div>
+            <button
+              className="btn btn-ghost"
+              onClick={e => { e.stopPropagation(); onShowCards?.(); }}
+              style={{ padding:'8px 18px', fontSize:11, fontFamily:'inherit' }}
+            >
+              Show My Hand
+            </button>
+          </div>
+        )}
+        {alreadyShown && (
+          <div style={{ fontSize:9, color:'#10b981', marginTop:12, letterSpacing:1 }}>
+            YOU SHOWED YOUR HAND
+          </div>
+        )}
+
         <div style={{ fontSize:9, color:'#57544b', marginTop:14, letterSpacing:1 }}>
           Next hand in {Math.max(0, secs)}s · tap to skip
         </div>
@@ -286,9 +331,9 @@ const SEAT_POS = [
   { x: 0.26, y: 0.80 }, // 8 bottom-left
 ];
 
-function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, buyInAmount, onBuyInChange, minBuyIn, maxBuyIn, escrowStatus, escrowErrorMsg }) {
+function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, buyInAmount, onBuyInChange, minBuyIn, maxBuyIn, escrowStatus, escrowErrorMsg, needsBuyIn = true, pickerError, handleMap = {} }) {
   const seats = SEAT_POS.slice(0, maxPlayers);
-  const takenMap = Object.fromEntries((takenSeats || []).map(s => [s.seatIndex, s.addr]));
+  const takenMap = Object.fromEntries((takenSeats || []).map(s => [s.seatIndex, s]));
   const fmt = n => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M`
     : n >= 1_000 ? `${(n/1000).toFixed(0)}K` : String(n||0);
 
@@ -307,37 +352,44 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
           transform:'translate(-50%,-50%)', textAlign:'center',
         }}>
           <div style={{ fontSize:10, color:'#57544b', letterSpacing:2 }}>SELECT A SEAT</div>
+          {pickerError && (
+            <div style={{ fontSize:9, color:'#ef5350', marginTop:4, maxWidth:180 }}>{pickerError}</div>
+          )}
           {minBuyIn != null && maxBuyIn != null && minBuyIn !== maxBuyIn ? (
             <div style={{ fontSize:10, color:'#7d786c', marginTop:4 }}>
-              {fmt(minBuyIn)}–{fmt(maxBuyIn)} CHIPS
+              {fmt(minBuyIn)}–{fmt(maxBuyIn)} SALOON
             </div>
           ) : (
             <div style={{ fontSize:13, color:'#d9c08a', fontWeight:700,
               fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>
-              {fmt(buyInAmount)} CHIPS
+              {fmt(buyInAmount)} SALOON
             </div>
           )}
         </div>
 
         {/* Seat circles */}
         {seats.map((pos, i) => {
-          const isTaken = i in takenMap;
+          const occupant = takenMap[i];
+          const isTaken = !!occupant;
           const isSelected = pendingSeat === i;
-          const addr = takenMap[i];
+          const addr = occupant?.addr;
+          const isBot = !!occupant?.isBot;
+          const label = isBot ? 'BOT' : (handleMap[addr?.toLowerCase()] || addr?.slice(2, 6));
           return (
             <div
               key={i}
               onClick={() => !isTaken && onSelect(i)}
-              title={isTaken ? addr : `Seat ${i+1}`}
+              title={isTaken ? (isBot ? `House bot (${addr})` : addr) : `Seat ${i+1}`}
               style={{
                 position:'absolute',
                 left:`${pos.x * 100}%`, top:`${pos.y * 100}%`,
                 transform:'translate(-50%,-50%)',
                 width:44, height:44, borderRadius:'50%',
-                background: isTaken ? '#232327'
+                background: isBot ? '#1b2430'
+                  : isTaken ? '#232327'
                   : isSelected ? 'linear-gradient(135deg,#2b2b31,#242428)'
                   : '#121215',
-                border: `2px solid ${isTaken ? '#3a3a41' : isSelected ? '#d9c08a' : '#57544b'}`,
+                border: `2px solid ${isBot ? '#3d5a7a' : isTaken ? '#3a3a41' : isSelected ? '#d9c08a' : '#57544b'}`,
                 cursor: isTaken ? 'default' : 'pointer',
                 display:'flex', flexDirection:'column',
                 alignItems:'center', justifyContent:'center',
@@ -347,9 +399,10 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
             >
               {isTaken ? (
                 <>
-                  <div style={{ fontSize:9, color:'#7d786c' }}>●</div>
-                  <div style={{ fontSize:7, color:'#57544b', marginTop:1 }}>
-                    {addr?.slice(2,6)}
+                  <div style={{ fontSize:9, color: isBot ? '#5b8cb8' : '#7d786c' }}>{isBot ? '🤖' : '●'}</div>
+                  <div style={{ fontSize:7, color: isBot ? '#5b8cb8' : '#57544b', marginTop:1,
+                    maxWidth:38, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {label}
                   </div>
                 </>
               ) : (
@@ -368,7 +421,9 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
           marginTop:16, border:'1px solid var(--border-gold)',
           padding:'16px 20px', display:'flex', flexDirection:'column', gap:12,
         }}>
-          <div style={{ fontSize:10, color:'#57544b', letterSpacing:1 }}>SEAT {pendingSeat + 1} — BUY IN</div>
+          <div style={{ fontSize:10, color:'#57544b', letterSpacing:1 }}>
+            SEAT {pendingSeat + 1} — {needsBuyIn ? 'BUY IN' : 'PLAY MONEY STACK'}
+          </div>
           {minBuyIn != null && maxBuyIn != null && minBuyIn !== maxBuyIn && (
             <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
               <input
@@ -381,7 +436,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#57544b' }}>
                 <span>{fmt(minBuyIn)}</span>
                 <span style={{ color:'#d9c08a', fontWeight:700, fontFamily:"'JetBrains Mono',monospace", fontSize:13 }}>
-                  {fmt(buyInAmount)} CHIPS
+                  {fmt(buyInAmount)} SALOON
                 </span>
                 <span>{fmt(maxBuyIn)}</span>
               </div>
@@ -389,7 +444,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
           )}
           {(minBuyIn == null || minBuyIn === maxBuyIn) && (
             <div style={{ fontSize:13, color:'#d9c08a', fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>
-              {fmt(buyInAmount)} CHIPS
+              {fmt(buyInAmount)} SALOON
             </div>
           )}
           <button
@@ -401,7 +456,8 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
               fontSize:12, fontFamily:'inherit', alignSelf:'flex-end',
             }}
           >
-            {escrowStatus === 'approving' ? 'Approving…'
+            {!needsBuyIn ? 'Take Seat →'
+             : escrowStatus === 'approving' ? 'Approving…'
              : escrowStatus === 'buying'  ? 'Buying In…'
              : escrowStatus === 'error'   ? 'Retry Buy In →'
              : 'Buy In →'}
@@ -486,7 +542,7 @@ function TablePageInner() {
     cashoutRelay,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData, needsRebuy,
-    sendAction, extendTurn, leaveTable, sendRebuyConfirmed, joinWithSeat, spawnBot, botStatus,
+    sendAction, extendTurn, leaveTable, sendRebuyConfirmed, joinWithSeat, showCards, spawnBot, botStatus,
     chatMessages, sendChat,
     verifyStatus, verifyFailures, sendVerifyHuman,
   } = useTableSocket(id, tableConfig);
@@ -536,12 +592,16 @@ function TablePageInner() {
   useEffect(() => {
     if (!handOver) return;
     setShowHandOver(true);
-    const names = handOver.winners?.map(w =>
-      handleMap[w?.toLowerCase()] || w.slice(0,8)+'…'
+    // Name each payee with what they actually took, rather than one name and
+    // the whole pot — a side pot splits the pot across seats.
+    const won = (handOver.showdownWinners?.length ? handOver.showdownWinners : handOver.winners) || [];
+    const amountFor = a => handOver.payouts?.[a] ?? handOver.payouts?.[a?.toLowerCase()] ?? handOver.pot;
+    const names = won.map(w =>
+      `${handleMap[w?.toLowerCase()] || w.slice(0,8)+'…'} ◈${amountFor(w)?.toLocaleString()}`
     ).join(', ') || '?';
     setLog(prev => [...prev.slice(-60), {
       type: 'winner',
-      text: `Winner: ${names}  ◈${handOver.pot?.toLocaleString()}  (${handOver.results?.[0]?.hand || ''})`,
+      text: `Winner: ${names}  (pot ◈${handOver.pot?.toLocaleString()}, ${handOver.results?.[0]?.hand || ''})`,
     }]);
   }, [handOver, handleMap]);
 
@@ -635,10 +695,14 @@ function TablePageInner() {
       || tableConfig?.buyIn
       || (tableInfo?.buyInAmount ? Number(tableInfo.buyInAmount) / 1e18 : 0);
     if (!amount) return;
+    // Play-money tables have no escrow deposit to make — the picker is there
+    // purely so the player chooses where to sit. Sending an approve+buyIn here
+    // would ask for a signature the table does not need.
+    if (seatPickerData?.needsBuyIn === false) return joinWithSeat(seatIndex, amount);
     const tx = await buyIn(amount);
     if (!tx) return; // failed — don't tell the server we're seated with no on-chain deposit
     joinWithSeat(seatIndex, amount);
-  }, [buyIn, joinWithSeat, selectedBuyIn, tableConfig, tableInfo]);
+  }, [buyIn, joinWithSeat, selectedBuyIn, tableConfig, tableInfo, seatPickerData]);
 
   const maxBots = Math.max(1, (gameState?.config?.maxPlayers || tableConfig?.maxPlayers || 6) - 1);
   const botControlsDisabled = botStatus === 'spawning' || botStatus === 'seated' || botStatus === 'already_seated';
@@ -673,7 +737,7 @@ function TablePageInner() {
         <span>›</span>
         <span style={{ color:'#8a8478' }}>
           Table #{id}
-          {gameState?.config && <span className="gold-text" style={{ fontWeight:700 }}> · {(gameState.config.bigBlind/2).toLocaleString()}/{gameState.config.bigBlind.toLocaleString()} CHIPS</span>}
+          {gameState?.config && <span className="gold-text" style={{ fontWeight:700 }}> · {(gameState.config.bigBlind/2).toLocaleString()}/{gameState.config.bigBlind.toLocaleString()} SALOON</span>}
         </span>
         <div style={{ marginLeft:'auto' }}><StatusDot status={wsStatus} /></div>
       </div>
@@ -807,6 +871,9 @@ function TablePageInner() {
               minBuyIn={seatPickerData.minBuyIn}
               maxBuyIn={seatPickerData.maxBuyIn}
               escrowStatus={escrowStatus}
+              needsBuyIn={seatPickerData.needsBuyIn}
+              pickerError={seatPickerData.error}
+              handleMap={handleMap}
             />
           )}
 
@@ -817,7 +884,9 @@ function TablePageInner() {
             street={gameState?.phase || 'preflop'}
             winners={showHandOver && handOver ? handOver.winners?.map(w => ({
               address: w,
-              amount: handOver.pot,
+              // What this player actually collected. With side pots the whole
+              // pot no longer goes to one seat.
+              amount: handOver.payouts?.[w] ?? handOver.payouts?.[w?.toLowerCase()] ?? handOver.pot,
               hand: handOver.results?.find(r => r.addr === w)?.hand,
             })) : []}
             tableInfo={gameState?.config ? {
@@ -1103,6 +1172,8 @@ function TablePageInner() {
       <HandOverOverlay
         handOver={showHandOver ? handOver : null}
         handleMap={handleMap}
+        heroAddr={address}
+        onShowCards={showCards}
         onDismiss={() => setShowHandOver(false)}
       />
 

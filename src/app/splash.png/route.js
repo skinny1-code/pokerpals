@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 export const contentType = 'image/png';
 
 export function GET() {
@@ -19,7 +19,7 @@ export function GET() {
           fontSize: 28, fontWeight: 'bold',
           color: '#c9b075', marginTop: 8, fontFamily: 'serif',
         }}>
-          PokerVsPlayer
+          Saloon
         </div>
       </div>
     ),

@@ -25,7 +25,7 @@ interface IPokerEscrow {
 
 /// @title PokerHandle — on-chain poker username NFT
 ///
-/// Players burn CHIPS to mint a unique handle (e.g. "Shark_99").
+/// Players burn SALOON to mint a unique handle (e.g. "Shark_99").
 /// Each token gets a deterministic poker animal identity (Bear, Wolf, Fox, Shark,
 /// Eagle, Tiger, Rabbit, or Bull) based on a hash of the token ID — on-chain SVG.
 ///
@@ -92,7 +92,7 @@ contract PokerHandle is ERC721, Ownable {
     error InvalidLinkProof();
     error NotLinked(address wallet);
 
-    constructor(address _chipsToken, address _escrow, address _renderer) ERC721("PokerVsPlayer Handle", "HANDLE") Ownable(msg.sender) {
+    constructor(address _chipsToken, address _escrow, address _renderer) ERC721("Saloon Handle", "HANDLE") Ownable(msg.sender) {
         chipsToken = IChipsTokenMint(_chipsToken);
         escrow = IPokerEscrow(_escrow);
         renderer = IHandleRenderer(_renderer);
@@ -287,7 +287,7 @@ contract PokerHandle is ERC721, Ownable {
 
         bytes memory json = abi.encodePacked(
             '{"name":"@', handle, '",',
-            '"description":"PokerVsPlayer on-chain poker handle. Burns CHIPS to mint. Each handle has a unique poker animal identity.",',
+            '"description":"Saloon on-chain poker handle. Burns SALOON to mint. Each handle has a unique poker animal identity.",',
             '"image":"data:image/svg+xml;base64,', Base64.encode(svg), '",',
             '"attributes":[',
             '{"trait_type":"Handle","value":"', handle, '"},',

@@ -14,7 +14,7 @@ const CHIP_DENOMS = [
   { bbMult: 0,    color: '#3a3a3a', hi: '#7f8c8d' },
 ];
 
-function buildChips(amount, bigBlind, maxChips = 7) {
+function buildChips(amount, bigBlind, maxChips = 9) {
   const bb = bigBlind || 100;
   let rem = amount / bb;
   const chips = [];
@@ -33,30 +33,32 @@ function buildChips(amount, bigBlind, maxChips = 7) {
   return chips.length ? chips : [CHIP_DENOMS[CHIP_DENOMS.length - 1]];
 }
 
-function ChipPile({ amount, bigBlind = 100, maxChips = 7, chipW = 26, chipH = 7 }) {
+function ChipPile({ amount, bigBlind = 100, maxChips = 9, chipD = 30 }) {
   if (!amount || amount <= 0) return null;
   const chips = buildChips(amount, bigBlind, maxChips);
-  const gap = chipH - 2;
-  const totalH = chipH + (chips.length - 1) * gap;
+  const gap = 6; // round casino chips, stacked with a slight rise
+  const totalH = chipD + (chips.length - 1) * gap;
   const fmt = v => v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M`
     : v >= 1_000 ? `${(v/1_000).toFixed(1)}K` : v.toLocaleString();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-      <div style={{ position: 'relative', width: chipW, height: totalH + 4 }}>
+      <div style={{ position: 'relative', width: chipD, height: totalH }}>
         {chips.map((chip, i) => (
-          <div key={i} style={{
+          <div key={i} className="chip-toss" style={{
             position: 'absolute',
             bottom: i * gap,
             left: 0,
-            width: chipW,
-            height: chipH,
-            borderRadius: chipH / 2,
-            background: `radial-gradient(ellipse at 50% 25%, ${chip.hi}bb, ${chip.color})`,
-            border: `1px solid ${chip.hi}55`,
+            width: chipD,
+            height: chipD,
+            borderRadius: '50%',
+            background: `radial-gradient(circle at 40% 30%, ${chip.hi}, ${chip.color} 70%)`,
+            border: `2px dashed rgba(255,255,255,.55)`,
+            boxSizing: 'border-box',
+            animationDelay: `${i * 0.05}s`,
             boxShadow: i === chips.length - 1
-              ? `0 3px 6px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.1)`
-              : `0 1px 3px rgba(0,0,0,.5)`,
+              ? `0 3px 6px rgba(0,0,0,.7), inset 0 0 0 3px rgba(0,0,0,.25)`
+              : `0 1px 3px rgba(0,0,0,.6)`,
           }} />
         ))}
       </div>
@@ -207,7 +209,9 @@ export default function PlayerSeat({
 
   // How big is this bet relative to pot (for chip pile sizing)
   const betPct   = pot > 0 ? Math.min(betAmount / pot, 1) : 0;
-  const chipCount = betAmount > 0 ? Math.max(2, Math.min(7, Math.ceil(betPct * 6) + 1)) : 0;
+  const chipCount = betAmount > 0 ? Math.max(3, Math.min(9, Math.ceil(betPct * 8) + 1)) : 0;
+  // Rendered height of the pile: chip diameter + rises + gap + amount label.
+  const pileH = 30 + Math.max(0, chipCount - 1) * 6 + 3 + 15;
 
   return (
     <div style={{
@@ -248,9 +252,9 @@ export default function PlayerSeat({
         <div style={{
           width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: '50%',
           overflow: 'hidden',
-          border: `2px solid ${isActive ? '#d9c08a' : isAllIn ? '#f0902a' : '#232327'}`,
+          border: `2px solid ${isActive ? '#d9c08a' : isAllIn ? '#f0902a' : '#241608'}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: isActive ? '0 0 18px #d9c08a99, 0 0 4px #d9c08a' : 'none',
+          boxShadow: isActive ? '0 0 20px #d9c08acc, 0 0 5px #d9c08a' : '0 4px 10px rgba(0,0,0,.6)',
           transition: 'border-color .3s, box-shadow .3s',
           position: 'relative', zIndex: 1,
         }}>
@@ -299,16 +303,30 @@ export default function PlayerSeat({
         {lastAction && <ActionBadge action={lastAction} />}
         <div style={{
           fontSize: player.handle ? 11 : 9,
-          color: player.isHero ? '#d9c08a' : avatarUrl ? '#ece7db' : '#b3ad9f',
+          color: player.isBot ? '#5b8cb8'
+            : player.isHero ? '#d9c08a' : avatarUrl ? '#ece7db' : '#b3ad9f',
           fontWeight: 700, maxWidth: 80, overflow: 'hidden',
           textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           textAlign: 'center',
           textShadow: player.handle ? '0 0 8px rgba(0,0,0,0.8)' : 'none',
         }}>
-          {player.handle
-            ? `@${player.handle}`
-            : (player.address ? `${player.address.slice(0,6)}…` : 'Player')}
+          {player.isBot
+            ? 'House Bot'
+            : player.handle
+              ? `@${player.handle}`
+              : (player.address ? `${player.address.slice(0,6)}…` : 'Player')}
         </div>
+        {/* Bots are labelled outright. A player betting real money is entitled to
+            know which opponents the house supplied, and guessing from an address
+            is not a disclosure. */}
+        {player.isBot && (
+          <div style={{
+            fontSize: 7, letterSpacing: 1, fontWeight: 800,
+            color: '#5b8cb8', background: 'rgba(91,140,184,.14)',
+            border: '1px solid rgba(91,140,184,.45)', borderRadius: 3,
+            padding: '1px 5px', marginTop: 1,
+          }}>BOT</div>
+        )}
         <ChipCount amount={player.chips || 0} />
       </div>
 
@@ -316,8 +334,11 @@ export default function PlayerSeat({
       {betAmount > 0 && (
         <div style={{
           position: 'absolute',
-          top: pos.label === 'bottom' ? '-72px' : pos.label === 'top' ? '72px' : '0',
-          left: pos.label === 'left' ? '76px' : pos.label === 'right' ? '-76px' : '50%',
+          // Offset scales with the pile: chips are 30px on a 6px rise, plus the
+          // gap and the amount label. A fixed offset let a 9-chip pile (78px)
+          // overlap the avatar / hole cards below it.
+          top: pos.label === 'bottom' ? `-${pileH + 8}px` : pos.label === 'top' ? `${pileH + 8}px` : '0',
+          left: pos.label === 'left' ? `${pileH + 8}px` : pos.label === 'right' ? `-${pileH + 8}px` : '50%',
           transform: pos.label === 'left' || pos.label === 'right' ? 'translateY(-50%)' : 'translateX(-50%)',
         }}>
           <ChipPile amount={betAmount} bigBlind={bigBlind} maxChips={chipCount} />

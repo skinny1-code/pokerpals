@@ -1,4 +1,4 @@
-# Testing PokerVsPlayer on Testnet
+# Testing Saloon on Testnet
 
 This guide gets external testers playing on **Arbitrum Sepolia**, and gives the
 operator a pre-flight checklist so a test session doesn't start half-broken.
@@ -72,8 +72,8 @@ prints the manual gates below. All green + manual gates done = ready.
    [chainlist.org](https://chainlist.org).
 3. **Get test ETH** for gas from an Arbitrum Sepolia faucet (Alchemy, QuickNode,
    or the Chainlink faucet). A small amount is plenty.
-4. **Get CHIPS** to play — ask the operator to send you some (see below), or use
-   the in-app **Buy CHIPS** page.
+4. **Get SALOON** to play — ask the operator to send you some (see below), or use
+   the in-app **Buy SALOON** page.
 5. Open **https://pokervsplayer.xyz**, connect your wallet, approve the
    signature prompt to sign in.
 6. **Claim a handle** at `/handle` (optional but recommended — it's your name at
@@ -83,10 +83,10 @@ prints the manual gates below. All green + manual gates done = ready.
 > ⚠️ Use an incognito/private tab if you tested an earlier version — browsers
 > cache the old build aggressively.
 
-### Sending testers CHIPS (operator)
+### Sending testers SALOON (operator)
 
 ```bash
-FAUCET_TO=0xTESTER_ADDRESS npm run faucet                       # default 10,000 CHIPS
+FAUCET_TO=0xTESTER_ADDRESS npm run faucet                       # default 10,000 SALOON
 FAUCET_TO=0xTESTER_ADDRESS FAUCET_AMOUNT=50000 npm run faucet   # custom amount
 ```
 

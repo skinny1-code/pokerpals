@@ -77,7 +77,7 @@ describe("ProfitSplitter", () => {
     await expectReverted(splitter.setPayoutBps(10001));
   });
 
-  it("claimDevVest() pulls vested CHIPS into the splitter for distribution", async () => {
+  it("claimDevVest() pulls vested SALOON into the splitter for distribution", async () => {
     await token.setDevWallet(await splitter.getAddress());
 
     // advance one vesting month (30 days)
@@ -110,7 +110,7 @@ describe("ProfitSplitter", () => {
   });
 
   it("works end-to-end as PokerEscrow rakeRecipient", async () => {
-    // Point a real escrow's treasury rake at the splitter and confirm CHIPS
+    // Point a real escrow's treasury rake at the splitter and confirm SALOON
     // arriving there can be distributed.
     const Referral = await ethers.getContractFactory("ReferralRegistry");
     const referral = await Referral.deploy(await token.getAddress());
@@ -128,7 +128,7 @@ describe("ProfitSplitter", () => {
     expect(await token.balanceOf(payout.address)).to.equal(parseUnits("250", 18));
   });
 
-  it("sweep() rejects CHIPS but rescues other tokens", async () => {
+  it("sweep() rejects SALOON but rescues other tokens", async () => {
     const Usdc = await ethers.getContractFactory("MockUSDC");
     const usdc = await Usdc.deploy();
     await usdc.mint(await splitter.getAddress(), 1_000_000n);

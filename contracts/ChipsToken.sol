@@ -5,11 +5,11 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-/// @title ChipsToken — PokerVsPlayer in-game currency ("PokerChips / CHIPS")
+/// @title ChipsToken — Saloon in-game currency ("Saloon / SALOON")
 /// @notice Used as the denomination for all tables, pots, and rake distribution.
 ///         Dev allocation: 25M released at deploy + 2M/month thereafter (2% of total per month).
 contract ChipsToken is ERC20, ERC20Burnable, Ownable {
-    uint256 public constant MAX_SUPPLY        = 1_000_000_000 * 10**18; // 1 billion CHIPS
+    uint256 public constant MAX_SUPPLY        = 1_000_000_000 * 10**18; // 1 billion SALOON
     uint256 public constant DEV_RESERVE       =   100_000_000 * 10**18; // 10% dev total
     uint256 public constant DEV_INITIAL_GRANT =    25_000_000 * 10**18; // 25M released at deploy
     uint256 public constant DEV_MONTHLY_RATE  =     2_000_000 * 10**18; // 2M/month (2% of 100M)
@@ -29,7 +29,7 @@ contract ChipsToken is ERC20, ERC20Burnable, Ownable {
     event DevVestClaimed(address indexed devWallet, uint256 amount);
 
     constructor(address _devWallet, address communityWallet, address liquidityWallet, address opsWallet)
-        ERC20("PokerChips", "CHIPS")
+        ERC20("Saloon", "SALOON")
         Ownable(msg.sender)
     {
         devWallet       = _devWallet;
@@ -60,7 +60,7 @@ contract ChipsToken is ERC20, ERC20Burnable, Ownable {
         emit DevVestClaimed(devWallet, claimable);
     }
 
-    /// @notice How many CHIPS the dev wallet can claim right now from monthly vest
+    /// @notice How many SALOON the dev wallet can claim right now from monthly vest
     function devClaimable() external view returns (uint256) {
         uint256 monthsElapsed = (block.timestamp - devReleaseStart) / 30 days;
         uint256 vestable      = DEV_RESERVE - DEV_INITIAL_GRANT;

@@ -205,6 +205,17 @@ export function useTableSocket(tableId, tableConfig) {
             setCashoutSig(null);
             setCashoutRelay({ status: 'confirmed', amount: msg.amount, txHash: msg.txHash });
             break;
+          case 'CARDS_SHOWN':
+            // Someone chose to show. Patch the finished hand in place so the
+            // overlay and the felt both pick the cards up.
+            setHandOver(prev => (prev && prev.handNonce === msg.handNonce ? {
+              ...prev,
+              results: (prev.results || []).some(r => r.addr === msg.addr)
+                ? prev.results.map(r => r.addr === msg.addr ? { ...r, cards: msg.cards } : r)
+                : [...(prev.results || []), { addr: msg.addr, hand: null, cards: msg.cards }],
+              shown: [...(prev.shown || []), msg.addr],
+            } : prev));
+            break;
           case 'CASHOUT_LOCKED':
             setCashoutLocked({ handsRemaining: msg.handsRemaining });
             break;
@@ -216,7 +227,11 @@ export function useTableSocket(tableId, tableConfig) {
             break;
           case 'SEAT_PICKER':
             setSeatPickerData({ maxPlayers: msg.maxPlayers, takenSeats: msg.takenSeats || [],
-              minBuyIn: msg.minBuyIn, maxBuyIn: msg.maxBuyIn });
+              minBuyIn: msg.minBuyIn, maxBuyIn: msg.maxBuyIn,
+              needsBuyIn: msg.needsBuyIn !== false,
+              // Set when a chosen seat was taken between opening the picker and
+              // confirming, so the UI can say why it is back.
+              error: msg.error || null });
             break;
           case 'REBUY_OK':
             break;
@@ -294,6 +309,13 @@ export function useTableSocket(tableId, tableConfig) {
       wsRef.current.send(JSON.stringify({ type: 'JOIN_TABLE', payload: { tableId, seatIndex, buyInAmount: buyInAmount || undefined, config: tableConfig || undefined } }));
   }, [tableId, tableConfig]);
 
+  // Voluntarily show a hand that nobody called. The server only accepts this
+  // while the finished hand is still on screen.
+  const showCards = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN)
+      wsRef.current.send(JSON.stringify({ type: 'SHOW_CARDS', payload: { tableId } }));
+  }, [tableId]);
+
   const spawnBot = useCallback((buyInAmount, count) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       setBotStatus('spawning');
@@ -318,7 +340,7 @@ export function useTableSocket(tableId, tableConfig) {
     cashoutRelay, setCashoutRelay,
     cashoutLocked, tableLocked, refundAvailable,
     seatPickerData, needsRebuy,
-    sendAction, extendTurn, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat, spawnBot, botStatus,
+    sendAction, extendTurn, leaveTable, sendRebuyConfirmed, refreshTables, joinWithSeat, showCards, spawnBot, botStatus,
     chatMessages, sendChat,
     verifyStatus, verifyFailures, sendVerifyHuman,
   };

@@ -7,7 +7,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicClient, useReadContract, useReadContracts } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { formatUnits } from "viem";
-import { wagmiConfig, safeFeeOverrides, hasAllowance, CHIPS_ABI, CHIPS, HANDLE_ABI, HANDLE, wsHttpUrl } from "./core";
+import { wagmiConfig, safeFeeOverrides, hasAllowance, CHIPS_ABI, SALOON, HANDLE_ABI, HANDLE, wsHttpUrl } from "./core";
 
 // ─── HOOK: POKER HANDLE NFT ───────────────────────────────────────────────────
 export function useHandle() {
@@ -57,7 +57,7 @@ export function useHandle() {
   const TIER_BOUNDS = [10_000, 110_000, 1_110_000];
 
   const mint = useCallback(async (handle) => {
-    if (!address || !HANDLE || !CHIPS) return;
+    if (!address || !HANDLE || !SALOON) return;
     setErrorMsg(null);
     if (!mintCostRaw) { setErrorMsg('Loading mint cost — please wait a moment and try again.'); setStatus('error'); return; }
     try {
@@ -66,7 +66,7 @@ export function useHandle() {
       if (!(await hasAllowance(publicClient, address, HANDLE, costBN))) {
         setStatus('approving');
         const approveTx = await writeContractAsync({
-          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          address: SALOON, abi: CHIPS_ABI, functionName: "approve",
           args: [HANDLE, costBN], ...feeOverrides,
         });
         await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
@@ -90,7 +90,7 @@ export function useHandle() {
   }, [address, mintCostRaw, writeContractAsync, publicClient, refetchHandle, refetchTotalMinted]);
 
   const changeHandle = useCallback(async (newHandle) => {
-    if (!address || !HANDLE || !CHIPS) return;
+    if (!address || !HANDLE || !SALOON) return;
     setErrorMsg(null);
     if (!mintCostRaw) { setErrorMsg('Loading rename cost — please wait a moment and try again.'); setStatus('error'); return; }
     try {
@@ -99,7 +99,7 @@ export function useHandle() {
       if (!(await hasAllowance(publicClient, address, HANDLE, costBN))) {
         setStatus('approving');
         const approveTx = await writeContractAsync({
-          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          address: SALOON, abi: CHIPS_ABI, functionName: "approve",
           args: [HANDLE, costBN], ...feeOverrides,
         });
         await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });

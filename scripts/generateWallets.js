@@ -38,25 +38,25 @@ const ROLES = [
   },
   {
     label:      "DEV WALLET",
-    note:       "Receives 10% of token supply (100M CHIPS) vested linearly over 24 months — your equity stake",
+    note:       "Receives 10% of token supply (100M SALOON) vested linearly over 24 months — your equity stake",
     keyVar:     "DEV_WALLET_KEY",
     addrVar:    "DEV_WALLET",
   },
   {
     label:      "OPS WALLET",
-    note:       "Receives 10% of token supply (100M CHIPS) — devops budget: servers, staff, marketing",
+    note:       "Receives 10% of token supply (100M SALOON) — devops budget: servers, staff, marketing",
     keyVar:     "OPS_WALLET_KEY",
     addrVar:    "OPS_WALLET",
   },
   {
     label:      "COMMUNITY WALLET",
-    note:       "Receives 10% of token supply (100M CHIPS) — tournaments, airdrops, grants",
+    note:       "Receives 10% of token supply (100M SALOON) — tournaments, airdrops, grants",
     keyVar:     "COMMUNITY_WALLET_KEY",
     addrVar:    "COMMUNITY_WALLET",
   },
   {
     label:      "LIQUIDITY WALLET",
-    note:       "Receives 50% of token supply (500M CHIPS) — DEX liquidity pools",
+    note:       "Receives 50% of token supply (500M SALOON) — DEX liquidity pools",
     keyVar:     "LIQUIDITY_WALLET_KEY",
     addrVar:    "LIQUIDITY_WALLET",
   },
@@ -124,7 +124,7 @@ const PRINT_PATH = path.resolve(__dirname, "../WALLETS-PRINT-ME.txt");
 
 const printLines = [
   "================================================================",
-  "  PokerVsPlayer — WALLET KEYS",
+  "  Saloon — WALLET KEYS",
   `  Generated: ${now}`,
   "  KEEP THIS SAFE — DO NOT SHARE — DO NOT LOSE",
   "================================================================",
@@ -153,7 +153,7 @@ fs.writeFileSync(PRINT_PATH, printLines.join("\n") + "\n");
 
 // Terminal summary
 console.log("\n" + line());
-console.log("  PokerVsPlayer — NEW WALLETS GENERATED");
+console.log("  Saloon — NEW WALLETS GENERATED");
 console.log("  Write these down and store them safely!");
 console.log(line());
 

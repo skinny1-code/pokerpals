@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title PromotionsPool — community & promotions budget
-/// @notice Seeded with 100M CHIPS (community allocation). Owner allocates CHIPS
+/// @notice Seeded with 100M SALOON (community allocation). Owner allocates SALOON
 ///         for contests, tournaments, airdrops, rake-free promotional periods, etc.
 ///         No incoming rake flows — purely the 100M seed plus any owner top-ups.
 contract PromotionsPool is Ownable {
@@ -21,7 +21,7 @@ contract PromotionsPool is Ownable {
         chipsToken = IERC20(_chipsToken);
     }
 
-    /// @notice Owner withdraws CHIPS to fund a promotion, contest, or airdrop.
+    /// @notice Owner withdraws SALOON to fund a promotion, contest, or airdrop.
     function withdraw(address to, uint256 amount, string calldata note) external onlyOwner {
         require(to != address(0), "PromotionsPool: zero address");
         chipsToken.safeTransfer(to, amount);

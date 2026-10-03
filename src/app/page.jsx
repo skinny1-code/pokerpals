@@ -248,7 +248,7 @@ function CreateTableModal({ onClose }) {
         {/* Buy-in */}
         <div style={{ marginBottom:18 }}>
           <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>
-            BUY-IN (CHIPS)
+            BUY-IN (SALOON)
           </div>
           <input
             type="number" value={buyIn}
@@ -422,7 +422,7 @@ export default function LobbyPage() {
               </a>
             )}
             <Link href="/buy" className="btn btn-emerald" style={{ padding:'13px 28px', fontSize:14, textDecoration:'none' }}>
-              Get CHIPS
+              Get SALOON
             </Link>
           </div>
 
@@ -538,7 +538,7 @@ export default function LobbyPage() {
               Host your own poker room
             </div>
             <div style={{ fontSize:11.5, color:'#726d61', maxWidth:380, lineHeight:1.6 }}>
-              33,500 CHIPS/week · 100,000 CHIPS/month · NFT-gate for your community
+              33,500 SALOON/week · 100,000 SALOON/month · NFT-gate for your community
             </div>
           </div>
           <Link href="/rooms" className="btn btn-gold" style={{

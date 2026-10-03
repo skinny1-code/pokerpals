@@ -1,8 +1,8 @@
 ---
-description: Launch PokerVsPlayer (WS game server + Next.js) and drive it with Playwright
+description: Launch Saloon (WS game server + Next.js) and drive it with Playwright
 ---
 
-# Run — PokerVsPlayer
+# Run — Saloon
 
 Two processes must be running before the browser can reach anything:
 

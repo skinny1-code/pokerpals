@@ -69,8 +69,8 @@ describe("StablecoinPool", () => {
     expect(reverted).to.equal(true);
   });
 
-  it("owner cannot withdraw below the redemption reserve (backing outstanding CHIPS)", async () => {
-    // Simulate CHIPS sales: liqPool transfers player USDC in + notifyDeposit reserves it.
+  it("owner cannot withdraw below the redemption reserve (backing outstanding SALOON)", async () => {
+    // Simulate SALOON sales: liqPool transfers player USDC in + notifyDeposit reserves it.
     await mockUsdc.mint(liqPool.address, 400_000n * 1_000_000n);
     await mockUsdc.connect(liqPool).transfer(await stablePool.getAddress(), 400_000n * 1_000_000n);
     await stablePool.connect(liqPool).notifyDeposit(400_000n * 1_000_000n);

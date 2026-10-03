@@ -13,7 +13,7 @@ export function GET() {
     },
     frame: {
       version:              '1',
-      name:                 'PokerVsPlayer',
+      name:                 'Saloon',
       iconUrl:              `${base}/icon.png`,
       homeUrl:              base || 'https://pokervsplayer.xyz',
       imageUrl:             `${base}/og.png`,

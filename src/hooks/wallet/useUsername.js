@@ -1,5 +1,5 @@
 // src/hooks/wallet/useUsername.js
-// Free, off-chain display username — claimed once via a signed message (no CHIPS,
+// Free, off-chain display username — claimed once via a signed message (no SALOON,
 // no gas). Separate from the paid PokerHandle NFT (useHandle.js), which stays the
 // "verified" badge required for tournaments/events (see useTournaments.js). Backed
 // by the game server's small JSON store (server/usernameStore.js), read/written

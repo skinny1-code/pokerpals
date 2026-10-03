@@ -37,11 +37,11 @@ async function expectNotReverted(promise) {
 }
 
 // settle/cashout digests must match PokerEscrow's chainId + contract binding.
-async function settleDigest(ethers, escrow, tableId, handNonce, winners, shares) {
+async function settleDigest(ethers, escrow, tableId, handNonce, potAmount, winners, shares) {
   const { chainId } = await ethers.provider.getNetwork();
   return ethers.solidityPackedKeccak256(
-    ["uint256","address","uint256","uint256","address[]","uint256[]"],
-    [chainId, await escrow.getAddress(), tableId, handNonce, winners, shares]
+    ["uint256","address","uint256","uint256","uint256","address[]","uint256[]"],
+    [chainId, await escrow.getAddress(), tableId, handNonce, potAmount, winners, shares]
   );
 }
 async function cashoutDigest(ethers, escrow, tableId, player, amount, nonce) {
@@ -59,6 +59,9 @@ describe("PokerEscrow", () => {
   const BUY_IN = parseUnits("1000", 18);
   const BB     = parseUnits("10",   18);
   const FEE    = parseUnits("2",    18);
+  // settle() now takes the hand pot explicitly. These tests settle the whole
+  // table escrow (2 seats), which is what the old implicit behaviour paid out.
+  const POT    = BUY_IN * 2n;
 
   beforeEach(async () => {
     ({ ethers } = await network.create());
@@ -93,7 +96,7 @@ describe("PokerEscrow", () => {
 
     // createTable()/buyIn() gate on PokerHandle.isHandleEligible — give the
     // table-creating/buying-in signers a handle via the owner-only reserveHandle()
-    // (no CHIPS cost, no humanVerified requirement, mirrors the migration scripts).
+    // (no SALOON cost, no humanVerified requirement, mirrors the migration scripts).
     const Renderer = await ethers.getContractFactory("HandleRenderer");
     const renderer = await Renderer.deploy();
     const Handle = await ethers.getContractFactory("PokerHandle");
@@ -204,10 +207,10 @@ describe("PokerEscrow", () => {
     const handNonce = 0n;
     const winners  = [player1.address];
     const shares   = [1000n];
-    const digest   = await settleDigest(ethers, escrow, tableId, handNonce, winners, shares);
+    const digest   = await settleDigest(ethers, escrow, tableId, handNonce, POT, winners, shares);
     const sig = await operator.signMessage(ethers.getBytes(digest));
 
-    await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
+    await escrow.connect(player1).settle(tableId, handNonce, POT, winners, shares, sig);
 
     const burnAfter  = await token.totalSupply();
     const stakAfter  = await token.balanceOf(stakingAddr);
@@ -240,9 +243,9 @@ describe("PokerEscrow", () => {
 
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
-    const digest = await settleDigest(ethers, escrow, tableId, handNonce, winners, shares);
+    const digest = await settleDigest(ethers, escrow, tableId, handNonce, POT, winners, shares);
     const sig = await operator.signMessage(ethers.getBytes(digest));
-    await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
+    await escrow.connect(player1).settle(tableId, handNonce, POT, winners, shares, sig);
 
     const balAfter = await token.balanceOf(player1.address);
     expect(balAfter - balBefore).to.equal(netPot);
@@ -258,12 +261,12 @@ describe("PokerEscrow", () => {
 
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
-    const digest = await settleDigest(ethers, escrow, tableId, handNonce, winners, shares);
+    const digest = await settleDigest(ethers, escrow, tableId, handNonce, POT, winners, shares);
     const sig = await operator.signMessage(ethers.getBytes(digest));
-    await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
+    await escrow.connect(player1).settle(tableId, handNonce, POT, winners, shares, sig);
 
     await expectReverted(
-      escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig)
+      escrow.connect(player1).settle(tableId, handNonce, POT, winners, shares, sig)
     );
   });
 
@@ -350,24 +353,58 @@ describe("PokerEscrow", () => {
 
     // Signature bound to a DIFFERENT chain id (e.g. a testnet sig) must not verify.
     const wrongChain = ethers.solidityPackedKeccak256(
-      ["uint256","address","uint256","uint256","address[]","uint256[]"],
-      [chainId + 1n, escrowAddr, tableId, handNonce, winners, shares]
+      ["uint256","address","uint256","uint256","uint256","address[]","uint256[]"],
+      [chainId + 1n, escrowAddr, tableId, handNonce, POT, winners, shares]
     );
     await expectReverted(escrow.connect(player1).settle(
-      tableId, handNonce, winners, shares, await operator.signMessage(ethers.getBytes(wrongChain))));
+      tableId, handNonce, POT, winners, shares, await operator.signMessage(ethers.getBytes(wrongChain))));
 
     // Signature bound to a DIFFERENT contract address must not verify.
     const wrongAddr = ethers.solidityPackedKeccak256(
-      ["uint256","address","uint256","uint256","address[]","uint256[]"],
-      [chainId, player2.address, tableId, handNonce, winners, shares]
+      ["uint256","address","uint256","uint256","uint256","address[]","uint256[]"],
+      [chainId, player2.address, tableId, handNonce, POT, winners, shares]
     );
     await expectReverted(escrow.connect(player1).settle(
-      tableId, handNonce, winners, shares, await operator.signMessage(ethers.getBytes(wrongAddr))));
+      tableId, handNonce, POT, winners, shares, await operator.signMessage(ethers.getBytes(wrongAddr))));
 
     // The correctly-bound signature still settles.
-    const good = await settleDigest(ethers, escrow, tableId, handNonce, winners, shares);
+    const good = await settleDigest(ethers, escrow, tableId, handNonce, POT, winners, shares);
     await expectNotReverted(escrow.connect(player1).settle(
-      tableId, handNonce, winners, shares, await operator.signMessage(ethers.getBytes(good))));
+      tableId, handNonce, POT, winners, shares, await operator.signMessage(ethers.getBytes(good))));
+  });
+
+  it("settle: cannot sweep the whole table escrow with one hand's pot", async () => {
+    const escrowAddr = await escrow.getAddress();
+    await escrow.createTable(BUY_IN, BB, 2, 0, 0);
+    await token.connect(player1).approve(escrowAddr, BUY_IN + FEE);
+    await escrow.connect(player1).buyIn(1);
+    await token.connect(player2).approve(escrowAddr, BUY_IN + FEE);
+    await escrow.connect(player2).buyIn(1);
+
+    const tableId = 1n, handNonce = 0n;
+    const winners = [player1.address], shares = [1000n];
+    const smallPot = BB * 2n;                       // a blind-sized pot
+
+    // Signing a small pot must pay out ~that pot, NOT potTotal (both buy-ins).
+    const before = await token.balanceOf(player1.address);
+    const d = await settleDigest(ethers, escrow, tableId, handNonce, smallPot, winners, shares);
+    await escrow.connect(player1).settle(
+      tableId, handNonce, smallPot, winners, shares,
+      await operator.signMessage(ethers.getBytes(d)));
+    const gained = await token.balanceOf(player1.address) - before;
+    expect(gained < BUY_IN).to.equal(true);          // did NOT take the table
+    expect(gained > 0n).to.equal(true);
+
+    // The rest of the escrow survives, so the other player can still be paid.
+    const info = await escrow.getTableInfo(tableId);
+    expect(info.potTotal >= BUY_IN).to.equal(true);
+
+    // And a pot larger than the table escrow is rejected outright.
+    const huge = POT * 10n;
+    const d2 = await settleDigest(ethers, escrow, tableId, 1n, huge, winners, shares);
+    await expectReverted(escrow.connect(player1).settle(
+      tableId, 1n, huge, winners, shares,
+      await operator.signMessage(ethers.getBytes(d2))), "Bad pot");
   });
 
   // ─── rakeback ───────────────────────────────────────────────────────────────
@@ -387,9 +424,9 @@ describe("PokerEscrow", () => {
 
     const tableId = 1n; const handNonce = 0n;
     const winners = [player1.address]; const shares = [1000n];
-    const digest = await settleDigest(ethers, escrow, tableId, handNonce, winners, shares);
+    const digest = await settleDigest(ethers, escrow, tableId, handNonce, POT, winners, shares);
     const sig = await operator.signMessage(ethers.getBytes(digest));
-    await escrow.connect(player1).settle(tableId, handNonce, winners, shares, sig);
+    await escrow.connect(player1).settle(tableId, handNonce, POT, winners, shares, sig);
 
     const accrued = await escrow.rakebackAccrued(player1.address);
     expect(accrued > 0n).to.equal(true);

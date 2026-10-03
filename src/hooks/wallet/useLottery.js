@@ -1,6 +1,6 @@
 // src/hooks/wallet/useLottery.js
 // Weekly no-loss staker lottery: free entry for tier >= 1 stakers, ticket
-// weight = staked CHIPS, prize paid from the PromotionsPool. Principal is
+// weight = staked SALOON, prize paid from the PromotionsPool. Principal is
 // never at risk — entering costs nothing but gas.
 
 import { useState, useCallback } from "react";

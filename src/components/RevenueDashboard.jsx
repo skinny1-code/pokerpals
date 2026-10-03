@@ -25,6 +25,14 @@ const ESCROW_ABI = [
   { name:"tierRakeNum",   type:"function", stateMutability:"view", inputs:[{type:"uint256"}], outputs:[{type:"uint256"}] },
   { name:"seatFeeCHIPS",  type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
   { name:"tableCount",    type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  // Rake economics — all owner-settable via setRakeParams() / setRakeSplit()
+  { name:"rakeCapCHIPS",    type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"referralBps",     type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"rakeBurnBps",     type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"rakeStakingBps",  type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"rakeTreasuryBps", type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"rakeKingsBps",    type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
+  { name:"rakebackBps",     type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
 ];
 const TOURN_ABI = [
   { name:"getRevenue",      type:"function", stateMutability:"view", inputs:[], outputs:[{type:"uint256"}] },
@@ -54,7 +62,7 @@ const STAKING_YIELD_ABI = [
 ];
 
 const fmt   = n  => typeof n === 'bigint' ? Number(formatUnits(n, 18)).toLocaleString(undefined,{maximumFractionDigits:1}) : n;
-const chips = n  => `◈ ${fmt(n)} CHIPS`;
+const chips = n  => `◈ ${fmt(n)} SALOON`;
 const gold  = '#c9b075';
 const green = '#4caf50';
 
@@ -77,7 +85,7 @@ function Bar({ label, value, max, color = gold }) {
     <div style={{marginBottom:10}}>
       <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
         <span style={{fontSize:11,color:'#847e71'}}>{label}</span>
-        <span style={{fontSize:11,color,fontFamily:'monospace'}}>{fmt(value)} CHIPS</span>
+        <span style={{fontSize:11,color,fontFamily:'monospace'}}>{fmt(value)} SALOON</span>
       </div>
       <div style={{height:4,background:'#111114',borderRadius:2}}>
         <div style={{height:'100%',width:`${pct}%`,background:`linear-gradient(90deg,${color}66,${color})`,borderRadius:2,transition:'width .5s'}}/>
@@ -120,6 +128,27 @@ export default function RevenueDashboard({ address: ownerAddr }) {
     address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'seatFeeCHIPS',
   });
 
+  // Every number in this panel that describes the economics is owner-settable
+  // on-chain (setRakeParams / setRakeSplit / setTierThresholds / setTierAPR), so
+  // read it instead of restating it: the copy that used to be hardcoded here had
+  // drifted to four wrong tier thresholds and four wrong APRs. The contract's
+  // deploy-time defaults stand in only until the reads resolve.
+  const { data: rakeParams } = useReadContracts({
+    contracts: [
+      ...[0, 1, 2, 3, 4].map(i => ({
+        address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'tierRakeNum', args: [BigInt(i)],
+      })),
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'rakeCapCHIPS' },
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'referralBps' },
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'rakeBurnBps' },
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'rakeStakingBps' },
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'rakeTreasuryBps' },
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'rakeKingsBps' },
+      { address: ESCROW_ADDR, abi: ESCROW_ABI, functionName: 'rakebackBps' },
+    ],
+    query: { refetchInterval: 60000 },
+  });
+
   // Pool balances
   const { data: kingsBalance }  = useReadContracts({ contracts: [
     { address: CHIPS_ADDR, abi: BALANCE_ABI, functionName: 'balanceOf', args: [KINGS_POOL_ADDR] },
@@ -151,6 +180,30 @@ export default function RevenueDashboard({ address: ownerAddr }) {
 
   const TIERS = ['Standard','Bronze','Silver','Gold','Whale'];
   const TIER_COLORS = ['#645f54','#cd7f32','#aaa','#d9c08a','#00e5ff'];
+
+  // Fall back to the contract's constructor defaults while the reads are in flight.
+  const rp = (i, fallback) => {
+    const v = rakeParams?.[i]?.result;
+    return typeof v === 'bigint' ? v : fallback;
+  };
+  const TIER_RAKE_DEFAULT   = [15n, 13n, 11n, 9n, 6n];              // numerator over rakeDen (1000)
+  const TIER_THRESH_DEFAULT = [0n, 25_000n, 250_000n, 1_000_000n, 5_000_000n].map(v => v * 10n ** 18n);
+  const TIER_APR_DEFAULT    = [0n, 500n, 800n, 1200n, 1800n];       // basis points
+
+  const tierRake   = i => rp(i, TIER_RAKE_DEFAULT[i]);
+  const tierThresh = i => tierStats?.[0]?.[i] ?? TIER_THRESH_DEFAULT[i];
+  const tierApr    = i => tierStats?.[1]?.[i] ?? TIER_APR_DEFAULT[i];
+
+  const rakeCap     = rp(5,  50n * 10n ** 18n);
+  const refBps      = rp(6,  1000n);
+  const burnBps     = rp(7,  1500n);
+  const stakeBps    = rp(8,  4500n);
+  const treasuryBps = rp(9,  2000n);
+  const kingsBps    = rp(10, 1000n);
+  const rakebackBps = rp(11, 500n);
+
+  const pct     = bps => `${Number(bps) / 100}%`;
+  const rakePct = num => `${Number(num) / 10}%`;  // tierRakeNum is out of rakeDen = 1000
 
   const TABS = ['overview','streams','pools','staking','referrals'];
 
@@ -197,7 +250,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
             <div style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap'}}>
               <StatCard icon="◈" label="TOTAL REVENUE"     value={chips(cashTotal)}  color={gold}  sub="Rake + seats + tournaments"/>
               <StatCard icon="♠" label="CASH GAME RAKE"    value={chips(rake)}       color={gold}  sub={`${Number(tableCount)||0} tables lifetime`}/>
-              <StatCard icon="🪑" label="SEAT FEES"         value={chips(seats)}      color='#29b6f6' sub={seatFee?`${fmt(seatFee)} CHIPS/seat`:''}/>
+              <StatCard icon="🪑" label="SEAT FEES"         value={chips(seats)}      color='#29b6f6' sub={seatFee?`${fmt(seatFee)} SALOON/seat`:''}/>
               <StatCard icon="🏆" label="TOURNAMENT RAKE"   value={chips(tournRevenue||0n)} color='#ff9800' sub={`${Number(tournCount)||0} tournaments`}/>
               <StatCard icon="👥" label="REFERRAL PAYOUTS"  value={chips(refs)}       color='#ab47bc' sub="20% of rake to referrers"/>
             </div>
@@ -207,7 +260,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
               padding:'16px 18px',marginBottom:16}}>
               <div style={{fontSize:10,color:'#57544b',letterSpacing:2,marginBottom:14}}>REVENUE BREAKDOWN</div>
               <Bar label="Cash Game Rake (1.5%)" value={rake} max={cashTotal} color={gold}/>
-              <Bar label="Seat Fees (2 CHIPS/seat)" value={seats} max={cashTotal} color='#29b6f6'/>
+              <Bar label="Seat Fees (2 SALOON/seat)" value={seats} max={cashTotal} color='#29b6f6'/>
               <Bar label="Tournament Rake (10%)" value={tournRevenue||0n} max={cashTotal} color='#ff9800'/>
             </div>
 
@@ -216,10 +269,10 @@ export default function RevenueDashboard({ address: ownerAddr }) {
               padding:'16px 18px'}}>
               <div style={{fontSize:10,color:'#57544b',letterSpacing:2,marginBottom:14}}>PROJECTED EARNINGS</div>
               {[
-                ['50 tables × 30 hands/hr × avg 1k CHIPS pot × 1.5%', '22,500 CHIPS/hr'],
-                ['50 tables × 5 players × 2 CHIPS seat fee',           '500 CHIPS/hr'],
-                ['1 daily tournament × 100 players × 100 CHIPS × 10%', '1,000 CHIPS/day'],
-                ['CHIPS token appreciation (500M float)',               'variable'],
+                ['50 tables × 30 hands/hr × avg 1k SALOON pot × 1.5%', '22,500 SALOON/hr'],
+                ['50 tables × 5 players × 2 SALOON seat fee',           '500 SALOON/hr'],
+                ['1 daily tournament × 100 players × 100 SALOON × 10%', '1,000 SALOON/day'],
+                ['SALOON token appreciation (500M float)',               'variable'],
               ].map(([calc,val])=>(
                 <div key={calc} style={{display:'flex',justifyContent:'space-between',
                   padding:'7px 0',borderBottom:'1px solid #111114',gap:12}}>
@@ -237,15 +290,16 @@ export default function RevenueDashboard({ address: ownerAddr }) {
             {[
               { icon:'♠', title:'Cash Game Rake', color:gold,
                 lines:[
-                  ['Rate','Standard 1.5% → Whale 0.6%'],
-                  ['Cap','50 CHIPS per pot max'],
+                  ['Rate',`Standard ${rakePct(tierRake(0))} → Whale ${rakePct(tierRake(4))}`],
+                  ['Cap',`${fmt(rakeCap)} SALOON per pot max`],
+                  ['Rakeback',`${pct(rakebackBps)} of rake accrues back to players (needs a funded rakeback pool)`],
                   ['When','Every hand settled via PokerEscrow.settle()'],
                   ['Contract','PokerEscrow.sol → tierRakeNum[]'],
                 ]},
               { icon:'🪑', title:'Seat Fees', color:'#29b6f6',
                 lines:[
-                  ['Rate','2 CHIPS per buy-in, 1 CHIPS per rebuy'],
-                  ['When','Charged at buyIn() + rebuy() calls'],
+                  ['Rate',`${fmt(seatFee ?? 2n * 10n ** 18n)} SALOON per buy-in, half that per rebuy`],
+                  ['When','Only on tables linked to a TableRegistry room — open tables (roomId 0) are free to join'],
                   ['Note','Instant transfer to rakeRecipient — never in escrow'],
                   ['Tune','escrow.setRakeParams() — owner only'],
                 ]},
@@ -254,29 +308,29 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                   ['Rate','10% of entry pool (up to 15% max)'],
                   ['When','TournamentManager.startTournament()'],
                   ['Types','Scheduled, Sit-n-Go, Guaranteed Prize'],
-                  ['Example','100 players × 100 CHIPS = 1,000 CHIPS rake'],
+                  ['Example','100 players × 100 SALOON = 1,000 SALOON rake'],
                 ]},
               { icon:'💎', title:'VIP Staking', color:'#ab47bc',
                 lines:[
-                  ['Bronze 1k CHIPS','1.3% rake + 2% APR yield'],
-                  ['Silver 10k CHIPS','1.1% rake + 4% APR yield'],
-                  ['Gold 50k CHIPS', '0.9% rake + 7% APR yield'],
-                  ['Whale 200k CHIPS','0.6% rake + 12% APR yield'],
+                  ...[1,2,3,4].map(i => [
+                    `${TIERS[i]} ${fmt(tierThresh(i))} SALOON`,
+                    `${rakePct(tierRake(i))} rake + ${pct(tierApr(i))} APR yield`,
+                  ]),
                   ['Yield source','Funded from rake via fundYieldPool()'],
                 ]},
               { icon:'👥', title:'Referrals', color:'#4caf50',
                 lines:[
-                  ['Split','20% of rake on every referred player hand'],
-                  ['L2','Referrer-of-referrer gets 5% of that 20%'],
-                  ['Net cost','~1.2% from your rake — drives free user acquisition'],
+                  ['Split',`${pct(refBps)} of the rake when a referred player wins the pot`],
+                  ['L2','Tracked in ReferralRegistry — PokerEscrow does not pay it out yet'],
+                  ['Net cost',`${pct(refBps)} of rake, and only on referred winners — drives free user acquisition`],
                   ['Code','keccak(address)[0:8] — shareable link'],
                 ]},
-              { icon:'◈', title:'CHIPS Token Float', color:'#00e5ff',
+              { icon:'◈', title:'SALOON Token Float', color:'#00e5ff',
                 lines:[
-                  ['Your allocation','500M CHIPS liquidity'],
-                  ['Demand driver','Every buy-in requires CHIPS — continuous buy pressure'],
+                  ['Your allocation','500M SALOON liquidity'],
+                  ['Demand driver','Every buy-in requires SALOON — continuous buy pressure'],
                   ['LP fees','Seed Uniswap/Camelot pool — earn 0.3% of all swaps'],
-                  ['Governance','Lock CHIPS for voting rights → future feature'],
+                  ['Governance','Lock SALOON for voting rights → future feature'],
                 ]},
             ].map(({icon,title,color,lines})=>(
               <div key={title} style={{background:'#0d0d0f88',border:`1px solid ${color}22`,
@@ -302,8 +356,8 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                 sub="Ops expenses (100M seeded + 10% rake)" color='#c9b075'/>
               <StatCard icon="🎯" label="PROMOTIONS POOL" value={chips(promoChips)}
                 sub="Contests, airdrops, tournaments" color='#ab47bc'/>
-              <StatCard icon="💎" label="CHIPS LIQUIDITY POOL" value={chips(liqChips)}
-                sub="500M CHIPS for buy/sell at $0.001/CHIP" color='#4caf50'/>
+              <StatCard icon="💎" label="SALOON LIQUIDITY POOL" value={chips(liqChips)}
+                sub="500M SALOON for buy/sell at $0.001/CHIP" color='#4caf50'/>
               <StatCard icon="💵" label="STABLECOIN POOL" value={`$${fmt(stableUsdc * 10n**12n)}`}
                 sub="USDC reserve for on-network payouts" color='#29b6f6'/>
               <StatCard icon="⛏" label="STAKING YIELD POOL" value={chips(stakingPool)}
@@ -312,11 +366,11 @@ export default function RevenueDashboard({ address: ownerAddr }) {
             <div style={{background:'#0d0d0f88',border:'1px solid #191920',borderRadius:10,
               padding:'16px 18px',marginTop:4}}>
               <div style={{fontSize:10,color:'#57544b',letterSpacing:2,marginBottom:12}}>RAKE FLOW</div>
-              <Bar label="Burn (15%)"              value={escrowSummary?.[1]||0n} max={rake||1n} color='#ef5350'/>
-              <Bar label="Staking yield (45%)"     value={escrowSummary?.[2]||0n} max={rake||1n} color='#ab47bc'/>
-              <Bar label="King of Spades (10%)"    value={(rake * 1000n / 10000n)} max={rake||1n} color='#c9b075'/>
-              <Bar label="Treasury — owner (20%)"  value={(rake * 2000n / 10000n)} max={rake||1n} color='#4caf50'/>
-              <Bar label="Referrals (10%)"         value={escrowSummary?.[4]||0n} max={rake||1n} color='#29b6f6'/>
+              <Bar label={`Burn (${pct(burnBps)})`}             value={escrowSummary?.[1]||0n} max={rake||1n} color='#ef5350'/>
+              <Bar label={`Staking yield (${pct(stakeBps)})`}   value={escrowSummary?.[2]||0n} max={rake||1n} color='#ab47bc'/>
+              <Bar label={`King of Spades (${pct(kingsBps)})`}   value={(rake * kingsBps / 10000n)}    max={rake||1n} color='#c9b075'/>
+              <Bar label={`Treasury — owner (${pct(treasuryBps)})`} value={(rake * treasuryBps / 10000n)} max={rake||1n} color='#4caf50'/>
+              <Bar label={`Referrals (${pct(refBps)})`}         value={escrowSummary?.[4]||0n} max={rake||1n} color='#29b6f6'/>
             </div>
           </div>
         )}
@@ -324,7 +378,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
         {/* ── STAKING ── */}
         {tab==='staking' && (
           <>
-            <StatCard icon="⛏" label="TOTAL CHIPS STAKED" value={chips(totalStaked||0n)} color='#ab47bc'
+            <StatCard icon="⛏" label="TOTAL SALOON STAKED" value={chips(totalStaked||0n)} color='#ab47bc'
               sub="Locked by VIP players"/>
             <div style={{height:12}}/>
             <div style={{background:'#0d0d0f88',border:'1px solid #191920',borderRadius:10,
@@ -340,11 +394,11 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                     <div style={{width:6,height:6,borderRadius:'50%',background:TIER_COLORS[i],flexShrink:0}}/>
                     <div style={{flex:1,minWidth:80}}>
                       <div style={{fontSize:12,color:TIER_COLORS[i],fontWeight:700}}>{name}</div>
-                      <div style={{fontSize:9,color:'#42424a'}}>≥ {fmt(thresh)} CHIPS · {Number(apr)/100}% APR</div>
+                      <div style={{fontSize:9,color:'#42424a'}}>≥ {fmt(thresh)} SALOON · {Number(apr)/100}% APR</div>
                     </div>
                     <div style={{textAlign:'right'}}>
                       <div style={{fontSize:12,color:'#9a9280',fontFamily:'monospace'}}>{fmt(count)}</div>
-                      <div style={{fontSize:9,color:'#42424a'}}>CHIPS locked</div>
+                      <div style={{fontSize:9,color:'#42424a'}}>SALOON locked</div>
                     </div>
                   </div>
                 );
@@ -378,7 +432,7 @@ export default function RevenueDashboard({ address: ownerAddr }) {
                   </div>
                   <div style={{textAlign:'right'}}>
                     <div style={{fontSize:12,color:gold,fontFamily:'monospace'}}>◈ {fmt(earned)}</div>
-                    <div style={{fontSize:9,color:'#42424a'}}>CHIPS earned</div>
+                    <div style={{fontSize:9,color:'#42424a'}}>SALOON earned</div>
                   </div>
                 </div>
               );

@@ -6,14 +6,14 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/// @title ChipsStaking — Stake CHIPS to unlock VIP rake tiers and earn yield
+/// @title ChipsStaking — Stake SALOON to unlock VIP rake tiers and earn yield
 ///
-/// Tiers (by staked CHIPS):
-///   0 Standard  —           0 CHIPS — 1.5% rake —  0% APR
-///   1 Bronze    —      25,000 CHIPS — 1.3% rake —  5% APR
-///   2 Silver    —     250,000 CHIPS — 1.1% rake —  8% APR
-///   3 Gold      —   1,000,000 CHIPS — 0.9% rake — 12% APR
-///   4 Whale     —   5,000,000 CHIPS — 0.6% rake — 18% APR
+/// Tiers (by staked SALOON):
+///   0 Standard  —           0 SALOON — 1.5% rake —  0% APR
+///   1 Bronze    —      25,000 SALOON — 1.3% rake —  5% APR
+///   2 Silver    —     250,000 SALOON — 1.1% rake —  8% APR
+///   3 Gold      —   1,000,000 SALOON — 0.9% rake — 12% APR
+///   4 Whale     —   5,000,000 SALOON — 0.6% rake — 18% APR
 ///
 /// Yield is pushed automatically from 35% of every rake settlement via receiveYield().
 /// Use compound() to reinvest pending yield back into staked principal (true compounding).
@@ -29,7 +29,7 @@ contract ChipsStaking is Ownable, ReentrancyGuard {
 
     IERC20 public immutable chipsToken;
 
-    // Tier thresholds in CHIPS (18 decimals)
+    // Tier thresholds in SALOON (18 decimals)
     uint256[5] public tierThresholds = [
         0,
         25_000     * 10**18,
@@ -168,7 +168,7 @@ contract ChipsStaking is Ownable, ReentrancyGuard {
         emit YieldPoolFunded(amount);
     }
 
-    /// @notice One-time post-deploy: registers the 200M CHIPS minted to this contract as yield.
+    /// @notice One-time post-deploy: registers the 200M SALOON minted to this contract as yield.
     ///         Called by owner immediately after deploy + token transfer.
     function initYieldPool() external onlyOwner {
         require(yieldPool == 0, "Already initialized");

@@ -1,0 +1,7 @@
+{
+  "filter_paths": "node_modules",
+  "exclude_informational": true,
+  "exclude_optimization": true,
+  "exclude_low": true,
+  "solc_disable_warnings": false
+}

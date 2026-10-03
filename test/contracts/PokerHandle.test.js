@@ -68,7 +68,7 @@ describe("PokerHandle", () => {
 
   // ─── changeHandle (pay-to-rename) ────────────────────────────────────────────
 
-  it("changeHandle: replaces the handle, frees the old name, and burns CHIPS", async () => {
+  it("changeHandle: replaces the handle, frees the old name, and burns SALOON", async () => {
     await escrow.markHuman(player1.address, true);
     await handle.connect(player1).mintHandle("Shark_99");
     const tokenId = await handle.ownerTokenId(player1.address);

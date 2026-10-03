@@ -1,5 +1,5 @@
 // scripts/distributeProfits.js — trigger the ProfitSplitter: harvest staking
-// yield, claim any vested dev CHIPS, then split the accumulated balance
+// yield, claim any vested dev SALOON, then split the accumulated balance
 // (50% payout wallet / 50% staked by default).
 // Usage: npm run distribute-profits
 import "dotenv/config";
@@ -59,7 +59,7 @@ async function main() {
   const bal = await token.balanceOf(splitterAddr);
   if (bal === 0n) { console.log("Nothing to distribute — splitter balance is 0."); return; }
 
-  console.log(`Distributing ${ethers.formatUnits(bal, 18)} CHIPS...`);
+  console.log(`Distributing ${ethers.formatUnits(bal, 18)} SALOON...`);
   const tx = await splitter.distribute();
   await tx.wait();
   console.log(`✅ Distributed. Payout wallet: ${await splitter.payoutWallet()}  tx: ${tx.hash}`);

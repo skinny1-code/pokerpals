@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const ROOT     = path.resolve(__dirname, "..");
 const ENV_PATH = path.join(ROOT, ".env");
-const NETWORKS = ["arbitrumSepolia", "arbitrum"];
+const NETWORKS = ["robinhood", "robinhoodTestnet", "arbitrumSepolia", "arbitrum"];
 
 function loadDeployment() {
   for (const net of NETWORKS) {

@@ -5,7 +5,7 @@ import WalletBar from '../../components/WalletBar';
 import { useWallet, useLiquidityPool } from '../../hooks/usePokerWallet';
 import Link from 'next/link';
 
-const CHIPS      = process.env.NEXT_PUBLIC_CHIPS_TOKEN;
+const SALOON      = process.env.NEXT_PUBLIC_CHIPS_TOKEN;
 const CHAIN_ID   = process.env.NEXT_PUBLIC_CHAIN_ID || '421614';
 const IS_TESTNET = CHAIN_ID === '421614';
 
@@ -41,12 +41,12 @@ function openTransakPopup(url) {
   window.open(url, 'transak', `width=${w},height=${h},left=${left},top=${top}`);
 }
 
-const UNISWAP_URL = CHIPS
-  ? `https://app.uniswap.org/swap?outputCurrency=${CHIPS}&chain=${IS_TESTNET ? 'arbitrum_sepolia' : 'arbitrum'}`
+const UNISWAP_URL = SALOON
+  ? `https://app.uniswap.org/swap?outputCurrency=${SALOON}&chain=${IS_TESTNET ? 'arbitrum_sepolia' : 'arbitrum'}`
   : 'https://app.uniswap.org';
 
-const CAMELOT_URL = CHIPS
-  ? `https://app.camelot.exchange/?token2=${CHIPS}`
+const CAMELOT_URL = SALOON
+  ? `https://app.camelot.exchange/?token2=${SALOON}`
   : 'https://app.camelot.exchange';
 
 const EXCHANGES = [
@@ -94,7 +94,7 @@ function CardOnRamp() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
         Buy <strong className="gold-text" style={{ fontWeight: 800 }}>USDC</strong> with a debit/credit card, then convert it
-        straight to CHIPS at the pool rate — no DEX or manual bridging needed.
+        straight to SALOON at the pool rate — no DEX or manual bridging needed.
       </div>
 
       {!configured ? (
@@ -104,7 +104,7 @@ function CardOnRamp() {
         </div>
       ) : !address ? (
         <div className="glass" style={{ padding: '13px 16px', fontSize: 11.5, color: 'var(--text-secondary)' }}>
-          Connect your wallet above to buy CHIPS with a card.
+          Connect your wallet above to buy SALOON with a card.
         </div>
       ) : (
         <>
@@ -122,10 +122,10 @@ function CardOnRamp() {
             </button>
           </div>
 
-          {/* Step 2 — USDC → CHIPS via ChipsLiquidityPool */}
+          {/* Step 2 — USDC → SALOON via ChipsLiquidityPool */}
           <div className="glass-strong" style={{ padding: '18px 20px' }}>
             <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 2.5, marginBottom: 9, fontWeight: 800 }}>STEP 2</div>
-            <div className="serif" style={{ fontSize: 16, color: 'var(--gold-pale)', fontWeight: 700, marginBottom: 6 }}>Convert USDC → CHIPS</div>
+            <div className="serif" style={{ fontSize: 16, color: 'var(--gold-pale)', fontWeight: 700, marginBottom: 6 }}>Convert USDC → SALOON</div>
             <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 12 }}>
               Your USDC balance:{' '}
               <span style={{ color: 'var(--gold-pale)', fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>
@@ -153,7 +153,7 @@ function CardOnRamp() {
                     <span className="gold-text" style={{ fontWeight: 800, fontFamily: "'JetBrains Mono',monospace" }}>
                       ◈{quotedChips.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </span>{' '}
-                    CHIPS
+                    SALOON
                   </div>
                 )}
                 <button onClick={handleConvert} disabled={!canConvert} className="btn btn-gold" style={{
@@ -164,7 +164,7 @@ function CardOnRamp() {
                   {status === 'approving' ? 'Approving USDC…'
                    : status === 'buying'    ? 'Converting…'
                    : confirmed              ? '✓ Converted!'
-                   : 'Convert to CHIPS'}
+                   : 'Convert to SALOON'}
                 </button>
                 {status === 'error' && (
                   <div style={{ fontSize: 11.5, color: 'var(--red)', marginTop: 8 }}>Something went wrong — try again.</div>
@@ -188,7 +188,7 @@ function CardOnRamp() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
             <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
               Buy ETH on any exchange with your card, then withdraw to{' '}
-              <strong className="gold-text" style={{ fontWeight: 800 }}>Arbitrum One</strong> network and swap to CHIPS.
+              <strong className="gold-text" style={{ fontWeight: 800 }}>Arbitrum One</strong> network and swap to SALOON.
             </div>
             {EXCHANGES.map(ex => (
               <a key={ex.name} href={ex.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
@@ -221,7 +221,7 @@ function CardOnRamp() {
   );
 }
 
-// ─── WITHDRAW — redeem CHIPS back to USDC via ChipsLiquidityPool ──────────────
+// ─── WITHDRAW — redeem SALOON back to USDC via ChipsLiquidityPool ──────────────
 function WithdrawPanel() {
   const { address, chipsBalance } = useWallet();
   const {
@@ -243,7 +243,7 @@ function WithdrawPanel() {
   if (!address) {
     return (
       <div className="glass" style={{ padding: '13px 16px', fontSize: 11.5, color: 'var(--text-secondary)' }}>
-        Connect your wallet above to withdraw CHIPS.
+        Connect your wallet above to withdraw SALOON.
       </div>
     );
   }
@@ -251,14 +251,14 @@ function WithdrawPanel() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-        Redeem <strong className="gold-text" style={{ fontWeight: 800 }}>CHIPS</strong> back to{' '}
+        Redeem <strong className="gold-text" style={{ fontWeight: 800 }}>SALOON</strong> back to{' '}
         <strong className="gold-text" style={{ fontWeight: 800 }}>USDC</strong> at the pool rate — paid out
         directly to your wallet.
       </div>
 
       <div className="glass-strong" style={{ padding: '18px 20px' }}>
         <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          Your CHIPS balance:{' '}
+          Your SALOON balance:{' '}
           <span className="gold-text" style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>
             ◈{(chipsBalance || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </span>
@@ -270,7 +270,7 @@ function WithdrawPanel() {
           <>
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <input
-                type="number" min="0" step="any" placeholder="CHIPS amount"
+                type="number" min="0" step="any" placeholder="SALOON amount"
                 value={amount} onChange={e => setAmount(e.target.value)}
                 className="input"
                 style={{
@@ -298,7 +298,7 @@ function WithdrawPanel() {
               opacity: canRedeem ? 1 : .45,
               cursor: canRedeem ? 'pointer' : 'not-allowed',
             }}>
-              {status === 'approving' ? 'Approving CHIPS…'
+              {status === 'approving' ? 'Approving SALOON…'
                : status === 'redeeming' ? 'Redeeming…'
                : confirmed              ? '✓ Redeemed!'
                : 'Redeem to USDC'}
@@ -338,7 +338,7 @@ function BuyPageInner() {
   useEffect(() => setMounted(true), []);
 
   const copy = () => {
-    navigator.clipboard.writeText(CHIPS || '');
+    navigator.clipboard.writeText(SALOON || '');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -354,16 +354,16 @@ function BuyPageInner() {
         <div style={{ position:'relative', zIndex:1 }}>
           <div className="pill animate-up s1" style={{ marginBottom:18, opacity:0 }}>
             <span className="dot-live" />
-            GET CHIPS
+            GET SALOON
           </div>
           <h1 className="gold-text serif animate-up s2" style={{
             fontSize:46, fontWeight:900, marginBottom:10, opacity:0, lineHeight:1.05,
             textShadow:'0 0 50px rgba(217,192,138,.25)',
           }}>
-            Buy CHIPS
+            Buy SALOON
           </h1>
           <p className="animate-up s3" style={{ fontSize:14, color:'var(--text-secondary)', maxWidth:420, margin:'0 auto', lineHeight:1.7, opacity:0 }}>
-            CHIPS is used for all tables, buy-ins, and staking on PokerVsPlayer.
+            SALOON is used for all tables, buy-ins, and staking on Saloon.
           </p>
           {mounted && address && (
             <div className="animate-up s4" style={{ marginTop:18, opacity:0 }}>
@@ -391,11 +391,11 @@ function BuyPageInner() {
         }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 9, color: 'var(--gold)', letterSpacing: 2.5, marginBottom: 4, fontWeight: 800 }}>
-              CHIPS TOKEN CONTRACT
+              SALOON TOKEN CONTRACT
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: "'JetBrains Mono',monospace",
               wordBreak: 'break-all' }}>
-              {CHIPS || 'Not deployed'}
+              {SALOON || 'Not deployed'}
             </div>
           </div>
           <button onClick={copy} className={copied ? 'btn btn-emerald' : 'btn btn-ghost'} style={{
@@ -425,13 +425,13 @@ function BuyPageInner() {
         {tab === 'swap' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 4, lineHeight: 1.6 }}>
-              Swap any token for CHIPS on Arbitrum. Choose your preferred DEX:
+              Swap any token for SALOON on Arbitrum. Choose your preferred DEX:
             </div>
 
             {[
               {
                 name: 'Uniswap',
-                desc: 'Largest DEX. Swap ETH, USDC, USDT → CHIPS.',
+                desc: 'Largest DEX. Swap ETH, USDC, USDT → SALOON.',
                 color: '#fc72ff',
                 url: UNISWAP_URL,
                 logo: '🦄',
@@ -470,20 +470,20 @@ function BuyPageInner() {
 
             {IS_TESTNET && (
               <div className="notice-warn" style={{ padding: '13px 16px', fontSize: 11.5 }}>
-                ⚠️ You're on Arbitrum Sepolia testnet. DEX liquidity for CHIPS won't exist until
-                mainnet launch. Use the Testnet Faucet tab to get CHIPS for testing.
+                ⚠️ You're on Arbitrum Sepolia testnet. DEX liquidity for SALOON won't exist until
+                mainnet launch. Use the Testnet Faucet tab to get SALOON for testing.
               </div>
             )}
 
             <div className="glass" style={{ padding: '14px 16px' }}>
               <div style={{ fontSize: 9, color: 'var(--gold)', letterSpacing: 2.5, marginBottom: 8, fontWeight: 800 }}>
-                HOW TO ADD CHIPS TO METAMASK
+                HOW TO ADD SALOON TO METAMASK
               </div>
               <ol style={{ margin: 0, paddingLeft: 16, color: 'var(--text-secondary)', fontSize: 11.5,
                 display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <li>Open MetaMask → Assets → Import Token</li>
-                <li>Paste the CHIPS contract address above</li>
-                <li>Symbol: CHIPS, Decimals: 18 → Save</li>
+                <li>Paste the SALOON contract address above</li>
+                <li>Symbol: SALOON, Decimals: 18 → Save</li>
               </ol>
             </div>
           </div>
@@ -507,7 +507,7 @@ function BuyPageInner() {
               </div>
               <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 22, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 22px' }}>
                 You're on Arbitrum Sepolia testnet. Ask the operator to run the faucet script
-                to receive test CHIPS — no real money involved.
+                to receive test SALOON — no real money involved.
               </div>
               <div style={{
                 background: '#0b0b0d', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',

@@ -2,13 +2,19 @@
 // Table economics: buy-in/rebuy/cashout/refund, table creation, and the
 // on-chain hand-history stats contract.
 
+// Human-readable chain names for the wrong-network prompt. Hardcoding
+// "Arbitrum One" told Robinhood users to switch to the wrong network.
+const CHAIN_NAMES = {
+  42161: 'Arbitrum One', 421614: 'Arbitrum Sepolia',
+  4663: 'Robinhood Chain', 46630: 'Robinhood Chain Testnet',
+};
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicClient, useReadContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { parseUnits, formatUnits } from "viem";
 import {
   wagmiConfig, safeFeeOverrides, hasAllowance, EXPECTED_CHAIN,
-  CHIPS_ABI, CHIPS, ESCROW_ABI, ESCROW, HAND_HISTORY_ABI, HAND_HISTORY,
+  CHIPS_ABI, SALOON, ESCROW_ABI, ESCROW, HAND_HISTORY_ABI, HAND_HISTORY,
 } from "./core";
 
 // ─── HOOK: HAND HISTORY (batched on-chain gameplay stats) ──────────────────────
@@ -60,7 +66,7 @@ export function useEscrow(tableId) {
       if (!(await hasAllowance(publicClient, address, ESCROW, needed))) {
         setStatus('approving');
         const approveTx = await writeContractAsync({
-          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          address: SALOON, abi: CHIPS_ABI, functionName: "approve",
           args: [ESCROW, needed],
           ...feeOverrides,
         });
@@ -127,7 +133,7 @@ export function useEscrow(tableId) {
           address: ESCROW, abi: ESCROW_ABI, functionName: "seatFeeCHIPS", args: [],
         }),
         publicClient.readContract({
-          address: CHIPS, abi: CHIPS_ABI, functionName: "balanceOf", args: [address],
+          address: SALOON, abi: CHIPS_ABI, functionName: "balanceOf", args: [address],
         }),
       ]);
       if (deposit <= 0n) {
@@ -138,7 +144,7 @@ export function useEscrow(tableId) {
       const fee = roomId !== 0n ? seatFeeOnChain / 2n : 0n;
       const needed = amountBN + fee;
       if (balance < needed) {
-        setRebuyError('Insufficient CHIPS balance for that rebuy amount.');
+        setRebuyError('Insufficient SALOON balance for that rebuy amount.');
         setStatus('error');
         return;
       }
@@ -147,7 +153,7 @@ export function useEscrow(tableId) {
       if (!(await hasAllowance(publicClient, address, ESCROW, needed))) {
         setStatus('approving');
         const approveTx = await writeContractAsync({
-          address: CHIPS, abi: CHIPS_ABI, functionName: "approve",
+          address: SALOON, abi: CHIPS_ABI, functionName: "approve",
           args: [ESCROW, needed], ...feeOverrides,
         });
         await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
@@ -250,7 +256,7 @@ export function useCreateTable() {
     if (!address) { setErrorMsg('Connect your wallet first.'); return null; }
     if (!ESCROW)  { setErrorMsg('Contract not configured — run npm run setup:env and restart.'); return null; }
     if (chainId !== EXPECTED_CHAIN) {
-      setErrorMsg(`Wrong network — switch MetaMask to ${EXPECTED_CHAIN === 421614 ? 'Arbitrum Sepolia' : 'Arbitrum One'} (chain ${EXPECTED_CHAIN}).`);
+      setErrorMsg(`Wrong network — switch MetaMask to ${CHAIN_NAMES[EXPECTED_CHAIN] || `chain ${EXPECTED_CHAIN}`} (chain ${EXPECTED_CHAIN}).`);
       return null;
     }
     setStatus('pending');

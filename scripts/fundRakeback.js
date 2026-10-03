@@ -1,7 +1,7 @@
 // scripts/fundRakeback.js — activate the escrow's built-in 5% rakeback by
 // funding its pool from the PromotionsPool. Accrual only happens while
 // rakebackPool > 0, so keep it topped up.
-// Usage: npm run fund:rakeback -- 100000   (owner; amount in CHIPS)
+// Usage: npm run fund:rakeback -- 100000   (owner; amount in SALOON)
 import "dotenv/config";
 import { readFileSync } from "fs";
 import { ethers } from "ethers";
@@ -43,11 +43,11 @@ async function main() {
     "function rakebackPool() view returns (uint256)",
   ], owner);
 
-  console.log(`Pulling ${amountChips} CHIPS from PromotionsPool...`);
+  console.log(`Pulling ${amountChips} SALOON from PromotionsPool...`);
   await (await promotions.withdraw(owner.address, amount, "rakeback pool top-up")).wait();
   await (await token.approve(c.PokerEscrow, amount)).wait();
   await (await escrow.fundRakebackPool(amount)).wait();
-  console.log(`✅ Rakeback pool funded. Current pool: ${ethers.formatUnits(await escrow.rakebackPool(), 18)} CHIPS`);
+  console.log(`✅ Rakeback pool funded. Current pool: ${ethers.formatUnits(await escrow.rakebackPool(), 18)} SALOON`);
   console.log("Players now accrue 5% of the rake they pay, claimable on the Stake page.");
 }
 

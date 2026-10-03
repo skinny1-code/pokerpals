@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/healthcheck.sh — pre-test readiness check for PokerVsPlayer (testnet)
+# scripts/healthcheck.sh — pre-test readiness check for Saloon (testnet)
 #
 # Confirms the three live layers a tester depends on are actually up:
 #   1. Frontend  (Vercel)        — the site loads
@@ -31,7 +31,7 @@ ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; pass=$((pass + 1)); }
 bad()  { printf '  \033[31m✗\033[0m %s\n' "$1"; fail=$((fail + 1)); }
 info() { printf '  \033[36mℹ\033[0m %s\n' "$1"; }
 
-echo "PokerVsPlayer — testnet readiness check"
+echo "Saloon — testnet readiness check"
 echo "========================================"
 
 # 1. Frontend ----------------------------------------------------------------
@@ -76,7 +76,7 @@ echo "  • WalletConnect: add $SITE_URL to allowed origins on cloud.reown.com"
 echo "    (else wallet connect fails with 'origin not allowed' / close code 3000)"
 echo "  • Game server secrets: OPERATOR_PRIVATE_KEY matches the escrow operatorSigner,"
 echo "    plus ARB_SEPOLIA_RPC and TESTNET_SKIP_HUMAN_CHECK=true"
-echo "  • Testers funded: Arbitrum Sepolia ETH (gas) + CHIPS (npm run faucet)"
+echo "  • Testers funded: Arbitrum Sepolia ETH (gas) + SALOON (npm run faucet)"
 
 # Summary --------------------------------------------------------------------
 echo "========================================"

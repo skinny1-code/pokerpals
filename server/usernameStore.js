@@ -1,5 +1,5 @@
 // server/usernameStore.js — free, off-chain display username store (address -> username).
-// No CHIPS/gas cost: claimed once via a signed message and persisted to a small JSON
+// No SALOON/gas cost: claimed once via a signed message and persisted to a small JSON
 // file next to the server process. Separate from the paid PokerHandle NFT
 // (contracts/PokerHandle.sol), which remains the "verified" badge required for
 // tournaments/events — see useHandle.js / useRegisterTournament().

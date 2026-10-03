@@ -94,7 +94,7 @@ export default class AppErrorBoundary extends Component {
               letterSpacing: '0.5px',
             }}
           >
-            PokerVsPlayer
+            Saloon
           </div>
         </div>
 

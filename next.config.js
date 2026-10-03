@@ -8,7 +8,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Auto-load contract addresses from deployment JSON if not already in .env
 // This means you never need to run setup:env manually — just deploy and go.
 function loadDeployedAddresses() {
-  for (const net of ['arbitrumSepolia', 'arbitrum']) {
+  // Order = precedence: the first manifest that exists wins. Mainnet target is
+  // Robinhood Chain (4663); Arbitrum Sepolia stays the testnet. Once
+  // deployments/robinhood.json exists it takes over from the testnet manifest.
+  for (const net of ['robinhood', 'robinhoodTestnet', 'arbitrumSepolia', 'arbitrum']) {
     const p = join(__dirname, 'deployments', `${net}.json`);
     if (!existsSync(p)) continue;
     const d = JSON.parse(readFileSync(p, 'utf8'));

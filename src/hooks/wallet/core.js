@@ -4,9 +4,31 @@
 // config and plain functions.
 
 import { createConfig, http } from "wagmi";
+import { defineChain } from "viem";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
+
+// ─── ROBINHOOD CHAIN ────────────────────────────────────────────────────────
+// Robinhood Chain is an Arbitrum Orbit L2 (EVM-identical), so the same contracts
+// and signing work unchanged — settlement/cashout signatures are already bound to
+// block.chainid, so nothing replays across chains. Only this network wiring +
+// a redeploy are needed to migrate. RPCs are overridable via env.
+export const robinhoodChain = defineChain({
+  id: 4663,
+  name: "Robinhood Chain",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: [process.env.NEXT_PUBLIC_ROBINHOOD_RPC || "https://rpc.mainnet.chain.robinhood.com"] } },
+  blockExplorers: { default: { name: "Blockscout", url: "https://robinhoodchain.blockscout.com" } },
+});
+export const robinhoodTestnet = defineChain({
+  id: 46630,
+  name: "Robinhood Chain Testnet",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: [process.env.NEXT_PUBLIC_ROBINHOOD_TESTNET_RPC || "https://rpc.testnet.chain.robinhood.com"] } },
+  blockExplorers: { default: { name: "Explorer", url: "https://explorer.testnet.chain.robinhood.com" } },
+  testnet: true,
+});
 
 // ─── WS URL HELPER ─────────────────────────────────────────────────────────────
 // Upgrades ws:// → wss:// when the page is served over https (avoids mixed-content block).
@@ -41,10 +63,12 @@ const _connectors = [
 ];
 
 export const wagmiConfig = createConfig({
-  chains:     [arbitrum, arbitrumSepolia],
+  chains:     [arbitrum, arbitrumSepolia, robinhoodChain, robinhoodTestnet],
   transports: {
-    [arbitrum.id]:        http(process.env.NEXT_PUBLIC_ARB_RPC),
-    [arbitrumSepolia.id]: http(process.env.NEXT_PUBLIC_ARB_SEPOLIA_RPC),
+    [arbitrum.id]:         http(process.env.NEXT_PUBLIC_ARB_RPC),
+    [arbitrumSepolia.id]:  http(process.env.NEXT_PUBLIC_ARB_SEPOLIA_RPC),
+    [robinhoodChain.id]:   http(process.env.NEXT_PUBLIC_ROBINHOOD_RPC),
+    [robinhoodTestnet.id]: http(process.env.NEXT_PUBLIC_ROBINHOOD_TESTNET_RPC),
   },
   connectors: _connectors,
   ssr: true,  // prevents wagmi from reading localStorage during SSR hydration
@@ -282,7 +306,7 @@ export const LIQUIDITY_POOL_ABI = [
 ];
 
 // ─── CONTRACT ADDRESSES ────────────────────────────────────────────────────────
-export const CHIPS          = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
+export const SALOON          = process.env.NEXT_PUBLIC_CHIPS_TOKEN || process.env.NEXT_PUBLIC_PPP_TOKEN;
 export const ESCROW         = process.env.NEXT_PUBLIC_ESCROW;
 export const STAKING        = process.env.NEXT_PUBLIC_STAKING;
 export const HANDLE         = process.env.NEXT_PUBLIC_POKER_HANDLE;
@@ -298,7 +322,7 @@ export const USDC_ADDR      = MOCK_USDC || process.env.NEXT_PUBLIC_USDC;
 
 // Exported for dashboard and other consumers
 export const CONTRACT_ADDRESSES = {
-  chipsToken:      CHIPS,
+  chipsToken:      SALOON,
   escrow:          ESCROW,
   staking:         STAKING,
   handle:          HANDLE,
@@ -350,10 +374,10 @@ export async function safeFeeOverrides(publicClient) {
   }
 }
 
-// Returns true if `owner` has already approved at least `needed` of `tokenAddr` (default CHIPS)
+// Returns true if `owner` has already approved at least `needed` of `tokenAddr` (default SALOON)
 // to `spender`. Lets the write flows skip a redundant approve popup — critical on MetaMask
 // mobile, where back-to-back approve→action popups frequently leave the 2nd one blank/stuck.
-export async function hasAllowance(publicClient, owner, spender, needed, tokenAddr = CHIPS) {
+export async function hasAllowance(publicClient, owner, spender, needed, tokenAddr = SALOON) {
   if (!publicClient || !owner || !spender) return false;
   try {
     const current = await publicClient.readContract({

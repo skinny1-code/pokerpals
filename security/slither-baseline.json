@@ -1,0 +1,174 @@
+{
+  "note": "Reviewed Slither findings. Each is explained in docs/SLITHER.md. Regenerate with: npm run slither -- --update-baseline",
+  "generated": "2026-09-11",
+  "findings": [
+    {
+      "key": "divide-before-multiply|contracts/ChipsToken.sol|function:claimDevVest",
+      "check": "divide-before-multiply",
+      "impact": "Medium",
+      "file": "contracts/ChipsToken.sol",
+      "element": "function claimDevVest"
+    },
+    {
+      "key": "divide-before-multiply|contracts/ChipsToken.sol|function:devClaimable",
+      "check": "divide-before-multiply",
+      "impact": "Medium",
+      "file": "contracts/ChipsToken.sol",
+      "element": "function devClaimable"
+    },
+    {
+      "key": "divide-before-multiply|contracts/PokerEscrow.sol|function:settle",
+      "check": "divide-before-multiply",
+      "impact": "Medium",
+      "file": "contracts/PokerEscrow.sol",
+      "element": "function settle"
+    },
+    {
+      "key": "divide-before-multiply|contracts/TournamentManager.sol|function:startTournament",
+      "check": "divide-before-multiply",
+      "impact": "Medium",
+      "file": "contracts/TournamentManager.sol",
+      "element": "function startTournament"
+    },
+    {
+      "key": "encode-packed-collision|contracts/PokerEscrow.sol|function:settle",
+      "check": "encode-packed-collision",
+      "impact": "High",
+      "file": "contracts/PokerEscrow.sol",
+      "element": "function settle"
+    },
+    {
+      "key": "encode-packed-collision|contracts/TournamentManager.sol|function:payout",
+      "check": "encode-packed-collision",
+      "impact": "High",
+      "file": "contracts/TournamentManager.sol",
+      "element": "function payout"
+    },
+    {
+      "key": "incorrect-equality|contracts/StakerLottery.sol|function:_requestExpired",
+      "check": "incorrect-equality",
+      "impact": "Medium",
+      "file": "contracts/StakerLottery.sol",
+      "element": "function _requestExpired"
+    },
+    {
+      "key": "reentrancy-no-eth|contracts/PokerEscrow.sol|function:settle",
+      "check": "reentrancy-no-eth",
+      "impact": "Medium",
+      "file": "contracts/PokerEscrow.sol",
+      "element": "function settle"
+    },
+    {
+      "key": "reentrancy-no-eth|contracts/PokerHandle.sol|function:changeHandle",
+      "check": "reentrancy-no-eth",
+      "impact": "Medium",
+      "file": "contracts/PokerHandle.sol",
+      "element": "function changeHandle"
+    },
+    {
+      "key": "reentrancy-no-eth|contracts/PokerHandle.sol|function:mintHandle",
+      "check": "reentrancy-no-eth",
+      "impact": "Medium",
+      "file": "contracts/PokerHandle.sol",
+      "element": "function mintHandle"
+    },
+    {
+      "key": "reentrancy-no-eth|contracts/TableRegistry.sol|function:_extendLease",
+      "check": "reentrancy-no-eth",
+      "impact": "Medium",
+      "file": "contracts/TableRegistry.sol",
+      "element": "function _extendLease"
+    },
+    {
+      "key": "reentrancy-no-eth|contracts/TableRegistry.sol|function:terminateLease",
+      "check": "reentrancy-no-eth",
+      "impact": "Medium",
+      "file": "contracts/TableRegistry.sol",
+      "element": "function terminateLease"
+    },
+    {
+      "key": "reentrancy-no-eth|contracts/TournamentManager.sol|function:startTournament",
+      "check": "reentrancy-no-eth",
+      "impact": "Medium",
+      "file": "contracts/TournamentManager.sol",
+      "element": "function startTournament"
+    },
+    {
+      "key": "uninitialized-local|contracts/PokerEscrow.sol|variable:referralPaid",
+      "check": "uninitialized-local",
+      "impact": "Medium",
+      "file": "contracts/PokerEscrow.sol",
+      "element": "variable referralPaid"
+    },
+    {
+      "key": "uninitialized-local|contracts/PokerEscrow.sol|variable:tot",
+      "check": "uninitialized-local",
+      "impact": "Medium",
+      "file": "contracts/PokerEscrow.sol",
+      "element": "variable tot"
+    },
+    {
+      "key": "uninitialized-local|contracts/StakerLottery.sol|variable:cumulative",
+      "check": "uninitialized-local",
+      "impact": "Medium",
+      "file": "contracts/StakerLottery.sol",
+      "element": "variable cumulative"
+    },
+    {
+      "key": "uninitialized-local|contracts/StakerLottery.sol|variable:winner",
+      "check": "uninitialized-local",
+      "impact": "Medium",
+      "file": "contracts/StakerLottery.sol",
+      "element": "variable winner"
+    },
+    {
+      "key": "uninitialized-local|contracts/TableRegistry.sol|variable:count",
+      "check": "uninitialized-local",
+      "impact": "Medium",
+      "file": "contracts/TableRegistry.sol",
+      "element": "variable count"
+    },
+    {
+      "key": "uninitialized-local|contracts/TableRegistry.sol|variable:idx",
+      "check": "uninitialized-local",
+      "impact": "Medium",
+      "file": "contracts/TableRegistry.sol",
+      "element": "variable idx"
+    },
+    {
+      "key": "uninitialized-local|contracts/TableRegistry.sol|variable:refund",
+      "check": "uninitialized-local",
+      "impact": "Medium",
+      "file": "contracts/TableRegistry.sol",
+      "element": "variable refund"
+    },
+    {
+      "key": "uninitialized-local|contracts/TournamentManager.sol|variable:tot",
+      "check": "uninitialized-local",
+      "impact": "Medium",
+      "file": "contracts/TournamentManager.sol",
+      "element": "variable tot"
+    },
+    {
+      "key": "unused-return|contracts/ProfitSplitter.sol|function:harvestYield",
+      "check": "unused-return",
+      "impact": "Medium",
+      "file": "contracts/ProfitSplitter.sol",
+      "element": "function harvestYield"
+    },
+    {
+      "key": "unused-return|contracts/StakerLottery.sol|function:enter",
+      "check": "unused-return",
+      "impact": "Medium",
+      "file": "contracts/StakerLottery.sol",
+      "element": "function enter"
+    },
+    {
+      "key": "weak-prng|contracts/StakerLottery.sol|function:draw",
+      "check": "weak-prng",
+      "impact": "High",
+      "file": "contracts/StakerLottery.sol",
+      "element": "function draw"
+    }
+  ]
+}

@@ -94,7 +94,7 @@ async function main() {
   await tx.wait();
   tx = await staking.initYieldPool(GAS_CALL);
   await tx.wait();
-  console.log("✅ Staking pool seeded (200M CHIPS)");
+  console.log("✅ Staking pool seeded (200M SALOON)");
 
   // Authorize yield sources — sequential submit, parallel confirm
   const n = await provider.getTransactionCount(deployer.address, "pending");

@@ -19,7 +19,7 @@ interface IChipsTokenVest {
 /// @title ProfitSplitter — routes all owner income to one wallet, half staked
 /// @notice Set as `rakeRecipient` on PokerEscrow / TournamentManager / TableRegistry
 ///         and as `devWallet` on ChipsToken, so every income stream lands here.
-///         Anyone may call distribute(): the CHIPS balance is split — `payoutBps`
+///         Anyone may call distribute(): the SALOON balance is split — `payoutBps`
 ///         (default 50%) goes straight to the payout wallet, the remainder is
 ///         staked in ChipsStaking. The stake is held by this contract and earns
 ///         tier APR; staking yield claimed back into this contract is split by
@@ -47,7 +47,7 @@ contract ProfitSplitter is Ownable, ReentrancyGuard {
         payoutWallet = _payoutWallet;
     }
 
-    /// @notice Split the accumulated CHIPS balance: payoutBps → wallet, rest → staked.
+    /// @notice Split the accumulated SALOON balance: payoutBps → wallet, rest → staked.
     function distribute() external nonReentrant {
         uint256 bal = chipsToken.balanceOf(address(this));
         require(bal > 0, "Nothing to distribute");
@@ -70,7 +70,7 @@ contract ProfitSplitter is Ownable, ReentrancyGuard {
     }
 
     /// @notice Claim the monthly dev vest from ChipsToken (this contract must be
-    ///         set as devWallet). Vested CHIPS land here for the next distribute().
+    ///         set as devWallet). Vested SALOON land here for the next distribute().
     function claimDevVest() external nonReentrant {
         IChipsTokenVest(address(chipsToken)).claimDevVest();
     }
@@ -97,9 +97,9 @@ contract ProfitSplitter is Ownable, ReentrancyGuard {
         emit PayoutBpsSet(bps);
     }
 
-    /// @notice Rescue tokens other than CHIPS that were sent here by mistake.
+    /// @notice Rescue tokens other than SALOON that were sent here by mistake.
     function sweep(address token, address to) external onlyOwner {
-        require(token != address(chipsToken), "Use distribute for CHIPS");
+        require(token != address(chipsToken), "Use distribute for SALOON");
         IERC20(token).safeTransfer(to, IERC20(token).balanceOf(address(this)));
     }
 }

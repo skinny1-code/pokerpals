@@ -5,7 +5,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicClient, useReadContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { parseUnits, formatUnits, isAddress } from "viem";
-import { wagmiConfig, safeFeeOverrides, hasAllowance, CHIPS_ABI, CHIPS, REGISTRY_ABI, TABLE_REGISTRY } from "./core";
+import { wagmiConfig, safeFeeOverrides, hasAllowance, CHIPS_ABI, SALOON, REGISTRY_ABI, TABLE_REGISTRY } from "./core";
 
 export function useTableRegistry() {
   const { address }            = useAccount();
@@ -50,7 +50,7 @@ export function useTableRegistry() {
   const leaseRoom = useCallback(async ({ name, weeks, months, nftGate, minBuyIn, maxBuyIn, maxPlayers, gameType, isPublic }) => {
     setErrorMsg(null);
     if (!address) { setErrorMsg('Connect your wallet first.'); return null; }
-    if (!TABLE_REGISTRY || !CHIPS) { setErrorMsg('Contract not configured — run npm run setup:env and restart.'); return null; }
+    if (!TABLE_REGISTRY || !SALOON) { setErrorMsg('Contract not configured — run npm run setup:env and restart.'); return null; }
     if (nftGate && !isAddress(nftGate)) { setErrorMsg('NFT gate must be a valid contract address.'); return null; }
     try {
       const useMonths = !!months;
@@ -64,7 +64,7 @@ export function useTableRegistry() {
       if (!(await hasAllowance(publicClient, address, TABLE_REGISTRY, feeBN))) {
         setStatus('approving');
         const approveTx = await writeContractAsync({
-          address: CHIPS, abi: CHIPS_ABI, functionName: 'approve',
+          address: SALOON, abi: CHIPS_ABI, functionName: 'approve',
           args: [TABLE_REGISTRY, feeBN], ...feeOverrides,
         });
         await waitForTransactionReceipt(wagmiConfig, { hash: approveTx, timeout: 30_000 });
