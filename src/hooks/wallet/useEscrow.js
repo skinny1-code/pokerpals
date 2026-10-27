@@ -250,7 +250,7 @@ export function useCreateTable() {
     if (!address) { setErrorMsg('Connect your wallet first.'); return null; }
     if (!ESCROW)  { setErrorMsg('Contract not configured — run npm run setup:env and restart.'); return null; }
     if (chainId !== EXPECTED_CHAIN) {
-      setErrorMsg(`Wrong network — switch MetaMask to ${EXPECTED_CHAIN === 421614 ? 'Arbitrum Sepolia' : 'Arbitrum One'} (chain ${EXPECTED_CHAIN}).`);
+      setErrorMsg(`Wrong network — switch MetaMask to ${({ 421614: 'Arbitrum Sepolia', 42161: 'Arbitrum One', 46630: 'Robinhood Chain Testnet', 4663: 'Robinhood Chain' }[EXPECTED_CHAIN] || `chain ${EXPECTED_CHAIN}`)} (chain ${EXPECTED_CHAIN}).`);
       return null;
     }
     setStatus('pending');
