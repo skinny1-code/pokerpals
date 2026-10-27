@@ -21,9 +21,18 @@ process.on('unhandledRejection',   e => console.error('[Server] unhandledRejecti
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function loadDeployment() {
+  const chainId = String(process.env.CHAIN_ID || process.env.NEXT_PUBLIC_CHAIN_ID || "421614");
+  const manifestByChain = { "421614": "arbitrumSepolia", "42161": "arbitrum", "46630": "robinhoodTestnet", "4663": "robinhood" };
+  const name = manifestByChain[chainId];
+  if (!name) throw new Error(`Unsupported deployment chain ID: ${chainId}`);
   try {
-    return JSON.parse(readFileSync(join(__dirname, "../deployments/arbitrumSepolia.json"), "utf8"));
-  } catch { return null; }
+    const manifest = JSON.parse(readFileSync(join(__dirname, `../deployments/${name}.json`), "utf8"));
+    if (String(manifest.chainId) !== chainId) throw new Error(`Deployment manifest chain mismatch for ${name}`);
+    return manifest;
+  } catch (e) {
+    if (e.code !== "ENOENT") throw e;
+    return null;
+  }
 }
 const _depl = loadDeployment();
 
@@ -46,7 +55,7 @@ function resolveAddr(name, manifestValue, ...envValues) {
 }
 const ESCROW_ADDR  = resolveAddr('ESCROW', _depl?.contracts?.PokerEscrow,
   process.env.NEXT_PUBLIC_ESCROW, process.env.ESCROW_ADDRESS);
-const RPC_URL      = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL || "https://arb1.arbitrum.io/rpc";
+const RPC_URL      = process.env.RPC_URL || process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || "https://arb1.arbitrum.io/rpc";
 
 if (!ESCROW_ADDR) { console.error('[Server] FATAL: ESCROW_ADDR not set — add NEXT_PUBLIC_ESCROW to secrets or deploy first'); process.exit(1); }
 if (!OPERATOR_KEY) { console.error('[Server] FATAL: OPERATOR_PRIVATE_KEY not set in secrets'); process.exit(1); }
