@@ -76,7 +76,8 @@ provider.getNetwork()
   .then(n => {
     const live = BigInt(n.chainId);
     if (CHAIN_ID && live !== CHAIN_ID) {
-      console.warn(`[Server] ⚠️  CHAIN_ID env (${CHAIN_ID}) != RPC chain (${live}); using RPC chain for signing.`);
+      console.error(`[Server] FATAL: configured CHAIN_ID (${CHAIN_ID}) != RPC chain (${live}). Refusing to sign for another network.`);
+      process.exit(1);
     }
     CHAIN_ID = live;
   })
