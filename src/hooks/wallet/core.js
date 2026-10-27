@@ -5,8 +5,22 @@
 
 import { createConfig, http } from "wagmi";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
+import { defineChain } from "viem";
 import { injected, walletConnect } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
+
+// Official Robinhood Chain network configuration (does not deploy or mint a token).
+export const robinhoodChain = defineChain({
+  id: 4663, name: "Robinhood Chain", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.mainnet.chain.robinhood.com"] } },
+  blockExplorers: { default: { name: "Robinhood Blockscout", url: "https://robinhoodchain.blockscout.com" } },
+});
+export const robinhoodTestnet = defineChain({
+  id: 46630, name: "Robinhood Chain Testnet", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.testnet.chain.robinhood.com"] } },
+  blockExplorers: { default: { name: "Robinhood Testnet Explorer", url: "https://explorer.testnet.chain.robinhood.com" } },
+  testnet: true,
+});
 
 // ─── WS URL HELPER ─────────────────────────────────────────────────────────────
 // Upgrades ws:// → wss:// when the page is served over https (avoids mixed-content block).
@@ -41,10 +55,12 @@ const _connectors = [
 ];
 
 export const wagmiConfig = createConfig({
-  chains:     [arbitrum, arbitrumSepolia],
+  chains:     [arbitrum, arbitrumSepolia, robinhoodTestnet, robinhoodChain],
   transports: {
     [arbitrum.id]:        http(process.env.NEXT_PUBLIC_ARB_RPC),
     [arbitrumSepolia.id]: http(process.env.NEXT_PUBLIC_ARB_SEPOLIA_RPC),
+    [robinhoodTestnet.id]: http(process.env.NEXT_PUBLIC_ROBINHOOD_TESTNET_RPC || "https://rpc.testnet.chain.robinhood.com"),
+    [robinhoodChain.id]: http(process.env.NEXT_PUBLIC_ROBINHOOD_RPC || "https://rpc.mainnet.chain.robinhood.com"),
   },
   connectors: _connectors,
   ssr: true,  // prevents wagmi from reading localStorage during SSR hydration
