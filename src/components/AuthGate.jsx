@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useSwitchChain } from 'wagmi';
 import WalletPicker from './WalletPicker';
 
+const NETWORK_INFO = {
+  421614: ['Arbitrum Sepolia', 'https://sepolia-rollup.arbitrum.io/rpc'],
+  42161: ['Arbitrum One', 'https://arb1.arbitrum.io/rpc'],
+  46630: ['Robinhood Chain Testnet', 'https://rpc.testnet.chain.robinhood.com'],
+  4663: ['Robinhood Chain', 'https://rpc.mainnet.chain.robinhood.com'],
+};
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 // Blocks the whole app behind connect + sign-in + a display name. Rendered inside
@@ -158,9 +164,9 @@ export default function AuthGate({ children }) {
                   Your wallet didn't switch automatically — some wallets (especially over
                   WalletConnect) need the network added manually first:
                   <div style={{ fontFamily:"'JetBrains Mono',monospace", marginTop:4, fontSize:9.5 }}>
-                    Network: Arbitrum Sepolia<br/>
-                    Chain ID: 421614<br/>
-                    RPC: https://sepolia-rollup.arbitrum.io/rpc
+                    Network: {NETWORK_INFO[EXPECTED_CHAIN]?.[0] || `Chain ${EXPECTED_CHAIN}`}<br/>
+                    Chain ID: {EXPECTED_CHAIN}<br/>
+                    RPC: {NETWORK_INFO[EXPECTED_CHAIN]?.[1] || "Contact operator"}
                   </div>
                 </div>
               )}
