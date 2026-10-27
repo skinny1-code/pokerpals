@@ -478,7 +478,7 @@ function BuyPageInner() {
 
             {IS_TESTNET && (
               <div className="notice-warn" style={{ padding: '13px 16px', fontSize: 11.5 }}>
-                ⚠️ You're on {TESTNET_NAME} testnet. DEX liquidity for CHIPS won't exist until
+                ⚠️ You're on {TESTNET_NAME}. DEX liquidity for CHIPS won't exist until
                 mainnet launch. Use the Testnet Faucet tab to get CHIPS for testing.
               </div>
             )}
