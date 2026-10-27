@@ -10,8 +10,8 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const VALID_NETWORKS = ["arbitrumSepolia", "arbitrum"];
-const CHAIN_IDS      = { arbitrumSepolia: "421614", arbitrum: "42161" };
+const VALID_NETWORKS = ["arbitrumSepolia", "arbitrum", "robinhoodTestnet", "robinhood"];
+const CHAIN_IDS = { arbitrumSepolia: "421614", arbitrum: "42161", robinhoodTestnet: "46630", robinhood: "4663" };
 
 // Real USDC on Arbitrum One (native)
 const USDC_MAINNET = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
@@ -22,10 +22,15 @@ if (!VALID_NETWORKS.includes(networkName)) {
 }
 
 async function main() {
+  // A Robinhood mainnet deployment mints a separate 1B CHIPS supply; require an
+  // explicit manual release decision after reviewing existing mainnet issuance.
+  if (networkName === "robinhood" && process.env.ROBINHOOD_MAINNET_DEPLOY_ACK !== "EXPLICITLY_APPROVED") {
+    throw new Error("Robinhood mainnet issuance is locked: review supply, audit, legal clearance, and set ROBINHOOD_MAINNET_DEPLOY_ACK=EXPLICITLY_APPROVED only for an authorized launch.");
+  }
   const conn = await network.connect({ network: networkName });
   const ethers = conn.ethers;
   const [deployer] = await ethers.getSigners();
-  const isTestnet = networkName === "arbitrumSepolia";
+  const isTestnet = networkName === "arbitrumSepolia" || networkName === "robinhoodTestnet";
   console.log("Deployer:", deployer.address);
   console.log("Network: ", networkName);
 
@@ -126,8 +131,11 @@ async function main() {
     usdcAddr = await mockUsdc.getAddress();
     console.log("✅ MockUSDC:", usdcAddr);
   } else {
-    usdcAddr = USDC_MAINNET;
-    console.log("ℹ️  Using mainnet USDC:", usdcAddr);
+    usdcAddr = networkName === "arbitrum" ? USDC_MAINNET : process.env.ROBINHOOD_USDC_ADDRESS;
+    if (!usdcAddr || !ethers.isAddress(usdcAddr)) {
+      throw new Error("Verified mainnet stablecoin address required (ROBINHOOD_USDC_ADDRESS). Never reuse the Arbitrum One USDC address on Robinhood Chain.");
+    }
+    console.log("ℹ️  Using verified mainnet USDC:", usdcAddr);
   }
 
   // 11. StablecoinPool — USDC reserve for on-network use (prizes, payouts, promos)
