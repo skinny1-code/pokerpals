@@ -27,6 +27,14 @@ async function main() {
   if (networkName === "robinhood" && process.env.ROBINHOOD_MAINNET_DEPLOY_ACK !== "EXPLICITLY_APPROVED") {
     throw new Error("Robinhood mainnet issuance is locked: review supply, audit, legal clearance, and set ROBINHOOD_MAINNET_DEPLOY_ACK=EXPLICITLY_APPROVED only for an authorized launch.");
   }
+  if (networkName === "robinhood") {
+    if (!/^0x[a-fA-F0-9]{40}$/.test(process.env.ROBINHOOD_USDC_ADDRESS || "")) {
+      throw new Error("Robinhood mainnet launch blocked: verify and provide ROBINHOOD_USDC_ADDRESS before any transaction.");
+    }
+    const missing = ["OPERATOR_SIGNER", "RAKE_WALLET", "ANTIBOT_ORACLE", "DEV_WALLET"]
+      .filter(name => !/^0x[a-fA-F0-9]{40}$/.test(process.env[name] || ""));
+    if (missing.length) throw new Error("Robinhood mainnet launch blocked: missing valid role addresses: " + missing.join(", "));
+  }
   const conn = await network.connect({ network: networkName });
   const ethers = conn.ethers;
   const [deployer] = await ethers.getSigners();
