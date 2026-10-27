@@ -5,7 +5,7 @@
 import { ethers } from "ethers";
 // Node 18+ provides a global fetch (WHATWG); no node-fetch needed.
 
-const RPC_URL        = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL;
+const RPC_URL        = process.env.RPC_URL || process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC;
 const OPERATOR_KEY   = process.env.OPERATOR_PRIVATE_KEY;
 const ESCROW_ADDR    = process.env.NEXT_PUBLIC_ESCROW || process.env.ESCROW_ADDRESS;
 const PASSPORT_API   = process.env.GITCOIN_PASSPORT_API;

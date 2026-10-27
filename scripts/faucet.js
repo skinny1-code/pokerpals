@@ -1,7 +1,7 @@
 // scripts/faucet.js — send testnet CHIPS (and gas ETH) to any address
 // All 1B CHIPS are minted at deploy, so we transfer from OPS_WALLET_KEY (100M budget)
 // rather than calling ChipsToken.faucet() which would exceed MAX_SUPPLY.
-// If the recipient has no Arbitrum Sepolia ETH for gas, a small top-up is sent
+// If the recipient has no testnet ETH for gas, a small top-up is sent
 // automatically from the same sender wallet, so players never need a public
 // testnet-ETH faucet (most of which demand a mainnet ETH balance).
 // Usage: npm run faucet                            → 10,000 CHIPS to deployer
@@ -13,23 +13,27 @@
 import "dotenv/config";
 import { ethers } from "ethers";
 
-const RPCS = [
-  process.env.ARB_SEPOLIA_RPC,
-  "https://sepolia-rollup.arbitrum.io/rpc",
-  "https://arbitrum-sepolia.drpc.org",
-].filter(Boolean);
+const TARGET_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || "421614");
+if (![421614, 46630].includes(TARGET_CHAIN_ID)) {
+  throw new Error("Faucet is testnet-only (Arbitrum Sepolia 421614 or Robinhood Testnet 46630).");
+}
+const RPCS = TARGET_CHAIN_ID === 46630
+  ? [process.env.ROBINHOOD_TESTNET_RPC, process.env.RPC_URL, "https://rpc.testnet.chain.robinhood.com"].filter(Boolean)
+  : [process.env.ARB_SEPOLIA_RPC, process.env.RPC_URL, "https://sepolia-rollup.arbitrum.io/rpc", "https://arbitrum-sepolia.drpc.org"].filter(Boolean);
 
 async function getProvider() {
   for (const url of RPCS) {
     try {
       const p = new ethers.JsonRpcProvider(url);
+      const network = await p.getNetwork();
+      if (Number(network.chainId) !== TARGET_CHAIN_ID) continue;
       await p.getBlockNumber();
       return p;
     } catch {
       // try next
     }
   }
-  throw new Error("All RPC endpoints failed. Check your internet connection.");
+  throw new Error(`No RPC endpoint matched target testnet chain ${TARGET_CHAIN_ID}.`);
 }
 
 async function main() {

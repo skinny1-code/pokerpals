@@ -50,6 +50,18 @@ export default defineConfig({
       accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],
       chainId:  42161,
     },
+    robinhoodTestnet: {
+      type: "http",
+      url: process.env.ROBINHOOD_TESTNET_RPC || "https://rpc.testnet.chain.robinhood.com",
+      accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],
+      chainId: 46630,
+    },
+    robinhood: {
+      type: "http",
+      url: process.env.ROBINHOOD_RPC || "https://rpc.mainnet.chain.robinhood.com",
+      accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],
+      chainId: 4663,
+    },
   },
   etherscan: {
     apiKey: { arbitrumOne: process.env.ARBISCAN_API_KEY || "" },

@@ -7,7 +7,9 @@ import Link from 'next/link';
 
 const CHIPS      = process.env.NEXT_PUBLIC_CHIPS_TOKEN;
 const CHAIN_ID   = process.env.NEXT_PUBLIC_CHAIN_ID || '421614';
-const IS_TESTNET = CHAIN_ID === '421614';
+const IS_TESTNET = CHAIN_ID === '421614' || CHAIN_ID === '46630';
+const IS_ROBINHOOD = CHAIN_ID === '4663' || CHAIN_ID === '46630';
+const TESTNET_NAME = CHAIN_ID === '46630' ? 'Robinhood Chain Testnet' : 'Arbitrum Sepolia';
 
 // ─── CARD ON-RAMP (Transak) ────────────────────────────────────────────────────
 // Public, domain-scoped widget key — not a secret (mirrors a Stripe "publishable key").
@@ -324,8 +326,7 @@ function WithdrawPanel() {
 
 const TABS = [
   { id: 'swap',     label: '⇄  Swap Crypto' },
-  { id: 'card',     label: '💳  Buy with Card' },
-  { id: 'withdraw', label: '⬇  Withdraw' },
+  ...(!IS_ROBINHOOD ? [{ id: 'card', label: '💳  Buy with Card' }, { id: 'withdraw', label: '⬇  Withdraw' }] : []),
   ...(IS_TESTNET ? [{ id: 'faucet', label: '🚰  Testnet Faucet' }] : []),
 ];
 
@@ -422,7 +423,14 @@ function BuyPageInner() {
         </div>
 
         {/* Swap tab */}
-        {tab === 'swap' && (
+        {tab === 'swap' && IS_ROBINHOOD && (
+          <div className="notice-warn" style={{ padding: '18px 20px', fontSize: 12 }}>
+            Robinhood Chain swaps and card purchases are disabled until CHIPS has a verified
+            deployment, compatible liquidity, and an approved payment route on this network.
+            Do not send assets using the Arbitrum exchange links.
+          </div>
+        )}
+        {tab === 'swap' && !IS_ROBINHOOD && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 4, lineHeight: 1.6 }}>
               Swap any token for CHIPS on Arbitrum. Choose your preferred DEX:
@@ -470,7 +478,7 @@ function BuyPageInner() {
 
             {IS_TESTNET && (
               <div className="notice-warn" style={{ padding: '13px 16px', fontSize: 11.5 }}>
-                ⚠️ You're on Arbitrum Sepolia testnet. DEX liquidity for CHIPS won't exist until
+                ⚠️ You're on {TESTNET_NAME}. DEX liquidity for CHIPS won't exist until
                 mainnet launch. Use the Testnet Faucet tab to get CHIPS for testing.
               </div>
             )}
@@ -490,10 +498,10 @@ function BuyPageInner() {
         )}
 
         {/* Card tab */}
-        {tab === 'card' && <CardOnRamp />}
+        {tab === 'card' && !IS_ROBINHOOD && <CardOnRamp />}
 
         {/* Withdraw tab */}
-        {tab === 'withdraw' && <WithdrawPanel />}
+        {tab === 'withdraw' && !IS_ROBINHOOD && <WithdrawPanel />}
 
         {/* Testnet faucet tab */}
         {tab === 'faucet' && IS_TESTNET && (
@@ -506,7 +514,7 @@ function BuyPageInner() {
                 Testnet Faucet
               </div>
               <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 22, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 22px' }}>
-                You're on Arbitrum Sepolia testnet. Ask the operator to run the faucet script
+                You're on {TESTNET_NAME}. Ask the operator to run the faucet script
                 to receive test CHIPS — no real money involved.
               </div>
               <div style={{
@@ -528,14 +536,14 @@ function BuyPageInner() {
                 ALSO GET TESTNET ETH FOR GAS
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 10 }}>
-                You'll also need Arbitrum Sepolia ETH for gas fees:
+                You'll also need {TESTNET_NAME} ETH for gas fees:
               </div>
-              <a href="https://faucet.quicknode.com/arbitrum/sepolia" target="_blank"
+              <a href={CHAIN_ID === "46630" ? "https://faucet.testnet.chain.robinhood.com" : "https://faucet.quicknode.com/arbitrum/sepolia"} target="_blank"
                 rel="noopener noreferrer" className="btn btn-emerald" style={{
                   padding: '9px 18px', textDecoration: 'none',
                   fontSize: 11.5,
                 }}>
-                Get Sepolia ETH ↗
+                Get Testnet ETH ↗
               </a>
             </div>
           </div>
