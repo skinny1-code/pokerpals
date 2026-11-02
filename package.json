@@ -42,7 +42,7 @@
     "@vercel/analytics": "^2.0.1",
     "@walletconnect/ethereum-provider": "^2.23.10",
     "ethers": "^6.16.0",
-    "next": "^16.2.12",
+    "next": "^16.4.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "viem": "^2.52.2",
@@ -51,11 +51,11 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.13",
-    "@nomicfoundation/hardhat-mocha": "^3.0.21",
+    "@nomicfoundation/hardhat-mocha": "^4.0.1",
     "chai": "^6.2.2",
     "dotenv": "^17.4.2",
-    "hardhat": "^3.9.0",
-    "mocha": "^11.7.6",
+    "hardhat": "^3.21.2",
+    "mocha": "^12.0.3",
     "solc": "^0.8.35",
     "typescript": "^6.0.3"
   },
@@ -67,7 +67,7 @@
     "diff": "^8.0.4",
     "serialize-javascript": "^7.0.6",
     "adm-zip": "^0.6.0",
-    "axios": "^1.18.1",
-    "sharp": "^0.35.3"
+    "axios": "^1.21.0",
+    "sharp": "^0.35.5"
   }
 }
