@@ -280,6 +280,12 @@ contract NativeHypePokerEscrow is Ownable, ReentrancyGuard {
             if (t.players[i] == player) {
                 t.players[i] = t.players[length - 1];
                 t.players.pop();
+                // With fewer than two seats there is no active hand, so permit
+                // the remaining player to refund and new verified players to
+                // join. Otherwise a single cashout permanently strands funds.
+                if (t.status == TableStatus.Active && t.players.length < 2) {
+                    t.status = TableStatus.Open;
+                }
                 return;
             }
         }
