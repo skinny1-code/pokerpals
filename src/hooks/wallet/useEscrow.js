@@ -9,7 +9,19 @@ import { parseUnits, formatUnits } from "viem";
 import {
   wagmiConfig, safeFeeOverrides, hasAllowance, EXPECTED_CHAIN,
   CHIPS_ABI, CHIPS, ESCROW_ABI, ESCROW, HAND_HISTORY_ABI, HAND_HISTORY,
+  HYPE_ESCROW_ABI, HYPE_ESCROW, HYPE_TESTNET_UI, GAME_WEI_PER_UNIT,
 } from "./core";
+
+// One integer game unit is 0.000001 test HYPE, stored on chain as 1e12 wei.
+// Never round a float into financial accounting: reject non-integer game units.
+const useNativeHype = HYPE_TESTNET_UI && EXPECTED_CHAIN === 99801;
+const ESCROW_TARGET = useNativeHype ? HYPE_ESCROW : ESCROW;
+const ESCROW_TARGET_ABI = useNativeHype ? HYPE_ESCROW_ABI : ESCROW_ABI;
+function unitsToHypeWei(units) {
+  if (!Number.isSafeInteger(Number(units)) || Number(units) <= 0)
+    throw new RangeError('Native HYPE amounts must be positive integer micro-HYPE units.');
+  return BigInt(units) * GAME_WEI_PER_UNIT;
+}
 
 // ─── HOOK: HAND HISTORY (batched on-chain gameplay stats) ──────────────────────
 export function useHandHistory() {
@@ -35,7 +47,7 @@ export function useHandHistory() {
 
 // ─── HOOK: ESCROW ACTIONS ──────────────────────────────────────────────────────
 export function useEscrow(tableId) {
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const publicClient           = usePublicClient();
   const [txHash, setTxHash]   = useState(null);
@@ -52,6 +64,26 @@ export function useEscrow(tableId) {
     if (!address || !tableId) return;
     setErrorMsg(null);
     try {
+      if (useNativeHype) {
+        if (chainId !== 99801 || !HYPE_ESCROW) throw new Error('HYPE testnet escrow not connected.');
+        const wei = unitsToHypeWei(buyInAmount);
+        const info = await publicClient.readContract({
+          address: HYPE_ESCROW, abi: HYPE_ESCROW_ABI, functionName:'getTableInfo', args:[BigInt(tableId)],
+        });
+        if (info?.[1] !== wei || Number(info?.[5]) !== 0) throw new Error('On-chain HYPE buy-in or table status mismatch.');
+        const code = await publicClient.getCode({ address: HYPE_ESCROW });
+        if (!code || code === '0x') throw new Error('Native HYPE escrow bytecode not found.');
+        setStatus('buying');
+        const tx = await writeContractAsync({
+          address:HYPE_ESCROW, abi:HYPE_ESCROW_ABI, functionName:'buyIn',
+          args:[BigInt(tableId)], value:wei, chainId:99801,
+        });
+        setTxHash(tx);
+        const receipt = await waitForTransactionReceipt(wagmiConfig,{hash:tx,timeout:120_000});
+        if (receipt.status !== 'success') throw new Error('Native HYPE buy-in reverted.');
+        setStatus('idle');
+        return tx;
+      }
       const amountBN    = parseUnits(Math.round(Number(buyInAmount)).toString(), 18);
       const seatFeeAmt  = seatFeeRef.current; // 0 for open tables, >0 for leased tables
       const needed      = amountBN + seatFeeAmt;
@@ -83,16 +115,21 @@ export function useEscrow(tableId) {
       setErrorMsg(e?.shortMessage || e?.message || 'Buy-in failed — please try again.');
       setStatus('error');
     }
-  }, [address, tableId, writeContractAsync, publicClient]);
+  }, [address, chainId, tableId, writeContractAsync, publicClient]);
 
   const refund = useCallback(async () => {
     setErrorMsg(null);
     try {
       setStatus('refunding');
       const tx = await writeContractAsync({
-        address: ESCROW, abi: ESCROW_ABI, functionName: "refund",
+        address: ESCROW_TARGET, abi: ESCROW_TARGET_ABI, functionName: "refund",
         args: [BigInt(tableId)],
+        ...(useNativeHype ? { chainId:99801 } : {}),
       });
+      if (useNativeHype) {
+        const receipt = await waitForTransactionReceipt(wagmiConfig,{hash:tx,timeout:120_000});
+        if (receipt.status !== 'success') throw new Error('Native HYPE refund reverted.');
+      }
       setTxHash(tx);
       setStatus('idle');
       return tx;
@@ -107,6 +144,27 @@ export function useEscrow(tableId) {
     if (!address || !tableId) return;
     setRebuyError(null);
     try {
+      if (useNativeHype) {
+        if (chainId !== 99801 || !HYPE_ESCROW) throw new Error('HYPE testnet escrow not connected.');
+        const wei = unitsToHypeWei(amount);
+        const isSeated = await publicClient.readContract({
+          address:HYPE_ESCROW, abi:HYPE_ESCROW_ABI, functionName:'seated', args:[BigInt(tableId),address],
+        });
+        if (!isSeated) throw new Error('No existing HYPE table seat to rebuy.');
+        const gasBal = await publicClient.getBalance({address});
+        if (gasBal <= wei) throw new Error('Insufficient test HYPE for buy-in plus gas.');
+        setStatus('buying');
+        const hash = await writeContractAsync({
+          address:HYPE_ESCROW, abi:HYPE_ESCROW_ABI, functionName:'rebuy',
+          args:[BigInt(tableId),wei], value:wei, chainId:99801,
+        });
+        const receipt=await waitForTransactionReceipt(wagmiConfig,{hash,timeout:120_000});
+        if (receipt.status !== 'success') throw new Error('Native HYPE rebuy reverted.');
+        setTxHash(hash);
+        notifyServer?.();
+        setStatus('idle');
+        return hash;
+      }
       const amountBN = parseUnits(Math.round(Number(amount)).toString(), 18);
 
       // rebuy() reverts on-chain with "Not seated" if the caller has no deposit
@@ -175,10 +233,10 @@ export function useEscrow(tableId) {
     setErrorMsg(null);
     try {
       setStatus('cashout');
-      const args = [BigInt(tableId), player, BigInt(amount), BigInt(nonce), sig];
+      const args = [BigInt(tableId), player, useNativeHype ? BigInt(amount) * GAME_WEI_PER_UNIT : BigInt(amount), BigInt(nonce), sig];
       try {
         await publicClient.simulateContract({
-          address: ESCROW, abi: ESCROW_ABI, functionName: "cashOut", args, account: player,
+          address: ESCROW_TARGET, abi: ESCROW_TARGET_ABI, functionName: "cashOut", args, account: player,
         });
       } catch (simErr) {
         console.error("cashOut simulate failed:", simErr.shortMessage || simErr.message);
@@ -188,7 +246,8 @@ export function useEscrow(tableId) {
       }
       const feeOverrides = await safeFeeOverrides(publicClient);
       const tx = await writeContractAsync({
-        address: ESCROW, abi: ESCROW_ABI, functionName: "cashOut", args, ...feeOverrides,
+        address: ESCROW_TARGET, abi: ESCROW_TARGET_ABI, functionName: "cashOut", args, ...feeOverrides,
+        ...(useNativeHype ? {chainId:99801} : {}),
       });
       setTxHash(tx);
       setStatus('idle');
@@ -202,7 +261,7 @@ export function useEscrow(tableId) {
 
   // Table info read
   const { data: tableInfo } = useReadContract({
-    address: ESCROW, abi: ESCROW_ABI, functionName: "getTableInfo",
+    address: ESCROW_TARGET, abi: ESCROW_TARGET_ABI, functionName: "getTableInfo",
     args: [BigInt(tableId || 0)],
     query: { enabled: !!tableId, refetchInterval: 5000 },
   });
@@ -210,15 +269,15 @@ export function useEscrow(tableId) {
   const { data: tableRoomId } = useReadContract({
     address: ESCROW, abi: ESCROW_ABI, functionName: "tableRoom",
     args: [BigInt(tableId || 0)],
-    query: { enabled: !!tableId },
+    query: { enabled: !useNativeHype && !!tableId },
   });
 
   const { data: seatFeeOnChain } = useReadContract({
     address: ESCROW, abi: ESCROW_ABI, functionName: "seatFeeCHIPS",
-    query: { enabled: !!ESCROW },
+    query: { enabled: !useNativeHype && !!ESCROW },
   });
 
-  const isLeased = tableRoomId != null && tableRoomId > 0n;
+  const isLeased = !useNativeHype && tableRoomId != null && tableRoomId > 0n;
   const seatFee  = isLeased ? (seatFeeOnChain ?? parseUnits("2", 18)) : 0n;
 
   // Keep seatFeeRef in sync so the buyIn callback always has the latest value
