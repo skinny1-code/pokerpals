@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 import { useIsMobile } from '../hooks/useIsMobile';
 import WalletPicker from './WalletPicker';
 
-const CHAIN_NAMES = { 421614: 'Arbitrum Sepolia', 42161: 'Arbitrum One' };
+const CHAIN_NAMES = { 421614: 'Arbitrum Sepolia', 42161: 'Arbitrum One', 99801: 'Elysium Testnet (Kinetiq)', 99901: 'Elysium (Kinetiq)' };
 const EXPECTED = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
 
 const NAV_LINKS = [
