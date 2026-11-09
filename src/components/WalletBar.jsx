@@ -166,7 +166,7 @@ export default function WalletBar() {
                 fontFamily:"'JetBrains Mono',monospace" }}>
                 {chipsBalance != null
                   ? chipsBalance.toLocaleString(undefined, { maximumFractionDigits:0 })
-                  : '—'}
+                  : '—'}{HYPE_UI ? ' μHYPE' : ''}
               </span>
             </div>
 
@@ -180,7 +180,7 @@ export default function WalletBar() {
                 <span style={{ color:'var(--gold)' }}>◈</span>
                 {chipsBalance >= 1000
                   ? `${(chipsBalance/1000).toFixed(1)}K`
-                  : chipsBalance}
+                  : chipsBalance}{HYPE_UI ? ' μHYPE' : ''}
               </div>
             )}
 
