@@ -106,7 +106,10 @@ provider.getNetwork()
     }
     CHAIN_ID = live;
   })
-  .catch(e => console.error('[Server] getNetwork for CHAIN_ID failed:', e.message));
+  .catch(e => {
+    console.error('[Server] getNetwork for CHAIN_ID failed:', e.message);
+    if (HYPE_TESTNET) process.exit(1);
+  });
 
 // ─── OPERATOR GAS WATCHDOG ───────────────────────────────────────────────────
 // The operator wallet pays gas for markHuman / settle-adjacent txs. When it runs
@@ -572,8 +575,10 @@ class PokerTable {
 
     const topHand = results[0].h;
     const winners = results.filter(r => compareHands(r.h, topHand) === 0).map(r => r.p);
-    const share   = Math.floor(this.pot / winners.length);
-    winners.forEach(w => w.chips += share);
+    const share = Math.floor(this.pot / winners.length);
+    winners.forEach((w, i) => {
+      w.chips += share + (HYPE_TESTNET && i === 0 ? this.pot - share * winners.length : 0);
+    });
 
     return { winners: winners.map(w => w.addr), results, pot: this.pot };
   }
@@ -1267,8 +1272,8 @@ wss.on('connection', (ws, req) => {
                 return send(ws, { type: 'ERROR', error: 'Table not found on chain' });
               }
               const config = {
-                buyIn:      Number(info[1]),
-                bigBlind:   Number(info[2]),
+                buyIn:      HYPE_TESTNET ? weiToGameUnits(info[1]) : Number(info[1]),
+                bigBlind:   HYPE_TESTNET ? weiToGameUnits(info[2]) : Number(info[2]),
                 maxPlayers: Number(info[3]),
                 gameType:   Number(info[4]),
               };
@@ -1295,7 +1300,8 @@ wss.on('connection', (ws, req) => {
             : min;
         } else {
           try {
-            onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+            const liveDeposit = await escrow.getPlayerDeposit(BigInt(tableId), addr);
+            onChainDeposit = HYPE_TESTNET ? weiToGameUnits(liveDeposit) : Number(liveDeposit);
           } catch (e) {
             console.error(`[Server] getPlayerDeposit error:`, e.message);
             return send(ws, { type: 'ERROR', error: 'Could not verify buy-in' });
@@ -1351,7 +1357,8 @@ wss.on('connection', (ws, req) => {
           return send(ws, { type: 'ERROR', error: 'Too fast' });
         client.lastAction = now;
         const { tableId, action, amount } = payload;
-        const safeAmount = typeof amount === 'number' && isFinite(amount) && amount >= 0 ? amount : 0;
+        const safeAmount = typeof amount === 'number' && isFinite(amount) && amount >= 0 &&
+          (!HYPE_TESTNET || Number.isSafeInteger(amount)) ? amount : 0;
         const t = tables.get(String(tableId));
         if (!t) return;
         const reactionMs = t.turnStartedAt ? Date.now() - t.turnStartedAt : null;
@@ -1415,7 +1422,8 @@ wss.on('connection', (ws, req) => {
           const bustedInfo = t.bustedSeats.get(addr);
           if (!bustedInfo) return send(ws, { type: 'ERROR', error: 'Not seated at table' });
           try {
-            const onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+            const depositedWei = await escrow.getPlayerDeposit(BigInt(tableId), addr);
+            const onChainDeposit = HYPE_TESTNET ? weiToGameUnits(depositedWei) : Number(depositedWei);
             if (onChainDeposit <= 0) {
               return send(ws, { type: 'ERROR', error: 'Rebuy not detected on-chain yet' });
             }
@@ -1432,7 +1440,8 @@ wss.on('connection', (ws, req) => {
         }
 
         try {
-          const newDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+          const depositedWei = await escrow.getPlayerDeposit(BigInt(tableId), addr);
+          const newDeposit = HYPE_TESTNET ? weiToGameUnits(depositedWei) : Number(depositedWei);
           const rebuyAmount = newDeposit - p.onChainDeposit;
           if (rebuyAmount <= 0) {
             return send(ws, { type: 'ERROR', error: 'Rebuy not detected on-chain yet' });
