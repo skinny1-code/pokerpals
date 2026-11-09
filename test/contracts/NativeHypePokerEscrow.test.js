@@ -154,6 +154,19 @@ describe("NativeHypePokerEscrow (local simulated HYPE)", () => {
     expect(await escrow.totalLiabilities()).to.equal(0n);
   });
 
+  it("reopens when one active-table player exits; remaining player can refund", async () => {
+    await createAndSeat();
+    const sig = await signCashOut(1n, alice.address, BUY, 0n);
+    await escrow.connect(owner).cashOut(1, alice.address, BUY, 0n, sig);
+    expect((await escrow.getTableInfo(1)).status).to.equal(0n);
+    expect(await escrow.getPlayerDeposit(1, bob.address)).to.equal(BUY);
+    await escrow.connect(bob).refund(1);
+    expect(await escrow.claimable(bob.address)).to.equal(BUY);
+    await escrow.connect(alice).claim();
+    await escrow.connect(bob).claim();
+    expect(await escrow.totalLiabilities()).to.equal(0n);
+  });
+
   it("requires a real operator signature to authorize player exit", async () => {
     await createAndSeat();
     const invalid = await signCashOut(1n, alice.address, BUY, 0n, outsider);
