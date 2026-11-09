@@ -65,7 +65,7 @@ let info = await escrow.getTableInfo(id);
 if (info.potTotal !== deposit * 2n || Number(info.status) !== 1)
   throw new Error("Initial HYPE bankroll not conserved.");
 
-const seats = await escrow.getSeats(id);
+const seats = Array.from(await escrow.getSeats(id));
 const balances = seats.map(a => a.toLowerCase() === p1.address.toLowerCase()
   ? deposit + deposit / 2n : deposit / 2n);
 const { chainId } = await ethers.provider.getNetwork();
