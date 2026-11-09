@@ -18,7 +18,7 @@
     "deploy:escrow": "npx hardhat run scripts/redeploy-escrow.js",
     "deploy:tournament": "npx hardhat run scripts/redeploy-tournament.js",
     "deploy:mainnet": "DEPLOY_NETWORK=arbitrum npx hardhat run scripts/deploy.js",
-    "test": "node test/holdem.test.mjs && node test/botBrain.test.mjs && node test/ambientEngine.test.mjs && node test/cashoutRelay.test.mjs && node test/appUrl.test.mjs && node test/elysiumConfig.test.mjs",
+    "test": "node test/holdem.test.mjs && node test/botBrain.test.mjs && node test/ambientEngine.test.mjs && node test/cashoutRelay.test.mjs && node test/appUrl.test.mjs && node test/elysiumConfig.test.mjs && node test/nativeHypeCodec.test.mjs",
     "test:contracts": "npx hardhat test",
     "setup:wallets": "node scripts/generateWallets.js",
     "setup:env": "node scripts/setupEnv.js",
@@ -32,7 +32,9 @@
     "lottery:draw": "node scripts/lotteryDraw.js",
     "fund:rakeback": "node scripts/fundRakeback.js",
     "verify:elysium:testnet": "node scripts/verifyElysiumReadOnly.mjs testnet",
-    "verify:elysium:mainnet": "node scripts/verifyElysiumReadOnly.mjs mainnet"
+    "verify:elysium:mainnet": "node scripts/verifyElysiumReadOnly.mjs mainnet",
+    "deploy:hype:testnet": "DEPLOY_NETWORK=elysiumTestnet npx hardhat run scripts/deployNativeHypeTestnet.js",
+    "test:hype": "npx hardhat test test/contracts/NativeHypePokerEscrow.test.js"
   },
   "dependencies": {
     "@farcaster/miniapp-sdk": "^0.3.0",
