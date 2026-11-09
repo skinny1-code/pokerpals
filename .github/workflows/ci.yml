@@ -33,7 +33,7 @@ jobs:
           frontend=false
 
           echo "$CHANGED" | grep -qE '^(contracts/|test/(contracts/)?PokerEscrow|hardhat\.config|scripts/deploy)' && contracts=true
-          echo "$CHANGED" | grep -qE '^(server/|test/holdem)'                                          && server=true
+          echo "$CHANGED" | grep -qE '^(server/|test/|package(-lock)?\\.json$|\\.github/workflows/ci\\.yml$)' && server=true
           echo "$CHANGED" | grep -qE '^(src/|public/|next\.config|package\.json)'                     && frontend=true
 
           # Always run everything on the default branch push
@@ -125,7 +125,7 @@ jobs:
   # Branch-protection rule should require this single job rather than the
   # individual dynamic ones (which may be skipped).
   all-checks:
-    needs: [contracts, game-logic, frontend]
+    needs: [changes, contracts, game-logic, frontend]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -133,7 +133,7 @@ jobs:
         run: |
           results='${{ toJSON(needs) }}'
           echo "Job results: $results"
-          failed=$(echo "$results" | python3 -c "import json,sys; d=json.load(sys.stdin); f=[k for k,v in d.items() if isinstance(v,dict) and v.get('result')=='failure']; print(len(f)); f and print('FAILED:',','.join(f),file=sys.stderr)")
+          failed=$(echo "$results" | python3 -c "import json,sys; d=json.load(sys.stdin); f=[k for k,v in d.items() if isinstance(v,dict) and v.get('result') in ('failure','cancelled','timed_out') or (k=='changes' and v.get('result')!='success')]; print(len(f)); f and print('FAILED:',','.join(f),file=sys.stderr)")
           if [ "$failed" -gt 0 ]; then
             echo "One or more jobs failed."
             exit 1
