@@ -6,6 +6,8 @@ import WalletBar from '../components/WalletBar';
 import { useAccount } from 'wagmi';
 import { useCreateTable, wsHttpUrl } from '../hooks/usePokerWallet';
 
+const HYPE_UI = process.env.NEXT_PUBLIC_CHAIN_ID === '99801' && process.env.NEXT_PUBLIC_ENABLE_ELYSIUM_NETWORKS === 'true';
+const STAKE_UNIT = HYPE_UI ? 'μHYPE' : 'CHIPS';
 const GAME_LABEL = { 0:"No Limit Hold'em", 1:'Pot Limit Omaha' };
 
 function fmt(v) {
@@ -248,7 +250,7 @@ function CreateTableModal({ onClose }) {
         {/* Buy-in */}
         <div style={{ marginBottom:18 }}>
           <div style={{ fontSize:9, color:'#645f54', letterSpacing:2, marginBottom:9, fontWeight:800 }}>
-            BUY-IN (CHIPS)
+            BUY-IN ({STAKE_UNIT})
           </div>
           <input
             type="number" value={buyIn}
@@ -301,7 +303,7 @@ function CreateTableModal({ onClose }) {
   );
 }
 
-const SEED_TABLES = [
+const SEED_TABLES = HYPE_UI ? [] : [
   { id:9001, name:'Micro Stakes — NLH', config:{ gameType:0, maxPlayers:9, buyIn:1000,  bigBlind:20  }, phase:'waiting', seated:0 },
   { id:9002, name:'High Stakes — NLH',  config:{ gameType:0, maxPlayers:9, buyIn:10000, bigBlind:200 }, phase:'waiting', seated:0 },
 ];
@@ -421,8 +423,8 @@ export default function LobbyPage() {
                 Browse Tables ↓
               </a>
             )}
-            <Link href="/buy" className="btn btn-emerald" style={{ padding:'13px 28px', fontSize:14, textDecoration:'none' }}>
-              Get CHIPS
+            <Link href={HYPE_UI ? "/hype-staging" : "/buy"} className="btn btn-emerald" style={{ padding:'13px 28px', fontSize:14, textDecoration:'none' }}>
+              {HYPE_UI ? "Test HYPE escrow" : "Get CHIPS"}
             </Link>
           </div>
 
@@ -538,7 +540,7 @@ export default function LobbyPage() {
               Host your own poker room
             </div>
             <div style={{ fontSize:11.5, color:'#726d61', maxWidth:380, lineHeight:1.6 }}>
-              33,500 CHIPS/week · 100,000 CHIPS/month · NFT-gate for your community
+              {HYPE_UI ? "Room leases and recurring token fees disabled for test HYPE" : "33,500 CHIPS/week · 100,000 CHIPS/month · NFT-gate for your community"}
             </div>
           </div>
           <Link href="/rooms" className="btn btn-gold" style={{
