@@ -307,18 +307,22 @@ export function useCreateTable() {
   const createTable = useCallback(async ({ buyIn, bigBlind, maxPlayers, gameType }) => {
     setErrorMsg(null);
     if (!address) { setErrorMsg('Connect your wallet first.'); return null; }
-    if (!ESCROW)  { setErrorMsg('Contract not configured — run npm run setup:env and restart.'); return null; }
+    if (!ESCROW_TARGET) { setErrorMsg('Contract not configured — deploy the correct testnet escrow before testing.'); return null; }
     if (chainId !== EXPECTED_CHAIN) {
-      setErrorMsg(`Wrong network — switch MetaMask to ${EXPECTED_CHAIN === 421614 ? 'Arbitrum Sepolia' : 'Arbitrum One'} (chain ${EXPECTED_CHAIN}).`);
+      setErrorMsg(`Wrong network — connect an EVM wallet to chain ${EXPECTED_CHAIN} (Elysium testnet 99801 when HYPE mode is enabled).`);
       return null;
     }
     setStatus('pending');
     try {
-      const buyInBN    = parseUnits(Math.round(Number(buyIn)).toString(), 18);
-      const bigBlindBN = parseUnits(Math.round(Number(bigBlind)).toString(), 18);
+      const buyInBN = useNativeHype
+        ? unitsToHypeWei(buyIn) : parseUnits(Math.round(Number(buyIn)).toString(),18);
+      const bigBlindBN = useNativeHype
+        ? unitsToHypeWei(bigBlind) : parseUnits(Math.round(Number(bigBlind)).toString(),18);
+      if (useNativeHype && (Number(bigBlind) % 2 !== 0 || Number(gameType) > 1))
+        throw new Error('Native HYPE requires an even micro-HYPE big blind and supported game type.');
       const feeOverrides = await safeFeeOverrides(publicClient);
       const hash = await writeContractAsync({
-        address: ESCROW, abi: ESCROW_ABI, functionName: 'createTable',
+        address: ESCROW_TARGET, abi: ESCROW_TARGET_ABI, functionName: 'createTable',
         args: [buyInBN, bigBlindBN, maxPlayers, gameType, 0n],
         chainId: EXPECTED_CHAIN,
         ...feeOverrides,
