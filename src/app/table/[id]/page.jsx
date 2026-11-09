@@ -961,17 +961,15 @@ function TablePageInner() {
           {cashoutRelay && (
             <div className="glass-strong pop-in" style={{ border:'1px solid var(--border-gold)', padding:'12px' }}>
               <div className="gold-text" style={{ fontSize:9, letterSpacing:1, marginBottom:6, fontWeight:800 }}>
-                {cashoutRelay.status === 'confirmed' ? 'WITHDRAWAL COMPLETE' : 'WITHDRAWAL SPONSORED — GAS ON US ⛽'}
+                {HYPE_UI ? (cashoutRelay.status === 'confirmed' ? 'TEST HYPE CREDIT AVAILABLE TO CLAIM' : 'TEST HYPE EXIT PROCESSING') : (cashoutRelay.status === 'confirmed' ? 'WITHDRAWAL COMPLETE' : 'WITHDRAWAL SPONSORED — GAS ON US ⛽')}
               </div>
               <div className="gold-text" style={{ fontSize:16, fontWeight:700,
                 fontFamily:"'JetBrains Mono',monospace", marginBottom:8 }}>
                 ◈ {Number(cashoutRelay.amount).toLocaleString()}
               </div>
               <div style={{ fontSize:10, color:'var(--text-secondary)', marginBottom:8, lineHeight:1.5 }}>
-                {cashoutRelay.status === 'confirmed'
-                  ? 'Sent to your wallet — you paid zero gas.'
-                  : 'On the way to your wallet — no gas, no signature needed.'}
-                {cashoutRelay.txHash && (
+                {HYPE_UI ? (cashoutRelay.status === 'confirmed' ? 'Your test HYPE is credited in escrow, NOT yet in your wallet. Claim it on the testnet escrow page.' : 'The testnet exit is processing, not yet a wallet payout.') : (cashoutRelay.status === 'confirmed' ? 'Sent to your wallet — you paid zero gas.' : 'On the way to your wallet — no gas, no signature needed.')}
+                {!HYPE_UI && cashoutRelay.txHash && (
                   <> <a href={`${EXPLORER_TX}${cashoutRelay.txHash}`} target="_blank" rel="noreferrer"
                        className="gold-text" style={{ textDecoration:'underline' }}>View transaction ↗</a></>
                 )}
