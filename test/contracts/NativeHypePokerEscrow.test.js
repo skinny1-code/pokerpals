@@ -84,7 +84,7 @@ describe("NativeHypePokerEscrow (local simulated HYPE)", () => {
 
   it("updates signed bankrolls without paying during hands; blocks replay", async () => {
     await createAndSeat();
-    const seats = await escrow.getSeats(1);
+    const seats = Array.from(await escrow.getSeats(1));
     const next = [BUY + BUY / 2n, BUY / 2n];
     const sig = await signSettlement(1n, 0n, seats, next);
     await escrow.connect(outsider).settleBalances(1, 0, seats, next, sig);
@@ -97,7 +97,7 @@ describe("NativeHypePokerEscrow (local simulated HYPE)", () => {
 
   it("rejects forged signatures and any table-bankroll inflation or loss", async () => {
     await createAndSeat();
-    const seats = await escrow.getSeats(1);
+    const seats = Array.from(await escrow.getSeats(1));
     const inflated = [BUY * 2n, BUY];
     const forged = await signSettlement(1n, 0n, seats, inflated);
     await revert(escrow.settleBalances(1, 0, seats, inflated, forged));
@@ -112,7 +112,7 @@ describe("NativeHypePokerEscrow (local simulated HYPE)", () => {
 
   it("credits cashouts, permits sponsored relay, and pays native HYPE with pull claim", async () => {
     await createAndSeat();
-    const seats = await escrow.getSeats(1);
+    const seats = Array.from(await escrow.getSeats(1));
     const next = [BUY + BUY / 2n, BUY / 2n];
     await escrow.settleBalances(1, 0, seats, next, await signSettlement(1n, 0n, seats, next));
     const sig = await signCashOut(1n, alice.address, next[0], 0n);
