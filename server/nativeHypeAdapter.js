@@ -4,7 +4,10 @@ import { gameUnitsToWei, weiToGameUnits, assertConservedBankroll } from "./nativ
 
 export async function settleHypeHand({ table, escrow, operator, ethers, chainId, escrowAddress }) {
   const id = BigInt(table.id);
-  const [seats, info] = await Promise.all([escrow.getSeats(id), escrow.getTableInfo(id)]);
+  const [seatResult, info] = await Promise.all([escrow.getSeats(id), escrow.getTableInfo(id)]);
+  // ethers.Result is a frozen/read-only array; ethers contract arguments must
+  // be a normal mutable array for nested ABI normalization (otherwise throws).
+  const seats = Array.from(seatResult);
   const nonce = BigInt(table.handNonce);
   if (BigInt(info.handNonce) !== nonce) throw new Error("HYPE_NONCE_MISMATCH");
   if (Number(info.status) !== 1) throw new Error("HYPE_TABLE_NOT_ACTIVE");
