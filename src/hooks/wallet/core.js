@@ -86,6 +86,38 @@ export const CHIPS_ABI = [
 ];
 export const PPP_ABI = CHIPS_ABI; // kept for backwards compat
 
+// This ABI is payable native-HYPE (NOT ERC-20). It is used only by the
+// isolated 99801 testnet build. HYPE mainnet is intentionally unavailable.
+export const HYPE_ESCROW_ABI = [
+  {name:"buyIn",type:"function",stateMutability:"payable",inputs:[{name:"tableId",type:"uint256"}],outputs:[]},
+  {name:"rebuy",type:"function",stateMutability:"payable",
+    inputs:[{name:"tableId",type:"uint256"},{name:"amount",type:"uint256"}],outputs:[]},
+  {name:"createTable",type:"function",stateMutability:"nonpayable",inputs:[
+    {name:"buyInAmount",type:"uint256"},{name:"bigBlind",type:"uint256"},
+    {name:"maxPlayers",type:"uint8"},{name:"gameType",type:"uint8"},{name:"roomId",type:"uint256"}],outputs:[{type:"uint256"}]},
+  {name:"getTableInfo",type:"function",stateMutability:"view",inputs:[{name:"tableId",type:"uint256"}],outputs:[
+    {name:"id",type:"uint256"},{name:"buyInAmount",type:"uint256"},{name:"bigBlind",type:"uint256"},
+    {name:"maxPlayers",type:"uint8"},{name:"gameType",type:"uint8"},{name:"status",type:"uint8"},
+    {name:"potTotal",type:"uint256"},{name:"handNonce",type:"uint256"},{name:"seatedCount",type:"uint8"}]},
+  {name:"getPlayerDeposit",type:"function",stateMutability:"view",
+    inputs:[{name:"tableId",type:"uint256"},{name:"player",type:"address"}],outputs:[{type:"uint256"}]},
+  {name:"seated",type:"function",stateMutability:"view",
+    inputs:[{name:"tableId",type:"uint256"},{name:"player",type:"address"}],outputs:[{type:"bool"}]},
+  {name:"humanVerified",type:"function",stateMutability:"view",inputs:[{name:"player",type:"address"}],outputs:[{type:"bool"}]},
+  {name:"cashOut",type:"function",stateMutability:"nonpayable",
+    inputs:[{name:"tableId",type:"uint256"},{name:"player",type:"address"},
+      {name:"amount",type:"uint256"},{name:"nonce",type:"uint256"},{name:"signature",type:"bytes"}],outputs:[]},
+  {name:"refund",type:"function",stateMutability:"nonpayable",inputs:[{name:"tableId",type:"uint256"}],outputs:[]},
+  {name:"claim",type:"function",stateMutability:"nonpayable",inputs:[],outputs:[]},
+  {name:"claimable",type:"function",stateMutability:"view",inputs:[{name:"player",type:"address"}],outputs:[{type:"uint256"}]},
+  {name:"activateEmergency",type:"function",stateMutability:"nonpayable",inputs:[{name:"tableId",type:"uint256"}],outputs:[]},
+  {name:"emergencyCashOut",type:"function",stateMutability:"nonpayable",inputs:[{name:"tableId",type:"uint256"}],outputs:[]},
+];
+export const HYPE_TESTNET_UI = EXPECTED_CHAIN === 99801 &&
+  process.env.NEXT_PUBLIC_ENABLE_ELYSIUM_NETWORKS === "true";
+export const HYPE_ESCROW = process.env.NEXT_PUBLIC_ELYSIUM_HYPE_ESCROW || "";
+export const GAME_WEI_PER_UNIT = 1_000_000_000_000n;
+
 export const HAND_HISTORY_ABI = [
   { name:"getStats", type:"function", stateMutability:"view",
     inputs:[{name:"player",type:"address"}],
