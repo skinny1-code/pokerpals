@@ -20,6 +20,14 @@ process.on('unhandledRejection',   e => console.error('[Server] unhandledRejecti
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Fail closed: this CHIPS game server is not wired to a native-HYPE escrow.
+// A chain setting alone must never activate money-handling on Kinetiq Elysium.
+const requestedChain = Number(process.env.CHAIN_ID || process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
+if ([99801, 99901].includes(requestedChain)) {
+  console.error("[Server] ELYSIUM_HYPE_NOT_SUPPORTED: native-HYPE escrow, wallet and game settlement have not been implemented or audited.");
+  process.exit(1);
+}
+
 function loadDeployment() {
   try {
     return JSON.parse(readFileSync(join(__dirname, "../deployments/arbitrumSepolia.json"), "utf8"));
