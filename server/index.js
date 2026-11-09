@@ -1047,11 +1047,18 @@ async function signAndRemovePlayer(t, addr, ws) {
     if (t.hypeFrozen || t.hypeSettling) {
       return send(ws, { type:'ERROR', error:'HYPE table is reconciling or frozen; do not withdraw during settlement.' });
     }
-    if (!t.isActive) {
+    // On-chain Open status is authoritative, including after another player
+    // left a formerly Active heads-up table. The remaining player can refund.
+    const liveInfo = await escrow.getTableInfo(BigInt(t.id));
+    if (Number(liveInfo.status) === 0) {
+      t.isActive = false;
       t.players = t.players.filter(x => x.addr.toLowerCase() !== addr.toLowerCase());
       send(ws, { type:'REFUND_AVAILABLE', tableId:String(t.id) });
       broadcastTable(t);
       return;
+    }
+    if (!t.isActive) {
+      return send(ws, { type:'ERROR', error:'On-chain HYPE table is active; refresh before exiting.' });
     }
     // Never cash out an in-flight bet: bankrolls are only final after the
     // operator's signed balance transition is confirmed on-chain.
