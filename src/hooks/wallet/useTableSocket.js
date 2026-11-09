@@ -203,7 +203,7 @@ export function useTableSocket(tableId, tableConfig) {
             break;
           case 'CASHOUT_CONFIRMED':
             setCashoutSig(null);
-            setCashoutRelay({ status: 'confirmed', amount: msg.amount, txHash: msg.txHash });
+            setCashoutRelay({ status: 'confirmed', amount: msg.amount, txHash: msg.txHash, claimRequired: !!msg.claimRequired });
             break;
           case 'CASHOUT_LOCKED':
             setCashoutLocked({ handsRemaining: msg.handsRemaining });
