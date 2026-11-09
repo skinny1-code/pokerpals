@@ -33,6 +33,7 @@ function rig(opts={}) {
     async settleBalances(_tableId, sentNonce, players, amounts, sig) {
       assert.equal(sig,"operator-signature");
       assert.equal(sentNonce, nonce);
+      assert.equal(Object.isFrozen(players), false, 'ABI array must be mutable');
       calls.push({kind:"settle",players,amounts});
       if (opts.revert) return {hash:"0xbad",wait:async()=>({status:0})};
       players.forEach((p,i)=>balance.set(p,amounts[i]));
@@ -53,7 +54,7 @@ function args(table,escrow) { return {table,escrow,operator,ethers,chainId:99801
 const table = {id:1n,handNonce:0,players:[{addr:a,chips:1500},{addr:b,chips:500}]};
 
 {
-  const r=rig();
+  const r=rig({seats:Object.freeze([a,b])}); // ethers.Result is read-only
   const out=await settleHypeHand(args(table,r.escrow));
   assert.equal(out.txHash,"0xsettle");
   assert.equal(out.nonce,1n);
