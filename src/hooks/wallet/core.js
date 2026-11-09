@@ -4,6 +4,7 @@
 // config and plain functions.
 
 import { createConfig, http } from "wagmi";
+import { defineChain } from "viem";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
@@ -32,6 +33,23 @@ export function wsHttpUrl() {
   return safeWsUrl(WS_URL).replace(/^ws/, 'http');
 }
 
+// Kinetiq Elysium (Hyperliquid ecosystem): native HYPE, NOT an ERC-20.
+// Explicit opt-in for development only. The CHIPS contracts are NOT deployed on Elysium.
+export const elysiumTestnet = defineChain({
+  id: 99801, name: "Elysium Testnet (Kinetiq)",
+  nativeCurrency: { name: "HYPE", symbol: "HYPE", decimals: 18 },
+  rpcUrls: { default: { http: ["https://testnet-rpc.elysium.kinetiq.xyz"] } },
+  blockExplorers: { default: { name: "Kinetiq Explorer", url: "https://elysium.kinetiq.xyz/testnet-explorer" } },
+  testnet: true,
+});
+export const elysiumMainnet = defineChain({
+  id: 99901, name: "Elysium (Kinetiq)",
+  nativeCurrency: { name: "HYPE", symbol: "HYPE", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.elysium.kinetiq.xyz"] } },
+  blockExplorers: { default: { name: "Kinetiq Explorer", url: "https://elysium.kinetiq.xyz/explorer" } },
+});
+const _enableElysium = process.env.NEXT_PUBLIC_ENABLE_ELYSIUM_NETWORKS === "true";
+
 // ─── WAGMI CONFIG (export and wrap your app in <WagmiProvider config={wagmiConfig}>) ──
 const _wcProjectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 const _connectors = [
@@ -41,10 +59,14 @@ const _connectors = [
 ];
 
 export const wagmiConfig = createConfig({
-  chains:     [arbitrum, arbitrumSepolia],
+  chains:     [arbitrum, arbitrumSepolia, ...(_enableElysium ? [elysiumTestnet, elysiumMainnet] : [])],
   transports: {
     [arbitrum.id]:        http(process.env.NEXT_PUBLIC_ARB_RPC),
     [arbitrumSepolia.id]: http(process.env.NEXT_PUBLIC_ARB_SEPOLIA_RPC),
+    ...(_enableElysium ? {
+      [elysiumTestnet.id]: http(process.env.NEXT_PUBLIC_ELYSIUM_TESTNET_RPC || "https://testnet-rpc.elysium.kinetiq.xyz"),
+      [elysiumMainnet.id]: http(process.env.NEXT_PUBLIC_ELYSIUM_RPC || "https://rpc.elysium.kinetiq.xyz"),
+    } : {}),
   },
   connectors: _connectors,
   ssr: true,  // prevents wagmi from reading localStorage during SSR hydration
@@ -63,6 +85,38 @@ export const CHIPS_ABI = [
     inputs:[{name:"owner",type:"address"},{name:"spender",type:"address"}], outputs:[{type:"uint256"}] },
 ];
 export const PPP_ABI = CHIPS_ABI; // kept for backwards compat
+
+// This ABI is payable native-HYPE (NOT ERC-20). It is used only by the
+// isolated 99801 testnet build. HYPE mainnet is intentionally unavailable.
+export const HYPE_ESCROW_ABI = [
+  {name:"buyIn",type:"function",stateMutability:"payable",inputs:[{name:"tableId",type:"uint256"}],outputs:[]},
+  {name:"rebuy",type:"function",stateMutability:"payable",
+    inputs:[{name:"tableId",type:"uint256"},{name:"amount",type:"uint256"}],outputs:[]},
+  {name:"createTable",type:"function",stateMutability:"nonpayable",inputs:[
+    {name:"buyInAmount",type:"uint256"},{name:"bigBlind",type:"uint256"},
+    {name:"maxPlayers",type:"uint8"},{name:"gameType",type:"uint8"},{name:"roomId",type:"uint256"}],outputs:[{type:"uint256"}]},
+  {name:"getTableInfo",type:"function",stateMutability:"view",inputs:[{name:"tableId",type:"uint256"}],outputs:[
+    {name:"id",type:"uint256"},{name:"buyInAmount",type:"uint256"},{name:"bigBlind",type:"uint256"},
+    {name:"maxPlayers",type:"uint8"},{name:"gameType",type:"uint8"},{name:"status",type:"uint8"},
+    {name:"potTotal",type:"uint256"},{name:"handNonce",type:"uint256"},{name:"seatedCount",type:"uint8"}]},
+  {name:"getPlayerDeposit",type:"function",stateMutability:"view",
+    inputs:[{name:"tableId",type:"uint256"},{name:"player",type:"address"}],outputs:[{type:"uint256"}]},
+  {name:"seated",type:"function",stateMutability:"view",
+    inputs:[{name:"tableId",type:"uint256"},{name:"player",type:"address"}],outputs:[{type:"bool"}]},
+  {name:"humanVerified",type:"function",stateMutability:"view",inputs:[{name:"player",type:"address"}],outputs:[{type:"bool"}]},
+  {name:"cashOut",type:"function",stateMutability:"nonpayable",
+    inputs:[{name:"tableId",type:"uint256"},{name:"player",type:"address"},
+      {name:"amount",type:"uint256"},{name:"nonce",type:"uint256"},{name:"signature",type:"bytes"}],outputs:[]},
+  {name:"refund",type:"function",stateMutability:"nonpayable",inputs:[{name:"tableId",type:"uint256"}],outputs:[]},
+  {name:"claim",type:"function",stateMutability:"nonpayable",inputs:[],outputs:[]},
+  {name:"claimable",type:"function",stateMutability:"view",inputs:[{name:"player",type:"address"}],outputs:[{type:"uint256"}]},
+  {name:"activateEmergency",type:"function",stateMutability:"nonpayable",inputs:[{name:"tableId",type:"uint256"}],outputs:[]},
+  {name:"emergencyCashOut",type:"function",stateMutability:"nonpayable",inputs:[{name:"tableId",type:"uint256"}],outputs:[]},
+];
+export const HYPE_TESTNET_UI = EXPECTED_CHAIN === 99801 &&
+  process.env.NEXT_PUBLIC_ENABLE_ELYSIUM_NETWORKS === "true";
+export const HYPE_ESCROW = process.env.NEXT_PUBLIC_ELYSIUM_HYPE_ESCROW || "";
+export const GAME_WEI_PER_UNIT = 1_000_000_000_000n;
 
 export const HAND_HISTORY_ABI = [
   { name:"getStats", type:"function", stateMutability:"view",

@@ -4,6 +4,8 @@ import Card, { EmptyCardSlot } from './Card';
 import PlayerSeat from './PlayerSeat';
 import { generatedNameForAddress } from '../hooks/usePokerWallet';
 
+const HYPE_UI = process.env.NEXT_PUBLIC_CHAIN_ID === '99801' && process.env.NEXT_PUBLIC_ENABLE_ELYSIUM_NETWORKS === 'true';
+const UNIT = HYPE_UI ? 'μHYPE' : 'CHIPS';
 const CHIP_DENOMS = [
   { bbMult: 1000, color: '#d9c08a', hi: '#f0e6cf' },
   { bbMult: 500,  color: '#a06cd4', hi: '#b985e0' },
@@ -282,7 +284,7 @@ export default function PokerTable({
             {tableInfo.bigBlind && (
               <span style={{ fontSize: 9, color: '#57544b',
                 fontFamily: "'JetBrains Mono', monospace" }}>
-                {(tableInfo.bigBlind/2).toLocaleString()}/{tableInfo.bigBlind.toLocaleString()} CHIPS
+                {(tableInfo.bigBlind/2).toLocaleString()}/{tableInfo.bigBlind.toLocaleString()} {UNIT}
               </span>
             )}
             {tableInfo.gameType === 1 && (

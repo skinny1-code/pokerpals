@@ -5,7 +5,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAccount, useConnect, useDisconnect, useReadContract, useBalance, useSignMessage } from "wagmi";
 import { formatUnits } from "viem";
-import { CHIPS_ABI, ESCROW_ABI, CHIPS, ESCROW, EXPECTED_CHAIN } from "./core";
+import { CHIPS_ABI, ESCROW_ABI, CHIPS, ESCROW, EXPECTED_CHAIN, HYPE_TESTNET_UI, HYPE_ESCROW, HYPE_ESCROW_ABI, GAME_WEI_PER_UNIT } from "./core";
 
 // ─── HOOK: WALLET STATE ───────────────────────────────────────────────────────
 export function useWallet() {
@@ -13,19 +13,22 @@ export function useWallet() {
   const { connect, connectors, status: connectStatus, error: connectError } = useConnect();
   const { disconnect }                    = useDisconnect();
 
-  // CHIPS balance
+  // In isolated HYPE mode, balances are native coin, not ERC-20 CHIPS.
   const { data: chipsRaw } = useReadContract({
     address: CHIPS, abi: CHIPS_ABI, functionName: "balanceOf",
-    args: [address], query: { enabled: !!address, refetchInterval: 8000 },
+    args: [address], query: { enabled: !!address && !HYPE_TESTNET_UI && !!CHIPS, refetchInterval: 8000 },
   });
-  const chipsBalance = chipsRaw ? Number(formatUnits(chipsRaw, 18)) : 0;
-
-  // ETH/native balance for gas
-  const { data: nativeBal } = useBalance({ address, query: { enabled: !!address } });
+  // ETH / HYPE native wallet balance (unlocked funds; game escrow balance is separate).
+  const { data: nativeBal } = useBalance({ address, chainId: HYPE_TESTNET_UI ? 99801 : undefined,
+    query: { enabled: !!address, refetchInterval: 8000 } });
+  const chipsBalance = HYPE_TESTNET_UI
+    ? (nativeBal?.value ? Number(nativeBal.value / GAME_WEI_PER_UNIT) : 0)
+    : (chipsRaw ? Number(formatUnits(chipsRaw, 18)) : 0);
 
   // Is human verified on-chain?
   const { data: isHuman, refetch: refetchIsHuman } = useReadContract({
-    address: ESCROW, abi: ESCROW_ABI, functionName: "humanVerified",
+    address: HYPE_TESTNET_UI ? HYPE_ESCROW : ESCROW,
+    abi: HYPE_TESTNET_UI ? HYPE_ESCROW_ABI : ESCROW_ABI, functionName: "humanVerified",
     args: [address], query: { enabled: !!address, refetchInterval: 30000 },
   });
 
@@ -35,7 +38,7 @@ export function useWallet() {
     const mm = connectors.find(c => c.id === 'io.metamask')
             || connectors.find(c => c.type === 'injected' && /meta\s*mask/i.test(c.name || ''))
             || connectors.find(c => c.id === 'injected');
-    if (!mm) { alert('No injected wallet found. Open this page inside MetaMask, or use WalletConnect.'); return; }
+    if (!mm) { alert('No injected wallet found. Connect Rabby, SafePal, Opera wallet, or WalletConnect.'); return; }
     // Pass chainId so a chain mismatch can't silently stall the connect.
     connect({ connector: mm, chainId: EXPECTED_CHAIN });
   };

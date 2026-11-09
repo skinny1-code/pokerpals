@@ -50,6 +50,20 @@ export default defineConfig({
       accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],
       chainId:  42161,
     },
+    // Kinetiq Elysium — NOT Vulcan Forged Elysium (1338/1339).
+    // Network readiness only: scripts/deploy.js hard-blocks the CHIPS suite here.
+    elysiumTestnet: {
+      type: "http",
+      url: process.env.ELYSIUM_TESTNET_RPC || "https://testnet-rpc.elysium.kinetiq.xyz",
+      accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],
+      chainId: 99801,
+    },
+    elysium: {
+      type: "http",
+      url: process.env.ELYSIUM_RPC || "https://rpc.elysium.kinetiq.xyz",
+      accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],
+      chainId: 99901,
+    },
   },
   etherscan: {
     apiKey: { arbitrumOne: process.env.ARBISCAN_API_KEY || "" },

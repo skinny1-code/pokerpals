@@ -13,6 +13,9 @@ import { fullVerify, BehaviorMonitor } from "./antiBotOracle.js";
 import { getUsernames, claimUsername, storeStatus } from "./usernameStore.js";
 import { decide as botDecide } from "./botBrain.js";
 import { createCashoutRelay } from "./cashoutRelay.js";
+import { settleHypeHand, cashOutHypePlayer } from "./nativeHypeAdapter.js";
+import { weiToGameUnits } from "./nativeHypeCodec.js";
+import { assertNativeHypeBootReady } from "./hypeBootGuard.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -20,12 +23,37 @@ process.on('unhandledRejection',   e => console.error('[Server] unhandledRejecti
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Fail closed: this CHIPS game server is not wired to a native-HYPE escrow.
+// A chain setting alone must never activate money-handling on Kinetiq Elysium.
+const requestedChain = Number(process.env.CHAIN_ID || process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
+const HYPE_TESTNET = requestedChain === 99801 &&
+  process.env.ENABLE_HYPE_TESTNET_GAME === "ISOLATED_ONLY";
+if (requestedChain === 99901 || (requestedChain === 99801 && !HYPE_TESTNET)) {
+  console.error("[Server] ELYSIUM_HYPE_NOT_SUPPORTED: mainnet prohibited; testnet requires ENABLE_HYPE_TESTNET_GAME=ISOLATED_ONLY.");
+  process.exit(1);
+}
+if (HYPE_TESTNET &&
+    (process.env.TESTNET_SKIP_CHAIN_VERIFY === "true" ||
+     process.env.TESTNET_SKIP_HUMAN_CHECK === "true" ||
+     process.env.ENABLE_WS_BOTS === "true")) {
+  console.error("[Server] HYPE_TESTNET_UNSAFE_BYPASS: deposits, humans and bot-seating checks must not be bypassed.");
+  process.exit(1);
+}
+
 function loadDeployment() {
   try {
-    return JSON.parse(readFileSync(join(__dirname, "../deployments/arbitrumSepolia.json"), "utf8"));
+    return JSON.parse(readFileSync(join(__dirname,
+      HYPE_TESTNET ? "../deployments/elysiumTestnet.json" : "../deployments/arbitrumSepolia.json"), "utf8"));
   } catch { return null; }
 }
 const _depl = loadDeployment();
+if (HYPE_TESTNET &&
+    (!_depl || Number(_depl.chainId) !== 99801 ||
+     _depl.assetMode !== "NATIVE_HYPE_TEST_ONLY" ||
+     !ethers.isAddress(_depl.contracts?.NativeHypePokerEscrow))) {
+  console.error("[Server] HYPE_DEPLOYMENT_REQUIRED: exact, audited Elysium testnet escrow manifest missing/mismatched.");
+  process.exit(1);
+}
 
 const PORT         = process.env.PORT || 4000;
 const OPERATOR_KEY = process.env.OPERATOR_PRIVATE_KEY;
@@ -44,9 +72,12 @@ function resolveAddr(name, manifestValue, ...envValues) {
   }
   return manifestValue || envValue;
 }
-const ESCROW_ADDR  = resolveAddr('ESCROW', _depl?.contracts?.PokerEscrow,
-  process.env.NEXT_PUBLIC_ESCROW, process.env.ESCROW_ADDRESS);
-const RPC_URL      = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL || "https://arb1.arbitrum.io/rpc";
+const ESCROW_ADDR  = HYPE_TESTNET ? _depl.contracts.NativeHypePokerEscrow :
+  resolveAddr('ESCROW', _depl?.contracts?.PokerEscrow,
+    process.env.NEXT_PUBLIC_ESCROW, process.env.ESCROW_ADDRESS);
+const RPC_URL = HYPE_TESTNET
+  ? (process.env.ELYSIUM_TESTNET_RPC || "https://testnet-rpc.elysium.kinetiq.xyz")
+  : (process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL || "https://arb1.arbitrum.io/rpc");
 
 if (!ESCROW_ADDR) { console.error('[Server] FATAL: ESCROW_ADDR not set — add NEXT_PUBLIC_ESCROW to secrets or deploy first'); process.exit(1); }
 if (!OPERATOR_KEY) { console.error('[Server] FATAL: OPERATOR_PRIVATE_KEY not set in secrets'); process.exit(1); }
@@ -63,15 +94,20 @@ const operator   = new ethers.Wallet(OPERATOR_KEY, provider);
 // block.chainid or the contract's ecrecover check fails. Seeded from env for
 // immediate correctness, then reconciled against the live RPC at boot.
 let CHAIN_ID = BigInt(process.env.CHAIN_ID || process.env.NEXT_PUBLIC_CHAIN_ID || 0);
-provider.getNetwork()
-  .then(n => {
-    const live = BigInt(n.chainId);
-    if (CHAIN_ID && live !== CHAIN_ID) {
-      console.warn(`[Server] ⚠️  CHAIN_ID env (${CHAIN_ID}) != RPC chain (${live}); using RPC chain for signing.`);
-    }
-    CHAIN_ID = live;
-  })
-  .catch(e => console.error('[Server] getNetwork for CHAIN_ID failed:', e.message));
+if (HYPE_TESTNET) {
+  // Validated synchronously within the async boot gate, BEFORE server.listen.
+  CHAIN_ID = 99801n;
+} else {
+  provider.getNetwork()
+    .then(n => {
+      const live = BigInt(n.chainId);
+      if (CHAIN_ID && live !== CHAIN_ID) {
+        console.warn(`[Server] ⚠️ CHAIN_ID env (${CHAIN_ID}) != RPC chain (${live}); using RPC chain for signing.`);
+      }
+      CHAIN_ID = live;
+    })
+    .catch(e => console.error('[Server] getNetwork for CHAIN_ID failed:', e.message));
+}
 
 // ─── OPERATOR GAS WATCHDOG ───────────────────────────────────────────────────
 // The operator wallet pays gas for markHuman / settle-adjacent txs. When it runs
@@ -131,12 +167,17 @@ const ESCROW_ABI = [
   "function cashOut(uint256 tableId, address player, uint256 amount, uint256 nonce, bytes sig) external",
   "function markHuman(address,bool) external",
   "function closeTable(uint256) external",
+  "function settleBalances(uint256,uint256,address[],uint256[],bytes) external",
+  "function getSeats(uint256) external view returns (address[])",
+  "function tableCount() external view returns (uint256)",
+  "function operatorSigner() external view returns (address)",
+  "function verificationOracle() external view returns (address)",
 ];
 const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, operator);
 
 // ─── STAKING (freeroll tier gate) ────────────────────────────────────────────
-const STAKING_ADDR = resolveAddr('STAKING', _depl?.contracts?.ChipsStaking,
-  process.env.NEXT_PUBLIC_STAKING);
+const STAKING_ADDR = HYPE_TESTNET ? null :
+  resolveAddr('STAKING', _depl?.contracts?.ChipsStaking, process.env.NEXT_PUBLIC_STAKING);
 const stakingContract = STAKING_ADDR
   ? new ethers.Contract(STAKING_ADDR, ["function getTier(address) view returns (uint8)"], provider)
   : null;
@@ -161,8 +202,8 @@ async function getStakeTier(addr) {
 }
 
 // ─── HAND HISTORY (batched on-chain gameplay stats) ─────────────────────────
-const HAND_HISTORY_ADDR = resolveAddr('HAND_HISTORY', _depl?.contracts?.HandHistory,
-  process.env.NEXT_PUBLIC_HAND_HISTORY);
+const HAND_HISTORY_ADDR = HYPE_TESTNET ? null :
+  resolveAddr('HAND_HISTORY', _depl?.contracts?.HandHistory, process.env.NEXT_PUBLIC_HAND_HISTORY);
 const HAND_HISTORY_FLUSH_MS = Number(process.env.HAND_HISTORY_FLUSH_MS) || 15 * 60 * 1000; // default 15 min
 const HAND_HISTORY_ABI = [
   "function recordBatch(address[],uint256[],uint256[],uint256[]) external",
@@ -534,8 +575,10 @@ class PokerTable {
 
     const topHand = results[0].h;
     const winners = results.filter(r => compareHands(r.h, topHand) === 0).map(r => r.p);
-    const share   = Math.floor(this.pot / winners.length);
-    winners.forEach(w => w.chips += share);
+    const share = Math.floor(this.pot / winners.length);
+    winners.forEach((w, i) => {
+      w.chips += share + (HYPE_TESTNET && i === 0 ? this.pot - share * winners.length : 0);
+    });
 
     return { winners: winners.map(w => w.addr), results, pot: this.pot };
   }
@@ -690,14 +733,47 @@ const SEED_TABLES = [
   // prizes are paid separately from the PromotionsPool.
   { id: 9100n, name: 'Staker Freeroll — Bronze+', buyIn: 10000, minBuyIn: 10000, maxBuyIn: 10000, bigBlind: 100, maxPlayers: 9, gameType: 0, isFreeroll: true },
 ];
-for (const { id, name, isFreeroll, ...config } of SEED_TABLES) {
+for (const { id, name, isFreeroll, ...config } of (HYPE_TESTNET ? [] : SEED_TABLES)) {
   const t = new PokerTable(id, config);
   t.name = name;
   t.isPermanent = true;
   t.isFreeroll = !!isFreeroll;
   tables.set(String(id), t);
 }
-console.log(`[Server] Seeded ${SEED_TABLES.length} permanent tables`);
+console.log(`[Server] Seeded ${HYPE_TESTNET ? 0 : SEED_TABLES.length} permanent tables`);
+
+// Isolated testnet: discover ONLY confirmed on-chain HYPE tables. Never create
+// unbacked permanent tables in the settlement-enabled game mode.
+async function discoverHypeTables({ fatal = false } = {}) {
+  if (!HYPE_TESTNET) return;
+  try {
+    const total = await escrow.tableCount();
+    if (total > 100000n) throw new Error('Unexpected testnet table count');
+    const count = Number(total);
+    const start = Math.max(1, count - 99); // bounded RPC workload
+    for (let i = start; i <= count; ++i) {
+      const key = String(i);
+      if (tables.has(key)) continue;
+      const info = await escrow.getTableInfo(BigInt(i));
+      if (Number(info[5]) === 2) continue;
+      const bigBlind = weiToGameUnits(info[2]);
+      if (bigBlind < 2 || bigBlind % 2 !== 0)
+        throw new Error(`Invalid HYPE micro-denominated blind for table ${i}`);
+      const config = {
+        buyIn: weiToGameUnits(info[1]), bigBlind,
+        maxPlayers: Number(info[3]), gameType: Number(info[4]),
+      };
+      const t = new PokerTable(BigInt(i), config);
+      t.name = `HYPE Testnet #${i}`;
+      t.handNonce = Number(info[7]);
+      t.isActive = Number(info[5]) === 1;
+      tables.set(key, t);
+    }
+  } catch (e) {
+    console.error('[Server] HYPE_TABLE_DISCOVERY_FAILED:', e.message);
+    if (fatal) throw e;
+  }
+}
 
 const server = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
@@ -938,6 +1014,7 @@ function maybeAutoStart(t) {
   t.autoStartPending = true;
   setTimeout(() => {
     t.autoStartPending = false;
+    if (HYPE_TESTNET && (t.hypeFrozen || t.hypeSettling)) return;
     try { t.start(); }
     catch (e) { console.error(`[Server] t.start() error in maybeAutoStart:`, e.message); t.phase = 'waiting'; }
     broadcastTable(t);
@@ -949,6 +1026,50 @@ function maybeAutoStart(t) {
 async function signAndRemovePlayer(t, addr, ws) {
   const p = t.players.find(x => x.addr === addr);
   if (!p) return;
+  if (HYPE_TESTNET) {
+    // Network disconnect MUST NOT silently cash players out: preserve their seat.
+    if (ws?.readyState !== WebSocket.OPEN) { p.ws = null; return; }
+    if (t.hypeFrozen || t.hypeSettling) {
+      return send(ws, { type:'ERROR', error:'HYPE table is reconciling or frozen; do not withdraw during settlement.' });
+    }
+    // On-chain Open status is authoritative, including after another player
+    // left a formerly Active heads-up table. The remaining player can refund.
+    const liveInfo = await escrow.getTableInfo(BigInt(t.id));
+    if (Number(liveInfo.status) === 0) {
+      t.isActive = false;
+      t.players = t.players.filter(x => x.addr.toLowerCase() !== addr.toLowerCase());
+      send(ws, { type:'REFUND_AVAILABLE', tableId:String(t.id) });
+      broadcastTable(t);
+      return;
+    }
+    if (!t.isActive) {
+      return send(ws, { type:'ERROR', error:'On-chain HYPE table is active; refresh before exiting.' });
+    }
+    // Never cash out an in-flight bet: bankrolls are only final after the
+    // operator's signed balance transition is confirmed on-chain.
+    if (!['waiting', 'showdown'].includes(t.phase)) {
+      return send(ws, { type:'ERROR', error:'Wait until the hand is fully settled before leaving.' });
+    }
+    t.hypeFrozen = true; // Blocks a pre-scheduled next hand while cashing out.
+    try {
+      const cashout = await cashOutHypePlayer({
+        table:t, escrow, operator, ethers, chainId:CHAIN_ID, escrowAddress:ESCROW_ADDR, addr,
+      });
+      t.players = t.players.filter(x => x.addr.toLowerCase() !== addr.toLowerCase());
+      const restartScheduled = !!t.hypeRestartPending;
+      t.phase = restartScheduled ? 'showdown' : 'waiting';
+      t.hypeFrozen = false;
+      send(ws, { type:'CASHOUT_CONFIRMED', tableId:String(t.id), amount:cashout.gameUnits,
+        txHash:cashout.txHash, settlementMode:'NATIVE_HYPE', claimRequired:true });
+      broadcastTable(t);
+      if (!restartScheduled) maybeAutoStart(t);
+    } catch (e) {
+      console.error('[Server] HYPE_CASHOUT_FAILURE:', e.message);
+      send(ws, { type:'ERROR', error:'On-chain HYPE exit failed. Table frozen; use recovery after 24h.' });
+      // Remain frozen on mismatch or revert — never sign an unbacked cashout.
+    }
+    return;
+  }
 
   // If table isn't Active on-chain yet, handle by intent:
   // - Intentional leave (ws open) → remove player, signal refund
@@ -1046,7 +1167,30 @@ async function handleHandOver(t, result) {
   const n      = result.winners.length;
   const base   = Math.floor(1000 / n);
   const shares = result.winners.map((_, i) => i === 0 ? base + (1000 - base * n) : base);
-  const sig    = await t.signAndSettle(result.winners, shares);
+  let sig = null;
+  let nativeSettlement = null;
+  if (HYPE_TESTNET) {
+    t.hypeSettling = true;
+    try {
+      nativeSettlement = await settleHypeHand({
+        table: t, escrow, operator, ethers, chainId: CHAIN_ID, escrowAddress: ESCROW_ADDR,
+      });
+      // Contract handNonce increments once the transaction is *confirmed*;
+      // never start another hand before the on-chain balance state catches up.
+      t.handNonce = Number(nativeSettlement.nonce);
+      for (const p of t.players) p.onChainDeposit = p.chips;
+      t.hypeSettling = false;
+    } catch (e) {
+      t.hypeSettling = false;
+      t.hypeFrozen = true;
+      t.phase = 'showdown';
+      broadcastToTable(t, { type:'ERROR', error:'HYPE settlement failed. Table frozen; operator or 24h emergency exit required.' });
+      console.error('[Server] HYPE_SETTLEMENT_FAILURE:', e.message);
+      throw e;
+    }
+  } else {
+    sig = await t.signAndSettle(result.winners, shares);
+  }
 
   // Accumulate gameplay stats in memory; flushed to HandHistory on-chain periodically.
   const participantAddrs = result.results.map(r => r.p.addr);
@@ -1063,8 +1207,9 @@ async function handleHandOver(t, result) {
     results:   result.results.map(r => ({ addr: r.p.addr, hand: r.h.n, cards: r.p.hand || [] })),
     pot:       result.pot,
     sig,
+    ...(HYPE_TESTNET ? { settlementMode:'NATIVE_HYPE', settlementTxHash:nativeSettlement.txHash, claimRequired:true } : {}),
     tableId:   String(t.id),
-    handNonce: t.handNonce,
+    handNonce: HYPE_TESTNET ? t.handNonce - 1 : t.handNonce,
     shares,
   });
 
@@ -1079,7 +1224,10 @@ async function handleHandOver(t, result) {
     }
   }
 
+  if (HYPE_TESTNET) t.hypeRestartPending = true;
   setTimeout(() => {
+    if (HYPE_TESTNET) t.hypeRestartPending = false;
+    if (HYPE_TESTNET && (t.hypeFrozen || t.hypeSettling)) return;
     // Remove bust players (0 chips) before the next hand, but keep their seat
     // reserved in bustedSeats so a REBUY_CONFIRMED can re-seat them.
     const busted = t.players.filter(p => p.chips <= 0);
@@ -1090,7 +1238,7 @@ async function handleHandOver(t, result) {
       send(p.ws, { type: 'NEEDS_REBUY', tableId: String(t.id), busted: busted.map(b => b.addr) });
     }
     if (t.players.length < 2) { t.phase = 'waiting'; broadcastTable(t); maybeAutoStart(t); return; }
-    t.handNonce++;
+    if (!HYPE_TESTNET) t.handNonce++; // HYPE nonce was already incremented by confirmed settlement
     t.dealerIdx = (t.dealerIdx + 1) % t.players.length;
     try {
       t.start();
@@ -1200,6 +1348,9 @@ wss.on('connection', (ws, req) => {
           }
         }
 
+        if (HYPE_TESTNET && t?.hypeFrozen)
+          return send(ws, { type:'ERROR', error:'HYPE table frozen: server must reconcile on-chain bankrolls first.' });
+
         // Only skip on-chain buy-in verification for play-money freeroll tables
         // (which can never trigger an on-chain cashout — see the !isFreeroll guard
         // in signAndRemovePlayer) or when the explicit testnet flag is set. Real-
@@ -1229,8 +1380,8 @@ wss.on('connection', (ws, req) => {
                 return send(ws, { type: 'ERROR', error: 'Table not found on chain' });
               }
               const config = {
-                buyIn:      Number(info[1]),
-                bigBlind:   Number(info[2]),
+                buyIn:      HYPE_TESTNET ? weiToGameUnits(info[1]) : Number(info[1]),
+                bigBlind:   HYPE_TESTNET ? weiToGameUnits(info[2]) : Number(info[2]),
                 maxPlayers: Number(info[3]),
                 gameType:   Number(info[4]),
               };
@@ -1257,7 +1408,8 @@ wss.on('connection', (ws, req) => {
             : min;
         } else {
           try {
-            onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+            const liveDeposit = await escrow.getPlayerDeposit(BigInt(tableId), addr);
+            onChainDeposit = HYPE_TESTNET ? weiToGameUnits(liveDeposit) : Number(liveDeposit);
           } catch (e) {
             console.error(`[Server] getPlayerDeposit error:`, e.message);
             return send(ws, { type: 'ERROR', error: 'Could not verify buy-in' });
@@ -1313,10 +1465,13 @@ wss.on('connection', (ws, req) => {
           return send(ws, { type: 'ERROR', error: 'Too fast' });
         client.lastAction = now;
         const { tableId, action, amount } = payload;
-        const safeAmount = typeof amount === 'number' && isFinite(amount) && amount >= 0 ? amount : 0;
+        const safeAmount = typeof amount === 'number' && isFinite(amount) && amount >= 0 &&
+          (!HYPE_TESTNET || Number.isSafeInteger(amount)) ? amount : 0;
         const t = tables.get(String(tableId));
         if (!t) return;
         const reactionMs = t.turnStartedAt ? Date.now() - t.turnStartedAt : null;
+        if (HYPE_TESTNET && t.hypeFrozen)
+          return send(ws, { type:'ERROR', error:'HYPE table frozen after settlement failure. Stop play and use recovery procedure.' });
         const result = t.applyAction(client.addr, action, safeAmount);
         if (result?.error) return send(ws, { type: 'ERROR', error: result.error });
         // recordAction() already console.warns internally on WARNING/FLAGGED — log-only, no enforcement.
@@ -1377,7 +1532,8 @@ wss.on('connection', (ws, req) => {
           const bustedInfo = t.bustedSeats.get(addr);
           if (!bustedInfo) return send(ws, { type: 'ERROR', error: 'Not seated at table' });
           try {
-            const onChainDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+            const depositedWei = await escrow.getPlayerDeposit(BigInt(tableId), addr);
+            const onChainDeposit = HYPE_TESTNET ? weiToGameUnits(depositedWei) : Number(depositedWei);
             if (onChainDeposit <= 0) {
               return send(ws, { type: 'ERROR', error: 'Rebuy not detected on-chain yet' });
             }
@@ -1394,7 +1550,8 @@ wss.on('connection', (ws, req) => {
         }
 
         try {
-          const newDeposit = Number(await escrow.getPlayerDeposit(BigInt(tableId), addr));
+          const depositedWei = await escrow.getPlayerDeposit(BigInt(tableId), addr);
+          const newDeposit = HYPE_TESTNET ? weiToGameUnits(depositedWei) : Number(depositedWei);
           const rebuyAmount = newDeposit - p.onChainDeposit;
           if (rebuyAmount <= 0) {
             return send(ws, { type: 'ERROR', error: 'Rebuy not detected on-chain yet' });
@@ -1440,9 +1597,9 @@ wss.on('connection', (ws, req) => {
         // Bots seat with unbacked in-memory chips, so they must never touch a
         // real-money table (they'd corrupt the pot and settlement). Allow only on
         // play-money freeroll/practice tables, testnet, or when explicitly enabled.
-        const botsAllowed = t.isFreeroll === true
+        const botsAllowed = !HYPE_TESTNET && (t.isFreeroll === true
           || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true'
-          || process.env.ENABLE_WS_BOTS === 'true';
+          || process.env.ENABLE_WS_BOTS === 'true');
         if (!botsAllowed) { send(ws, { type: 'ERROR', error: 'Bots are not available on this table.' }); break; }
         const count = Math.max(1, Math.min(8, Number(payload?.count) || 1));
         const result = spawnBot(t, Number(payload?.buyIn) || undefined, count);
@@ -1476,4 +1633,23 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => console.log(`PokerVsPlayer WS server on :${PORT}`));
+// Do NOT expose a websocket listener until the HYPE testnet identity, funded
+// escrow ABI, signer and RPC checks have all completed successfully.
+async function startServer() {
+  if (HYPE_TESTNET) {
+    const verified = await assertNativeHypeBootReady({
+      provider, escrow, operatorAddress:operator.address, escrowAddress:ESCROW_ADDR,
+      manifest:_depl,
+    });
+    CHAIN_ID = verified.chainId;
+    await discoverHypeTables({ fatal:true });
+    setInterval(() => discoverHypeTables().catch(e =>
+      console.error('[Server] HYPE_PERIODIC_DISCOVERY_FAILED:', e.message)), 15_000);
+    console.log('[Server] Verified isolated Elysium testnet chain, escrow bytecode and operator identity.');
+  }
+  server.listen(PORT, '0.0.0.0', () => console.log(`PokerVsPlayer WS server on :${PORT}`));
+}
+startServer().catch(e => {
+  console.error('[Server] HYPE_BOOT_BLOCKED:', e?.message || String(e));
+  process.exit(1);
+});
