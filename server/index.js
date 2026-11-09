@@ -13,6 +13,8 @@ import { fullVerify, BehaviorMonitor } from "./antiBotOracle.js";
 import { getUsernames, claimUsername, storeStatus } from "./usernameStore.js";
 import { decide as botDecide } from "./botBrain.js";
 import { createCashoutRelay } from "./cashoutRelay.js";
+import { settleHypeHand, cashOutHypePlayer } from "./nativeHypeAdapter.js";
+import { weiToGameUnits } from "./nativeHypeCodec.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -23,17 +25,34 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Fail closed: this CHIPS game server is not wired to a native-HYPE escrow.
 // A chain setting alone must never activate money-handling on Kinetiq Elysium.
 const requestedChain = Number(process.env.CHAIN_ID || process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
-if ([99801, 99901].includes(requestedChain)) {
-  console.error("[Server] ELYSIUM_HYPE_NOT_SUPPORTED: native-HYPE escrow, wallet and game settlement have not been implemented or audited.");
+const HYPE_TESTNET = requestedChain === 99801 &&
+  process.env.ENABLE_HYPE_TESTNET_GAME === "ISOLATED_ONLY";
+if (requestedChain === 99901 || (requestedChain === 99801 && !HYPE_TESTNET)) {
+  console.error("[Server] ELYSIUM_HYPE_NOT_SUPPORTED: mainnet prohibited; testnet requires ENABLE_HYPE_TESTNET_GAME=ISOLATED_ONLY.");
+  process.exit(1);
+}
+if (HYPE_TESTNET &&
+    (process.env.TESTNET_SKIP_CHAIN_VERIFY === "true" ||
+     process.env.TESTNET_SKIP_HUMAN_CHECK === "true" ||
+     process.env.ENABLE_WS_BOTS === "true")) {
+  console.error("[Server] HYPE_TESTNET_UNSAFE_BYPASS: deposits, humans and bot-seating checks must not be bypassed.");
   process.exit(1);
 }
 
 function loadDeployment() {
   try {
-    return JSON.parse(readFileSync(join(__dirname, "../deployments/arbitrumSepolia.json"), "utf8"));
+    return JSON.parse(readFileSync(join(__dirname,
+      HYPE_TESTNET ? "../deployments/elysiumTestnet.json" : "../deployments/arbitrumSepolia.json"), "utf8"));
   } catch { return null; }
 }
 const _depl = loadDeployment();
+if (HYPE_TESTNET &&
+    (!_depl || Number(_depl.chainId) !== 99801 ||
+     _depl.assetMode !== "NATIVE_HYPE_TEST_ONLY" ||
+     !ethers.isAddress(_depl.contracts?.NativeHypePokerEscrow))) {
+  console.error("[Server] HYPE_DEPLOYMENT_REQUIRED: exact, audited Elysium testnet escrow manifest missing/mismatched.");
+  process.exit(1);
+}
 
 const PORT         = process.env.PORT || 4000;
 const OPERATOR_KEY = process.env.OPERATOR_PRIVATE_KEY;
@@ -52,9 +71,12 @@ function resolveAddr(name, manifestValue, ...envValues) {
   }
   return manifestValue || envValue;
 }
-const ESCROW_ADDR  = resolveAddr('ESCROW', _depl?.contracts?.PokerEscrow,
-  process.env.NEXT_PUBLIC_ESCROW, process.env.ESCROW_ADDRESS);
-const RPC_URL      = process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL || "https://arb1.arbitrum.io/rpc";
+const ESCROW_ADDR  = HYPE_TESTNET ? _depl.contracts.NativeHypePokerEscrow :
+  resolveAddr('ESCROW', _depl?.contracts?.PokerEscrow,
+    process.env.NEXT_PUBLIC_ESCROW, process.env.ESCROW_ADDRESS);
+const RPC_URL = HYPE_TESTNET
+  ? (process.env.ELYSIUM_TESTNET_RPC || "https://testnet-rpc.elysium.kinetiq.xyz")
+  : (process.env.ARB_SEPOLIA_RPC || process.env.ARB_RPC || process.env.RPC_URL || "https://arb1.arbitrum.io/rpc");
 
 if (!ESCROW_ADDR) { console.error('[Server] FATAL: ESCROW_ADDR not set — add NEXT_PUBLIC_ESCROW to secrets or deploy first'); process.exit(1); }
 if (!OPERATOR_KEY) { console.error('[Server] FATAL: OPERATOR_PRIVATE_KEY not set in secrets'); process.exit(1); }
@@ -74,7 +96,12 @@ let CHAIN_ID = BigInt(process.env.CHAIN_ID || process.env.NEXT_PUBLIC_CHAIN_ID |
 provider.getNetwork()
   .then(n => {
     const live = BigInt(n.chainId);
+    if (HYPE_TESTNET && live !== 99801n) {
+      console.error(`[Server] HYPE_RPC_CHAIN_MISMATCH: wanted 99801, got ${live}. Rejecting RPC and exiting.`);
+      process.exit(1);
+    }
     if (CHAIN_ID && live !== CHAIN_ID) {
+      if (HYPE_TESTNET) process.exit(1);
       console.warn(`[Server] ⚠️  CHAIN_ID env (${CHAIN_ID}) != RPC chain (${live}); using RPC chain for signing.`);
     }
     CHAIN_ID = live;
@@ -139,12 +166,15 @@ const ESCROW_ABI = [
   "function cashOut(uint256 tableId, address player, uint256 amount, uint256 nonce, bytes sig) external",
   "function markHuman(address,bool) external",
   "function closeTable(uint256) external",
+  "function settleBalances(uint256,uint256,address[],uint256[],bytes) external",
+  "function getSeats(uint256) external view returns (address[])",
+  "function tableCount() external view returns (uint256)",
 ];
 const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, operator);
 
 // ─── STAKING (freeroll tier gate) ────────────────────────────────────────────
-const STAKING_ADDR = resolveAddr('STAKING', _depl?.contracts?.ChipsStaking,
-  process.env.NEXT_PUBLIC_STAKING);
+const STAKING_ADDR = HYPE_TESTNET ? null :
+  resolveAddr('STAKING', _depl?.contracts?.ChipsStaking, process.env.NEXT_PUBLIC_STAKING);
 const stakingContract = STAKING_ADDR
   ? new ethers.Contract(STAKING_ADDR, ["function getTier(address) view returns (uint8)"], provider)
   : null;
@@ -169,8 +199,8 @@ async function getStakeTier(addr) {
 }
 
 // ─── HAND HISTORY (batched on-chain gameplay stats) ─────────────────────────
-const HAND_HISTORY_ADDR = resolveAddr('HAND_HISTORY', _depl?.contracts?.HandHistory,
-  process.env.NEXT_PUBLIC_HAND_HISTORY);
+const HAND_HISTORY_ADDR = HYPE_TESTNET ? null :
+  resolveAddr('HAND_HISTORY', _depl?.contracts?.HandHistory, process.env.NEXT_PUBLIC_HAND_HISTORY);
 const HAND_HISTORY_FLUSH_MS = Number(process.env.HAND_HISTORY_FLUSH_MS) || 15 * 60 * 1000; // default 15 min
 const HAND_HISTORY_ABI = [
   "function recordBatch(address[],uint256[],uint256[],uint256[]) external",
@@ -698,14 +728,14 @@ const SEED_TABLES = [
   // prizes are paid separately from the PromotionsPool.
   { id: 9100n, name: 'Staker Freeroll — Bronze+', buyIn: 10000, minBuyIn: 10000, maxBuyIn: 10000, bigBlind: 100, maxPlayers: 9, gameType: 0, isFreeroll: true },
 ];
-for (const { id, name, isFreeroll, ...config } of SEED_TABLES) {
+for (const { id, name, isFreeroll, ...config } of (HYPE_TESTNET ? [] : SEED_TABLES)) {
   const t = new PokerTable(id, config);
   t.name = name;
   t.isPermanent = true;
   t.isFreeroll = !!isFreeroll;
   tables.set(String(id), t);
 }
-console.log(`[Server] Seeded ${SEED_TABLES.length} permanent tables`);
+console.log(`[Server] Seeded ${HYPE_TESTNET ? 0 : SEED_TABLES.length} permanent tables`);
 
 const server = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
