@@ -9,8 +9,14 @@ import WalletPicker from './WalletPicker';
 
 const CHAIN_NAMES = { 421614: 'Arbitrum Sepolia', 42161: 'Arbitrum One', 99801: 'Elysium Testnet (Kinetiq)', 99901: 'Elysium (Kinetiq)' };
 const EXPECTED = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 421614);
+const HYPE_UI = EXPECTED === 99801 && process.env.NEXT_PUBLIC_ENABLE_ELYSIUM_NETWORKS === 'true';
 
-const NAV_LINKS = [
+const NAV_LINKS = HYPE_UI ? [
+  { href:'/', label:'Lobby', icon:'♠' },
+  { href:'/hype-staging', label:'Test HYPE', icon:'◈' },
+  { href:'/handle', label:'Profile', icon:'@' },
+  { href:'/handle?tab=settings', label:'Settings', icon:'⚙' },
+] : [
   { href:'/',            label:'Lobby',        icon:'♠' },
   { href:'/tournament',  label:'Tournaments',  icon:'🏆' },
   { href:'/leaderboard', label:'Leaderboard',  icon:'◉' },
@@ -21,7 +27,10 @@ const NAV_LINKS = [
   { href:'/handle?tab=settings', label:'Settings', icon:'⚙' },
 ];
 // Primary destinations surfaced in the mobile bottom tab bar (5th slot = More)
-const BOTTOM_LINKS = [
+const BOTTOM_LINKS = HYPE_UI ? [
+  { href:'/', label:'Lobby', icon:'♠' },
+  { href:'/hype-staging', label:'HYPE', icon:'◈' },
+] : [
   { href:'/',           label:'Lobby',  icon:'♠' },
   { href:'/tournament', label:'Play',   icon:'🏆' },
   { href:'/stake',      label:'Stake',  icon:'◈' },
