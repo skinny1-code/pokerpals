@@ -546,6 +546,9 @@ function BuyPageInner() {
 }
 
 export default function BuyPage() {
+  if (CHAIN_ID === '99801' && process.env.NEXT_PUBLIC_ENABLE_ELYSIUM_NETWORKS === 'true') {
+    return <main style={{maxWidth:650, margin:'40px auto',padding:22}}><WalletBar /><h1>Test HYPE — Elysium</h1><p>PokerVsPlayer does not sell CHIPS or issue an ERC-20 coin on Elysium. This environment uses native testnet HYPE only, with no cash value.</p><Link href="/hype-staging">Open the testnet HYPE escrow QA page</Link></main>;
+  }
   return (
     <Suspense fallback={null}>
       <BuyPageInner />
