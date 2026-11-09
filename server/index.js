@@ -172,8 +172,20 @@ const ESCROW_ABI = [
   "function settleBalances(uint256,uint256,address[],uint256[],bytes) external",
   "function getSeats(uint256) external view returns (address[])",
   "function tableCount() external view returns (uint256)",
+  "function operatorSigner() external view returns (address)",
 ];
 const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, operator);
+if (HYPE_TESTNET) {
+  Promise.all([provider.getCode(ESCROW_ADDR), escrow.operatorSigner()])
+    .then(([code, signer]) => {
+      if (code === '0x' || signer.toLowerCase() !== operator.address.toLowerCase()) {
+        console.error('[Server] HYPE_SIGNER_OR_BYTECODE_MISMATCH: stop before accepting funded tables.');
+        process.exit(1);
+      }
+      console.log('[Server] HYPE testnet bytecode and operator signer verified.');
+    })
+    .catch(e => { console.error('[Server] HYPE_BOOT_VERIFY_FAILED:', e.message); process.exit(1); });
+}
 
 // ─── STAKING (freeroll tier gate) ────────────────────────────────────────────
 const STAKING_ADDR = HYPE_TESTNET ? null :
@@ -1016,12 +1028,13 @@ async function signAndRemovePlayer(t, addr, ws) {
         table:t, escrow, operator, ethers, chainId:CHAIN_ID, escrowAddress:ESCROW_ADDR, addr,
       });
       t.players = t.players.filter(x => x.addr.toLowerCase() !== addr.toLowerCase());
-      t.phase = 'waiting';
+      const restartScheduled = !!t.hypeRestartPending;
+      t.phase = restartScheduled ? 'showdown' : 'waiting';
       t.hypeFrozen = false;
       send(ws, { type:'CASHOUT_CONFIRMED', tableId:String(t.id), amount:cashout.gameUnits,
         txHash:cashout.txHash, settlementMode:'NATIVE_HYPE', claimRequired:true });
       broadcastTable(t);
-      maybeAutoStart(t);
+      if (!restartScheduled) maybeAutoStart(t);
     } catch (e) {
       console.error('[Server] HYPE_CASHOUT_FAILURE:', e.message);
       send(ws, { type:'ERROR', error:'On-chain HYPE exit failed. Table frozen; use recovery after 24h.' });
@@ -1183,8 +1196,10 @@ async function handleHandOver(t, result) {
     }
   }
 
+  if (HYPE_TESTNET) t.hypeRestartPending = true;
   setTimeout(() => {
-    if (HYPE_TESTNET && t.hypeFrozen) return; // Fail-closed: no ledger divergence
+    if (HYPE_TESTNET) t.hypeRestartPending = false;
+    if (HYPE_TESTNET && (t.hypeFrozen || t.hypeSettling)) return;
     // Remove bust players (0 chips) before the next hand, but keep their seat
     // reserved in bustedSeats so a REBUY_CONFIRMED can re-seat them.
     const busted = t.players.filter(p => p.chips <= 0);
