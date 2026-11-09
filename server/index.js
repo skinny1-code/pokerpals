@@ -15,6 +15,7 @@ import { decide as botDecide } from "./botBrain.js";
 import { createCashoutRelay } from "./cashoutRelay.js";
 import { settleHypeHand, cashOutHypePlayer } from "./nativeHypeAdapter.js";
 import { weiToGameUnits } from "./nativeHypeCodec.js";
+import { assertNativeHypeBootReady } from "./hypeBootGuard.js";
 
 // Prevent unhandled rejections from crashing the server
 process.on('uncaughtException',    e => console.error('[Server] uncaughtException:', e.message));
@@ -93,23 +94,20 @@ const operator   = new ethers.Wallet(OPERATOR_KEY, provider);
 // block.chainid or the contract's ecrecover check fails. Seeded from env for
 // immediate correctness, then reconciled against the live RPC at boot.
 let CHAIN_ID = BigInt(process.env.CHAIN_ID || process.env.NEXT_PUBLIC_CHAIN_ID || 0);
-provider.getNetwork()
-  .then(n => {
-    const live = BigInt(n.chainId);
-    if (HYPE_TESTNET && live !== 99801n) {
-      console.error(`[Server] HYPE_RPC_CHAIN_MISMATCH: wanted 99801, got ${live}. Rejecting RPC and exiting.`);
-      process.exit(1);
-    }
-    if (CHAIN_ID && live !== CHAIN_ID) {
-      if (HYPE_TESTNET) process.exit(1);
-      console.warn(`[Server] ⚠️  CHAIN_ID env (${CHAIN_ID}) != RPC chain (${live}); using RPC chain for signing.`);
-    }
-    CHAIN_ID = live;
-  })
-  .catch(e => {
-    console.error('[Server] getNetwork for CHAIN_ID failed:', e.message);
-    if (HYPE_TESTNET) process.exit(1);
-  });
+if (HYPE_TESTNET) {
+  // Validated synchronously within the async boot gate, BEFORE server.listen.
+  CHAIN_ID = 99801n;
+} else {
+  provider.getNetwork()
+    .then(n => {
+      const live = BigInt(n.chainId);
+      if (CHAIN_ID && live !== CHAIN_ID) {
+        console.warn(`[Server] ⚠️ CHAIN_ID env (${CHAIN_ID}) != RPC chain (${live}); using RPC chain for signing.`);
+      }
+      CHAIN_ID = live;
+    })
+    .catch(e => console.error('[Server] getNetwork for CHAIN_ID failed:', e.message));
+}
 
 // ─── OPERATOR GAS WATCHDOG ───────────────────────────────────────────────────
 // The operator wallet pays gas for markHuman / settle-adjacent txs. When it runs
@@ -173,19 +171,9 @@ const ESCROW_ABI = [
   "function getSeats(uint256) external view returns (address[])",
   "function tableCount() external view returns (uint256)",
   "function operatorSigner() external view returns (address)",
+  "function verificationOracle() external view returns (address)",
 ];
 const escrow = new ethers.Contract(ESCROW_ADDR, ESCROW_ABI, operator);
-if (HYPE_TESTNET) {
-  Promise.all([provider.getCode(ESCROW_ADDR), escrow.operatorSigner()])
-    .then(([code, signer]) => {
-      if (code === '0x' || signer.toLowerCase() !== operator.address.toLowerCase()) {
-        console.error('[Server] HYPE_SIGNER_OR_BYTECODE_MISMATCH: stop before accepting funded tables.');
-        process.exit(1);
-      }
-      console.log('[Server] HYPE testnet bytecode and operator signer verified.');
-    })
-    .catch(e => { console.error('[Server] HYPE_BOOT_VERIFY_FAILED:', e.message); process.exit(1); });
-}
 
 // ─── STAKING (freeroll tier gate) ────────────────────────────────────────────
 const STAKING_ADDR = HYPE_TESTNET ? null :
@@ -756,7 +744,7 @@ console.log(`[Server] Seeded ${HYPE_TESTNET ? 0 : SEED_TABLES.length} permanent 
 
 // Isolated testnet: discover ONLY confirmed on-chain HYPE tables. Never create
 // unbacked permanent tables in the settlement-enabled game mode.
-async function discoverHypeTables() {
+async function discoverHypeTables({ fatal = false } = {}) {
   if (!HYPE_TESTNET) return;
   try {
     const total = await escrow.tableCount();
@@ -783,11 +771,8 @@ async function discoverHypeTables() {
     }
   } catch (e) {
     console.error('[Server] HYPE_TABLE_DISCOVERY_FAILED:', e.message);
+    if (fatal) throw e;
   }
-}
-if (HYPE_TESTNET) {
-  discoverHypeTables();
-  setInterval(discoverHypeTables, 15_000);
 }
 
 const server = createServer((req, res) => {
@@ -1648,4 +1633,23 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => console.log(`PokerVsPlayer WS server on :${PORT}`));
+// Do NOT expose a websocket listener until the HYPE testnet identity, funded
+// escrow ABI, signer and RPC checks have all completed successfully.
+async function startServer() {
+  if (HYPE_TESTNET) {
+    const verified = await assertNativeHypeBootReady({
+      provider, escrow, operatorAddress:operator.address, escrowAddress:ESCROW_ADDR,
+      manifest:_depl,
+    });
+    CHAIN_ID = verified.chainId;
+    await discoverHypeTables({ fatal:true });
+    setInterval(() => discoverHypeTables().catch(e =>
+      console.error('[Server] HYPE_PERIODIC_DISCOVERY_FAILED:', e.message)), 15_000);
+    console.log('[Server] Verified isolated Elysium testnet chain, escrow bytecode and operator identity.');
+  }
+  server.listen(PORT, '0.0.0.0', () => console.log(`PokerVsPlayer WS server on :${PORT}`));
+}
+startServer().catch(e => {
+  console.error('[Server] HYPE_BOOT_BLOCKED:', e?.message || String(e));
+  process.exit(1);
+});
