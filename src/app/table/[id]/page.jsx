@@ -14,6 +14,15 @@ import VerifyHumanBanner from '../../../components/VerifyHumanBanner';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 
+const HYPE_UI = process.env.NEXT_PUBLIC_CHAIN_ID === '99801' && process.env.NEXT_PUBLIC_ENABLE_ELYSIUM_NETWORKS === 'true';
+const STAKE_UNIT = HYPE_UI ? 'μHYPE' : 'CHIPS';
+const GAME_SCALE = HYPE_UI ? 1_000_000_000_000n : 1_000_000_000_000_000_000n;
+function fromEscrowUnits(value) {
+  const n = typeof value === 'bigint' ? value : BigInt(value ?? 0);
+  const q = n / GAME_SCALE;
+  return q <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(q) : 0;
+}
+
 // Block explorer base for tx links (Arbitrum Sepolia by default, Arbitrum One on mainnet).
 const EXPLORER_TX = (Number(process.env.NEXT_PUBLIC_CHAIN_ID) === 42161
   ? 'https://arbiscan.io/tx/'
@@ -309,12 +318,12 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
           <div style={{ fontSize:10, color:'#57544b', letterSpacing:2 }}>SELECT A SEAT</div>
           {minBuyIn != null && maxBuyIn != null && minBuyIn !== maxBuyIn ? (
             <div style={{ fontSize:10, color:'#7d786c', marginTop:4 }}>
-              {fmt(minBuyIn)}–{fmt(maxBuyIn)} CHIPS
+              {fmt(minBuyIn)}–{fmt(maxBuyIn)} {STAKE_UNIT}
             </div>
           ) : (
             <div style={{ fontSize:13, color:'#d9c08a', fontWeight:700,
               fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>
-              {fmt(buyInAmount)} CHIPS
+              {fmt(buyInAmount)} {STAKE_UNIT}
             </div>
           )}
         </div>
@@ -381,7 +390,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#57544b' }}>
                 <span>{fmt(minBuyIn)}</span>
                 <span style={{ color:'#d9c08a', fontWeight:700, fontFamily:"'JetBrains Mono',monospace", fontSize:13 }}>
-                  {fmt(buyInAmount)} CHIPS
+                  {fmt(buyInAmount)} {STAKE_UNIT}
                 </span>
                 <span>{fmt(maxBuyIn)}</span>
               </div>
@@ -389,7 +398,7 @@ function SeatPicker({ maxPlayers, takenSeats, pendingSeat, onSelect, onBuyIn, bu
           )}
           {(minBuyIn == null || minBuyIn === maxBuyIn) && (
             <div style={{ fontSize:13, color:'#d9c08a', fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>
-              {fmt(buyInAmount)} CHIPS
+              {fmt(buyInAmount)} {STAKE_UNIT}
             </div>
           )}
           <button
@@ -474,8 +483,8 @@ function TablePageInner() {
 
   // Use URL config first (available immediately), fall back to on-chain data once loaded
   const tableConfig = tableConfigFromUrl || (tableInfo ? {
-    buyIn:      Number(tableInfo.buyIn) / 1e18,
-    bigBlind:   Number(tableInfo.bigBlind) / 1e18,
+    buyIn:      fromEscrowUnits(tableInfo.buyIn ?? tableInfo.buyInAmount ?? tableInfo[1]),
+    bigBlind:   fromEscrowUnits(tableInfo.bigBlind ?? tableInfo[2]),
     maxPlayers: Number(tableInfo.maxPlayers),
     gameType:   Number(tableInfo.gameType),
   } : null);
@@ -633,7 +642,7 @@ function TablePageInner() {
   const handleBuyIn = useCallback(async (seatIndex) => {
     const amount = selectedBuyIn
       || tableConfig?.buyIn
-      || (tableInfo?.buyInAmount ? Number(tableInfo.buyInAmount) / 1e18 : 0);
+      || (tableInfo?.buyInAmount ? fromEscrowUnits(tableInfo.buyInAmount) : 0);
     if (!amount) return;
     const tx = await buyIn(amount);
     if (!tx) return; // failed — don't tell the server we're seated with no on-chain deposit
@@ -673,7 +682,7 @@ function TablePageInner() {
         <span>›</span>
         <span style={{ color:'#8a8478' }}>
           Table #{id}
-          {gameState?.config && <span className="gold-text" style={{ fontWeight:700 }}> · {(gameState.config.bigBlind/2).toLocaleString()}/{gameState.config.bigBlind.toLocaleString()} CHIPS</span>}
+          {gameState?.config && <span className="gold-text" style={{ fontWeight:700 }}> · {(gameState.config.bigBlind/2).toLocaleString()}/{gameState.config.bigBlind.toLocaleString()} {STAKE_UNIT}</span>}
         </span>
         <div style={{ marginLeft:'auto' }}><StatusDot status={wsStatus} /></div>
       </div>
@@ -969,12 +978,17 @@ function TablePageInner() {
               </div>
               <button className="btn btn-gold" onClick={() => router.push('/')}
                 style={{ width:'100%', padding:'10px', fontSize:11, cursor:'pointer' }}>
-                {cashoutRelay.status === 'confirmed' ? 'Back to Lobby' : 'Back to Lobby (payout still processing)'}
+                {HYPE_UI && cashoutRelay.status === 'confirmed' ? 'Back to Lobby (HYPE credit not claimed)' : cashoutRelay.status === 'confirmed' ? 'Back to Lobby' : 'Back to Lobby (payout still processing)'}
               </button>
             </div>
           )}
 
-          {/* Cashout banner — self-submit fallback when sponsorship is off or a sponsored tx reverted */}
+          {HYPE_UI && cashoutRelay?.status === 'confirmed' && (
+            <Link href="/hype-staging" className="btn btn-emerald" style={{display:'block',textAlign:'center',padding:'10px',marginTop:8}}>
+              Claim credited test HYPE on the escrow page — not paid to wallet until claimed
+            </Link>
+          )}
+                    {/* Cashout banner — self-submit fallback when sponsorship is off or a sponsored tx reverted */}
           {cashoutSig && !cashoutRelay && (
             <div className="glass-strong pop-in" style={{ border:'1px solid var(--border-gold)', padding:'12px' }}>
               <div className="gold-text" style={{ fontSize:9, letterSpacing:1, marginBottom:6, fontWeight:800 }}>READY TO WITHDRAW</div>
@@ -987,8 +1001,8 @@ function TablePageInner() {
                 style={{ width:'100%', padding:'10px', fontSize:11,
                   cursor: (escrowStatus !== 'idle' && escrowStatus !== 'error') ? 'not-allowed' : 'pointer' }}>
                 {escrowStatus === 'cashout' ? 'Withdrawing…'
-                 : escrowStatus === 'error' ? 'Retry — Claim Chips + Leave'
-                 : 'Claim Chips + Leave'}
+                 : escrowStatus === 'error' ? 'Retry — Claim test HYPE + Leave'
+                 : (HYPE_UI ? 'Claim test HYPE + Leave' : 'Claim Chips + Leave')}
               </button>
               {escrowStatus === 'error' && escrowErrorMsg && (
                 <div style={{ fontSize:10, color:'#e0473b', marginTop:6 }}>{escrowErrorMsg}</div>
