@@ -754,6 +754,42 @@ for (const { id, name, isFreeroll, ...config } of (HYPE_TESTNET ? [] : SEED_TABL
 }
 console.log(`[Server] Seeded ${HYPE_TESTNET ? 0 : SEED_TABLES.length} permanent tables`);
 
+// Isolated testnet: discover ONLY confirmed on-chain HYPE tables. Never create
+// unbacked permanent tables in the settlement-enabled game mode.
+async function discoverHypeTables() {
+  if (!HYPE_TESTNET) return;
+  try {
+    const total = await escrow.tableCount();
+    if (total > 100000n) throw new Error('Unexpected testnet table count');
+    const count = Number(total);
+    const start = Math.max(1, count - 99); // bounded RPC workload
+    for (let i = start; i <= count; ++i) {
+      const key = String(i);
+      if (tables.has(key)) continue;
+      const info = await escrow.getTableInfo(BigInt(i));
+      if (Number(info[5]) === 2) continue;
+      const bigBlind = weiToGameUnits(info[2]);
+      if (bigBlind < 2 || bigBlind % 2 !== 0)
+        throw new Error(`Invalid HYPE micro-denominated blind for table ${i}`);
+      const config = {
+        buyIn: weiToGameUnits(info[1]), bigBlind,
+        maxPlayers: Number(info[3]), gameType: Number(info[4]),
+      };
+      const t = new PokerTable(BigInt(i), config);
+      t.name = `HYPE Testnet #${i}`;
+      t.handNonce = Number(info[7]);
+      t.isActive = Number(info[5]) === 1;
+      tables.set(key, t);
+    }
+  } catch (e) {
+    console.error('[Server] HYPE_TABLE_DISCOVERY_FAILED:', e.message);
+  }
+}
+if (HYPE_TESTNET) {
+  discoverHypeTables();
+  setInterval(discoverHypeTables, 15_000);
+}
+
 const server = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
   // Public lobby/name data is open CORS; everything else is restricted to the frontend origin.
