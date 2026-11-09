@@ -1089,7 +1089,27 @@ async function handleHandOver(t, result) {
   const n      = result.winners.length;
   const base   = Math.floor(1000 / n);
   const shares = result.winners.map((_, i) => i === 0 ? base + (1000 - base * n) : base);
-  const sig    = await t.signAndSettle(result.winners, shares);
+  let sig = null;
+  let nativeSettlement = null;
+  if (HYPE_TESTNET) {
+    try {
+      nativeSettlement = await settleHypeHand({
+        table: t, escrow, operator, ethers, chainId: CHAIN_ID, escrowAddress: ESCROW_ADDR,
+      });
+      // Contract handNonce increments once the transaction is *confirmed*;
+      // never start another hand before the on-chain balance state catches up.
+      t.handNonce = Number(nativeSettlement.nonce);
+      for (const p of t.players) p.onChainDeposit = p.chips;
+    } catch (e) {
+      t.hypeFrozen = true;
+      t.phase = 'showdown';
+      broadcastToTable(t, { type:'ERROR', error:'HYPE settlement failed. Table frozen; operator or 24h emergency exit required.' });
+      console.error('[Server] HYPE_SETTLEMENT_FAILURE:', e.message);
+      throw e;
+    }
+  } else {
+    sig = await t.signAndSettle(result.winners, shares);
+  }
 
   // Accumulate gameplay stats in memory; flushed to HandHistory on-chain periodically.
   const participantAddrs = result.results.map(r => r.p.addr);
@@ -1106,8 +1126,9 @@ async function handleHandOver(t, result) {
     results:   result.results.map(r => ({ addr: r.p.addr, hand: r.h.n, cards: r.p.hand || [] })),
     pot:       result.pot,
     sig,
+    ...(HYPE_TESTNET ? { settlementMode:'NATIVE_HYPE', settlementTxHash:nativeSettlement.txHash, claimRequired:true } : {}),
     tableId:   String(t.id),
-    handNonce: t.handNonce,
+    handNonce: HYPE_TESTNET ? t.handNonce - 1 : t.handNonce,
     shares,
   });
 
@@ -1123,6 +1144,7 @@ async function handleHandOver(t, result) {
   }
 
   setTimeout(() => {
+    if (HYPE_TESTNET && t.hypeFrozen) return; // Fail-closed: no ledger divergence
     // Remove bust players (0 chips) before the next hand, but keep their seat
     // reserved in bustedSeats so a REBUY_CONFIRMED can re-seat them.
     const busted = t.players.filter(p => p.chips <= 0);
@@ -1133,7 +1155,7 @@ async function handleHandOver(t, result) {
       send(p.ws, { type: 'NEEDS_REBUY', tableId: String(t.id), busted: busted.map(b => b.addr) });
     }
     if (t.players.length < 2) { t.phase = 'waiting'; broadcastTable(t); maybeAutoStart(t); return; }
-    t.handNonce++;
+    if (!HYPE_TESTNET) t.handNonce++; // HYPE nonce was already incremented by confirmed settlement
     t.dealerIdx = (t.dealerIdx + 1) % t.players.length;
     try {
       t.start();
@@ -1242,6 +1264,9 @@ wss.on('connection', (ws, req) => {
               error: 'Freerolls are for stakers — stake 25,000+ CHIPS on the Stake page to enter.' });
           }
         }
+
+        if (HYPE_TESTNET && t?.hypeFrozen)
+          return send(ws, { type:'ERROR', error:'HYPE table frozen: server must reconcile on-chain bankrolls first.' });
 
         // Only skip on-chain buy-in verification for play-money freeroll tables
         // (which can never trigger an on-chain cashout — see the !isFreeroll guard
@@ -1362,6 +1387,8 @@ wss.on('connection', (ws, req) => {
         const t = tables.get(String(tableId));
         if (!t) return;
         const reactionMs = t.turnStartedAt ? Date.now() - t.turnStartedAt : null;
+        if (HYPE_TESTNET && t.hypeFrozen)
+          return send(ws, { type:'ERROR', error:'HYPE table frozen after settlement failure. Stop play and use recovery procedure.' });
         const result = t.applyAction(client.addr, action, safeAmount);
         if (result?.error) return send(ws, { type: 'ERROR', error: result.error });
         // recordAction() already console.warns internally on WARNING/FLAGGED — log-only, no enforcement.
@@ -1487,9 +1514,9 @@ wss.on('connection', (ws, req) => {
         // Bots seat with unbacked in-memory chips, so they must never touch a
         // real-money table (they'd corrupt the pot and settlement). Allow only on
         // play-money freeroll/practice tables, testnet, or when explicitly enabled.
-        const botsAllowed = t.isFreeroll === true
+        const botsAllowed = !HYPE_TESTNET && (t.isFreeroll === true
           || process.env.TESTNET_SKIP_CHAIN_VERIFY === 'true'
-          || process.env.ENABLE_WS_BOTS === 'true';
+          || process.env.ENABLE_WS_BOTS === 'true');
         if (!botsAllowed) { send(ws, { type: 'ERROR', error: 'Bots are not available on this table.' }); break; }
         const count = Math.max(1, Math.min(8, Number(payload?.count) || 1));
         const result = spawnBot(t, Number(payload?.buyIn) || undefined, count);
