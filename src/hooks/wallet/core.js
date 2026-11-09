@@ -4,6 +4,7 @@
 // config and plain functions.
 
 import { createConfig, http } from "wagmi";
+import { defineChain } from "viem";
 import { arbitrum, arbitrumSepolia } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
@@ -32,6 +33,23 @@ export function wsHttpUrl() {
   return safeWsUrl(WS_URL).replace(/^ws/, 'http');
 }
 
+// Kinetiq Elysium (Hyperliquid ecosystem): native HYPE, NOT an ERC-20.
+// Explicit opt-in for development only. The CHIPS contracts are NOT deployed on Elysium.
+export const elysiumTestnet = defineChain({
+  id: 99801, name: "Elysium Testnet (Kinetiq)",
+  nativeCurrency: { name: "HYPE", symbol: "HYPE", decimals: 18 },
+  rpcUrls: { default: { http: ["https://testnet-rpc.elysium.kinetiq.xyz"] } },
+  blockExplorers: { default: { name: "Kinetiq Explorer", url: "https://elysium.kinetiq.xyz/testnet-explorer" } },
+  testnet: true,
+});
+export const elysiumMainnet = defineChain({
+  id: 99901, name: "Elysium (Kinetiq)",
+  nativeCurrency: { name: "HYPE", symbol: "HYPE", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.elysium.kinetiq.xyz"] } },
+  blockExplorers: { default: { name: "Kinetiq Explorer", url: "https://elysium.kinetiq.xyz/explorer" } },
+});
+const _enableElysium = process.env.NEXT_PUBLIC_ENABLE_ELYSIUM_NETWORKS === "true";
+
 // ─── WAGMI CONFIG (export and wrap your app in <WagmiProvider config={wagmiConfig}>) ──
 const _wcProjectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 const _connectors = [
@@ -41,10 +59,14 @@ const _connectors = [
 ];
 
 export const wagmiConfig = createConfig({
-  chains:     [arbitrum, arbitrumSepolia],
+  chains:     [arbitrum, arbitrumSepolia, ...(_enableElysium ? [elysiumTestnet, elysiumMainnet] : [])],
   transports: {
     [arbitrum.id]:        http(process.env.NEXT_PUBLIC_ARB_RPC),
     [arbitrumSepolia.id]: http(process.env.NEXT_PUBLIC_ARB_SEPOLIA_RPC),
+    ...(_enableElysium ? {
+      [elysiumTestnet.id]: http(process.env.NEXT_PUBLIC_ELYSIUM_TESTNET_RPC || "https://testnet-rpc.elysium.kinetiq.xyz"),
+      [elysiumMainnet.id]: http(process.env.NEXT_PUBLIC_ELYSIUM_RPC || "https://rpc.elysium.kinetiq.xyz"),
+    } : {}),
   },
   connectors: _connectors,
   ssr: true,  // prevents wagmi from reading localStorage during SSR hydration
