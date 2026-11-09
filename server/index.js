@@ -981,6 +981,7 @@ function maybeAutoStart(t) {
   t.autoStartPending = true;
   setTimeout(() => {
     t.autoStartPending = false;
+    if (HYPE_TESTNET && (t.hypeFrozen || t.hypeSettling)) return;
     try { t.start(); }
     catch (e) { console.error(`[Server] t.start() error in maybeAutoStart:`, e.message); t.phase = 'waiting'; }
     broadcastTable(t);
@@ -992,6 +993,42 @@ function maybeAutoStart(t) {
 async function signAndRemovePlayer(t, addr, ws) {
   const p = t.players.find(x => x.addr === addr);
   if (!p) return;
+  if (HYPE_TESTNET) {
+    // Network disconnect MUST NOT silently cash players out: preserve their seat.
+    if (ws?.readyState !== WebSocket.OPEN) { p.ws = null; return; }
+    if (t.hypeFrozen || t.hypeSettling) {
+      return send(ws, { type:'ERROR', error:'HYPE table is reconciling or frozen; do not withdraw during settlement.' });
+    }
+    if (!t.isActive) {
+      t.players = t.players.filter(x => x.addr.toLowerCase() !== addr.toLowerCase());
+      send(ws, { type:'REFUND_AVAILABLE', tableId:String(t.id) });
+      broadcastTable(t);
+      return;
+    }
+    // Never cash out an in-flight bet: bankrolls are only final after the
+    // operator's signed balance transition is confirmed on-chain.
+    if (!['waiting', 'showdown'].includes(t.phase)) {
+      return send(ws, { type:'ERROR', error:'Wait until the hand is fully settled before leaving.' });
+    }
+    t.hypeFrozen = true; // Blocks a pre-scheduled next hand while cashing out.
+    try {
+      const cashout = await cashOutHypePlayer({
+        table:t, escrow, operator, ethers, chainId:CHAIN_ID, escrowAddress:ESCROW_ADDR, addr,
+      });
+      t.players = t.players.filter(x => x.addr.toLowerCase() !== addr.toLowerCase());
+      t.phase = 'waiting';
+      t.hypeFrozen = false;
+      send(ws, { type:'CASHOUT_CONFIRMED', tableId:String(t.id), amount:cashout.gameUnits,
+        txHash:cashout.txHash, settlementMode:'NATIVE_HYPE', claimRequired:true });
+      broadcastTable(t);
+      maybeAutoStart(t);
+    } catch (e) {
+      console.error('[Server] HYPE_CASHOUT_FAILURE:', e.message);
+      send(ws, { type:'ERROR', error:'On-chain HYPE exit failed. Table frozen; use recovery after 24h.' });
+      // Remain frozen on mismatch or revert — never sign an unbacked cashout.
+    }
+    return;
+  }
 
   // If table isn't Active on-chain yet, handle by intent:
   // - Intentional leave (ws open) → remove player, signal refund
@@ -1092,6 +1129,7 @@ async function handleHandOver(t, result) {
   let sig = null;
   let nativeSettlement = null;
   if (HYPE_TESTNET) {
+    t.hypeSettling = true;
     try {
       nativeSettlement = await settleHypeHand({
         table: t, escrow, operator, ethers, chainId: CHAIN_ID, escrowAddress: ESCROW_ADDR,
@@ -1100,7 +1138,9 @@ async function handleHandOver(t, result) {
       // never start another hand before the on-chain balance state catches up.
       t.handNonce = Number(nativeSettlement.nonce);
       for (const p of t.players) p.onChainDeposit = p.chips;
+      t.hypeSettling = false;
     } catch (e) {
+      t.hypeSettling = false;
       t.hypeFrozen = true;
       t.phase = 'showdown';
       broadcastToTable(t, { type:'ERROR', error:'HYPE settlement failed. Table frozen; operator or 24h emergency exit required.' });
