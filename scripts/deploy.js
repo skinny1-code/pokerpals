@@ -17,6 +17,11 @@ const CHAIN_IDS      = { arbitrumSepolia: "421614", arbitrum: "42161" };
 const USDC_MAINNET = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
 
 const networkName = process.env.DEPLOY_NETWORK || "arbitrumSepolia";
+// Elysium uses native HYPE rather than an ERC-20. This legacy deploy script
+// mints 1B CHIPS and seeds CHIPS pools: never run it on an Elysium network.
+if (["elysium", "elysiumTestnet"].includes(networkName)) {
+  throw new Error("ELYSIUM_HYPE_NOT_SUPPORTED: legacy CHIPS deployment is prohibited on Elysium. Use the dedicated native-HYPE escrow implementation only after tests, audit and gaming approval.");
+}
 if (!VALID_NETWORKS.includes(networkName)) {
   throw new Error(`Unknown DEPLOY_NETWORK="${networkName}". Valid: ${VALID_NETWORKS.join(", ")}`);
 }
