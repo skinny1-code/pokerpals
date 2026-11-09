@@ -31,6 +31,45 @@ Two engineering possibilities:
 1. **Preferred: native HYPE escrow.** Implement a purpose-built `NativeHypePokerEscrow` using `buyIn(tableId) payable`, `rebuy(tableId) payable`, separate gas budget, reentrancy protection, operator signatures bound to `block.chainid` and `address(this)`, all-internal ledger, recipient payout/refund with failure-safe withdrawal, contract solvency invariant, and no invented supply or fixed redemption peg. Rework tournament entry, fee units, handles, and staking rather than assuming 1B token emissions. Game-server ABI and wallet hooks must be adapted together. Retain off-chain shuffle/gameplay only if independently audited and all anti-collusion controls pass.
 2. **Alternative: reviewed wrapped HYPE.** Wrapped native HYPE is an ERC-20 backed 1:1 by native HYPE; third-party PerpMe references WHYPE on Elysium at `0xbA876237B0F021A6c6D852d6c26E107997cC5E81`, **not yet independently authenticated from the protocol issuer in this project**. Verify code, chain, escrow semantics, canonical integration and allowances before trusting it. Even then, standard WETH9 `withdraw` is not the `burn` used in PokerVsPlayer contracts, so replacing an address is insufficient. Never burn WHYPE receipts while leaving their backing HYPE stranded.
 
+## Implementation status (updated November 9, 2026)
+
+**Source implemented on draft PR #120, unmerged and isolated:**
+
+- `contracts/NativeHypePokerEscrow.sol`: payable native test HYPE buy-ins/rebuys, constant-sum signed bankroll updates, replay-protected operator-authorized cashout credits, pull-claim withdrawals, refunds, 24h emergency exits. No minted CHIPS, no invented HYPE token, no guaranteed payout price, and **no rake** in the isolated test implementation.
+- `test/contracts/NativeHypePokerEscrow.test.js`: simulated-EVM tests for table creation, human verification, exact payable amounts, rebuy, signed bankroll conservation, signature invalidation and replay rejection, pull claims, refund, time-locked escape, and reopening an active table when it falls below two players.
+- `server/nativeHypeCodec.js`, `server/nativeHypeAdapter.js` and guarded `server/index.js`: 1 integer game unit = 10^12 native wei (1 micro-HYPE); reject unbacked bankrolls; confirm signed on-chain settlement before advancing hands; reject HYPE mainnet 99901; reject verification/bot bypasses; freeze tables after settlement failures.
+- `src/hooks/wallet/core.js`, `useWallet.js`, `useEscrow.js`: native HYPE payable wallet and chain-99801 flow; no CHIPS allowance; escrow-balance and bytecode checks.
+- `src/app/hype-staging/page.jsx`: explicit staging-only user QA controls and separately claimable on-chain credit; lobby and table UI now show micro-HYPE test units in the correct mode.
+- `scripts/deployNativeHypeTestnet.js`: explicit, guarded testnet-only contract deployment; will not deploy if network or role addresses do not match.
+- `scripts/smokeNativeHypeTestnet.js`: two-wallet, testnet-only escrow smoke with saved transaction receipts; **available but NOT yet executed**.
+- Existing PokerVsPlayer CHIPS/RH plans, Arbitrum chain config and production application remain untouched on `main`.
+
+### Validation performed / missing
+
+| Check | Status | Meaning |
+|---|---|---|
+| Micro-HYPE codec 9 isolated assertions | **PASS** (source executed in JS isolate) | Exact scaling and no unsafe fractional amounts |
+| Game-server adapter mock-chain assertions | **PASS** (source executed in JS isolate) | Signed balance conservation, abort on invalid balances/reverted settlements, cashout reconciliation |
+| JS syntax of server/wallet modules | **PASS** (source-parsed) | Syntax only, not live server runtime |
+| Next.js Vercel automatic preview | **READY** for several earlier PR commits (latest head still requires refresh) | Build passes; no backend/onchain certification |
+| GitHub Actions `npm test` / `test:contracts` | **NOT CONFIRMED** | CI jobs have repeatedly failed prior to executing steps, even for unrelated Renovate branches; account/runner status must be investigated |
+| Hardhat Solidity compilation and simulated-EVM escrow suite | **NOT RUN / NOT VERIFIED** | Test source exists, no compiled results |
+| Elysium RPC TLS/chain ID live probe | **NOT RUN / NOT VERIFIED** | Probe script exists, live RPC chain ID not confirmed in this project |
+| Funded two-wallet Elysium testnet smoke with receipts | **NOT RUN** | Requires dedicated valueless test HYPE accounts and operator roles |
+| E2E real poker hand, independent fairness audit, legal authorization | **NOT COMPLETE** | No real-money launch is authorized |
+
+### Exact authorized test sequence
+
+1. On branch `feat/elysium-hype-staging`, run `npm ci && npm test && npm run test:contracts`; archive results. The `test:hype` script can isolate the escrow contract suite.
+2. Run read-only `npm run verify:elysium:testnet`, confirm chain 99801, TLS validity and block progression. Do not disable TLS validation.
+3. Configure separate **test-only** deployer/operator/oracle/player keys privately in CI secrets or local `.env`, not in source/chat; fund with valueless test HYPE only.
+4. After contract tests and review, run `HYPE_TESTNET_DEPLOY_ACK=ISOLATED_TEST_ONLY npm run deploy:hype:testnet` (uses `DEPLOY_NETWORK=elysiumTestnet`), verify manifest and deployed runtime code.
+5. Run `HYPE_TESTNET_SMOKE_ACK=ISOLATED_TEST_ONLY npm run smoke:hype:testnet`, retaining `deployments/elysiumTestnet.smoke.json` transaction receipts. This tests escrow transfers, NOT the full multiplayer poker application.
+6. Only after the escrow smoke passes, set `NEXT_PUBLIC_CHAIN_ID=99801`, `NEXT_PUBLIC_ENABLE_ELYSIUM_NETWORKS=true`, `NEXT_PUBLIC_ELYSIUM_HYPE_ESCROW=<verified testnet address>`, `CHAIN_ID=99801`, `ENABLE_HYPE_TESTNET_GAME=ISOLATED_ONLY` in a **separate** staging app/server. Never enable `TESTNET_SKIP_CHAIN_VERIFY`, `TESTNET_SKIP_HUMAN_CHECK` or `ENABLE_WS_BOTS` in this test.
+7. Run 2-player, multi-hand end-to-end game/settlement/withdraw tests, crash-and-recovery, timeouts, bot/collusion and client attack simulations, then independent smart-contract and game-fairness audit. Confirm bankroll reconciliation after each completed hand.
+
+**Commercial/production scope:** HYPE mainnet wagering remains prohibited until actual jurisdictional gaming approval, KYC/AML, geofencing, game integrity certification and an independent security review. Deploying a contract on Elysium is not a gaming license.
+
 ## Explicitly completed in this branch
 
 - Elysium/Atlantis independent from Arbitrum and Robinhood with the *correct* Kinetiq chain IDs in Hardhat and wagmi.
