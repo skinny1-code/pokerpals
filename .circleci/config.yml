@@ -1,0 +1,49 @@
+version: 2.1
+
+# PokerPals validation only. Deployment workflows remain disabled for CircleCI
+# until their approval gates, credentials and stateful rollout are migrated.
+jobs:
+  unit:
+    docker:
+      - image: cimg/node:22.16
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm test
+
+  contracts:
+    docker:
+      - image: cimg/node:22.16
+    environment:
+      HARDHAT_NETWORK: hardhat
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm run compile
+      - run: npm run test:contracts
+
+  frontend:
+    docker:
+      - image: cimg/node:22.16
+    environment:
+      NEXT_PUBLIC_CHAIN_ID: "421614"
+      NEXT_PUBLIC_WS_URL: "ws://localhost:8080"
+      NEXT_PUBLIC_WC_PROJECT_ID: "ci-stub"
+      NEXT_PUBLIC_CHIPS_TOKEN: "0x0000000000000000000000000000000000000001"
+      NEXT_PUBLIC_ESCROW: "0x0000000000000000000000000000000000000002"
+      NEXT_PUBLIC_STAKING: "0x0000000000000000000000000000000000000003"
+      NEXT_PUBLIC_REFERRAL: "0x0000000000000000000000000000000000000004"
+      NEXT_PUBLIC_TOURNAMENT: "0x0000000000000000000000000000000000000005"
+      NEXT_PUBLIC_TABLE_REGISTRY: "0x0000000000000000000000000000000000000006"
+      NEXT_PUBLIC_POKER_HANDLE: "0x0000000000000000000000000000000000000007"
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm run build
+
+workflows:
+  validation:
+    jobs:
+      - unit
+      - contracts
+      - frontend
