@@ -13,7 +13,7 @@ jobs:
           command: |
             node --version
             npm --version
-            if npm ci --no-audit --no-fund > /tmp/pokerpals-npm-install.log 2>&1; then
+            if npm ci --legacy-peer-deps --no-audit --no-fund > /tmp/pokerpals-npm-install.log 2>&1; then
               tail -n 20 /tmp/pokerpals-npm-install.log
             else
               echo '=== npm installation error (first 100 lines) ==='
@@ -38,7 +38,7 @@ jobs:
           command: |
             node --version
             npm --version
-            if npm ci --no-audit --no-fund > /tmp/pokerpals-npm-install.log 2>&1; then
+            if npm ci --legacy-peer-deps --no-audit --no-fund > /tmp/pokerpals-npm-install.log 2>&1; then
               tail -n 20 /tmp/pokerpals-npm-install.log
             else
               echo '=== npm installation error (first 100 lines) ==='
@@ -73,7 +73,7 @@ jobs:
           command: |
             node --version
             npm --version
-            if npm ci --no-audit --no-fund > /tmp/pokerpals-npm-install.log 2>&1; then
+            if npm ci --legacy-peer-deps --no-audit --no-fund > /tmp/pokerpals-npm-install.log 2>&1; then
               tail -n 20 /tmp/pokerpals-npm-install.log
             else
               echo '=== npm installation error (first 100 lines) ==='
