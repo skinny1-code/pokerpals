@@ -6,6 +6,7 @@ jobs:
   unit:
     docker:
       - image: cimg/node:22.16
+    working_directory: ~/project
     steps:
       - checkout
       - run:
@@ -29,6 +30,7 @@ jobs:
   contracts:
     docker:
       - image: cimg/node:22.16
+    working_directory: ~/project
     environment:
       HARDHAT_NETWORK: hardhat
     steps:
@@ -55,6 +57,7 @@ jobs:
   frontend:
     docker:
       - image: cimg/node:22.16
+    working_directory: ~/project
     environment:
       NEXT_PUBLIC_CHAIN_ID: "421614"
       NEXT_PUBLIC_WS_URL: "ws://localhost:8080"
