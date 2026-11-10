@@ -8,7 +8,22 @@ jobs:
       - image: cimg/node:22.16
     steps:
       - checkout
-      - run: npm ci
+      - run:
+          name: Install dependencies (capture npm diagnostics)
+          command: |
+            node --version
+            npm --version
+            if npm ci --no-audit --no-fund > /tmp/pokerpals-npm-install.log 2>&1; then
+              tail -n 20 /tmp/pokerpals-npm-install.log
+            else
+              echo '=== npm installation error (first 100 lines) ==='
+              head -n 100 /tmp/pokerpals-npm-install.log
+              echo '=== npm error markers ==='
+              grep -n -m 30 -E 'npm error|npm ERR!|ERESOLVE|EUSAGE|ETARGET|ENOENT|EBADENGINE' /tmp/pokerpals-npm-install.log || true
+              echo '=== npm installation error (last 50 lines) ==='
+              tail -n 50 /tmp/pokerpals-npm-install.log
+              exit 1
+            fi
       - run: npm test
 
   contracts:
@@ -18,7 +33,22 @@ jobs:
       HARDHAT_NETWORK: hardhat
     steps:
       - checkout
-      - run: npm ci
+      - run:
+          name: Install dependencies (capture npm diagnostics)
+          command: |
+            node --version
+            npm --version
+            if npm ci --no-audit --no-fund > /tmp/pokerpals-npm-install.log 2>&1; then
+              tail -n 20 /tmp/pokerpals-npm-install.log
+            else
+              echo '=== npm installation error (first 100 lines) ==='
+              head -n 100 /tmp/pokerpals-npm-install.log
+              echo '=== npm error markers ==='
+              grep -n -m 30 -E 'npm error|npm ERR!|ERESOLVE|EUSAGE|ETARGET|ENOENT|EBADENGINE' /tmp/pokerpals-npm-install.log || true
+              echo '=== npm installation error (last 50 lines) ==='
+              tail -n 50 /tmp/pokerpals-npm-install.log
+              exit 1
+            fi
       - run: npm run compile
       - run: npm run test:contracts
 
@@ -38,7 +68,22 @@ jobs:
       NEXT_PUBLIC_POKER_HANDLE: "0x0000000000000000000000000000000000000007"
     steps:
       - checkout
-      - run: npm ci
+      - run:
+          name: Install dependencies (capture npm diagnostics)
+          command: |
+            node --version
+            npm --version
+            if npm ci --no-audit --no-fund > /tmp/pokerpals-npm-install.log 2>&1; then
+              tail -n 20 /tmp/pokerpals-npm-install.log
+            else
+              echo '=== npm installation error (first 100 lines) ==='
+              head -n 100 /tmp/pokerpals-npm-install.log
+              echo '=== npm error markers ==='
+              grep -n -m 30 -E 'npm error|npm ERR!|ERESOLVE|EUSAGE|ETARGET|ENOENT|EBADENGINE' /tmp/pokerpals-npm-install.log || true
+              echo '=== npm installation error (last 50 lines) ==='
+              tail -n 50 /tmp/pokerpals-npm-install.log
+              exit 1
+            fi
       - run: npm run build
 
 workflows:
