@@ -47,3 +47,5 @@ workflows:
       - unit
       - contracts
       - frontend
+
+# CircleCI project connected; trigger initial validation for cleanup branch.
