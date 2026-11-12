@@ -173,7 +173,7 @@ function CreateTableModal({ onClose }) {
   }, [newTableId]);
 
   const handleSubmit = () => {
-    if (!effectiveBB || !buyIn || buyIn < effectiveBB * 2) return;
+    if (!Number.isSafeInteger(effectiveBB) || effectiveBB <= 0 || !Number.isSafeInteger(buyIn) || buyIn < effectiveBB * 2) return;
     createTable({ buyIn, bigBlind: effectiveBB, maxPlayers, gameType });
   };
 
@@ -187,7 +187,7 @@ function CreateTableModal({ onClose }) {
       display:'flex', alignItems:'center', justifyContent:'center',
       zIndex:300, padding:16,
     }} onClick={onClose}>
-      <div className="glass-strong" style={{
+      <div className="glass-strong" role="dialog" aria-modal="true" aria-labelledby="create-table-title" style={{
         padding:'28px 24px',
         width:'100%', maxWidth:430,
         boxShadow:'0 28px 70px rgba(0,0,0,.75)',
@@ -195,7 +195,7 @@ function CreateTableModal({ onClose }) {
       }} onClick={e => e.stopPropagation()}>
 
         <div style={{ fontSize:9, color:'#7d786c', letterSpacing:3, marginBottom:5, fontWeight:800 }}>CREATE TABLE</div>
-        <div className="gold-text serif" style={{ fontSize:24, fontWeight:800, marginBottom:22 }}>
+        <div id="create-table-title" className="gold-text serif" style={{ fontSize:24, fontWeight:800, marginBottom:22 }}>
           New Cash Game
         </div>
 
@@ -231,7 +231,7 @@ function CreateTableModal({ onClose }) {
               }}>{b}</button>
             ))}
             <input
-              type="number" placeholder="Custom"
+              type="number" min="1" step="1" aria-label="Custom big blind" placeholder="Custom"
               value={customBB}
               onChange={e => setCustomBB(e.target.value)}
               style={{
@@ -251,7 +251,7 @@ function CreateTableModal({ onClose }) {
             BUY-IN (CHIPS)
           </div>
           <input
-            type="number" value={buyIn}
+            type="number" min="1" step="1" aria-label="Buy-in amount in CHIPS" value={buyIn}
             onChange={e => setBuyIn(Number(e.target.value))}
             className="input"
             style={{ width:'100%', padding:'11px 14px', boxSizing:'border-box', fontFamily:"'JetBrains Mono',monospace", fontSize:14 }}
@@ -290,7 +290,7 @@ function CreateTableModal({ onClose }) {
           <button onClick={onClose} className="btn btn-ghost" style={{ flex:1, padding:'13px', fontSize:12.5 }}>
             Cancel
           </button>
-          <button onClick={handleSubmit} disabled={busy} className="btn btn-gold"
+          <button onClick={handleSubmit} disabled={busy || !Number.isSafeInteger(effectiveBB) || effectiveBB <= 0 || !Number.isSafeInteger(buyIn) || buyIn < effectiveBB * 2} className="btn btn-gold"
             style={{ flex:2, padding:'13px', fontSize:13.5, opacity: busy ? .6 : 1,
               cursor: busy ? 'not-allowed' : 'pointer' }}>
             {busy ? 'Confirming…' : '＋ Create Table'}
@@ -350,6 +350,7 @@ export default function LobbyPage() {
 
   const liveCount   = displayTables.filter(t => t.phase && t.phase !== 'waiting').length;
   const totalSeated = displayTables.reduce((s,t) => s + (t.seated||0), 0);
+  const openSeats = serverOnline ? tableList.reduce((sum, table) => sum + Math.max(0, (table.config?.maxPlayers || 9) - (table.seated || 0)), 0) : 0;
 
   return (
     <div className="has-bottom-nav" style={{ minHeight:'100vh', background:'var(--bg-abyss)' }}>
@@ -371,8 +372,8 @@ export default function LobbyPage() {
         <div style={{ position:'relative', zIndex:1 }}>
           {/* Live pill */}
           <div className="pill animate-up s1" style={{ marginBottom:20, opacity:0 }}>
-            <span className="dot-live" />
-            ONCHAIN · PVP · POKER
+            <span className={serverOnline ? 'dot-live' : 'dot-offline'} />
+            {serverOnline ? 'LOBBY ONLINE · ONCHAIN POKER' : 'LOBBY OFFLINE · PREVIEW MODE'}
           </div>
 
           <img src="/logo.png" alt="Poker Vs Player" className="animate-up s2" style={{
@@ -385,8 +386,8 @@ export default function LobbyPage() {
             fontSize:15, color:'#8d877a', letterSpacing:.2,
             maxWidth:420, margin:'0 auto 36px', lineHeight:1.7, opacity:0,
           }}>
-            Real players. Instant onchain settlement.<br/>
-            <span style={{ color:'#a59f90' }}>No house edge. No bots.</span>
+            Player-versus-player poker with onchain settlement.<br/>
+            <span style={{ color:'#a59f90' }}>{serverOnline ? 'Explore available tables and connect your wallet to play.' : 'Live tables are temporarily unavailable. Preview tables are not joinable.'}</span>
           </p>
 
           {/* Stats */}
@@ -394,7 +395,7 @@ export default function LobbyPage() {
             {[
               { label:'Players Online', value: String(totalSeated) },
               { label:'Live Tables',    value: String(liveCount)   },
-              { label:'Open Seats',     value: String(Math.max(0, tableList.length - liveCount)) },
+              { label:'Open Seats',     value: String(openSeats) },
             ].map(s => (
               <div key={s.label} className="stat-card">
                 <div className="gold-text" style={{
@@ -412,7 +413,7 @@ export default function LobbyPage() {
 
           {/* Primary CTAs */}
           <div className="animate-up s5" style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap', opacity:0 }}>
-            {mounted && address ? (
+            {mounted && address && serverOnline ? (
               <button onClick={() => setShowCreate(true)} className="btn btn-gold" style={{ padding:'13px 28px', fontSize:14 }}>
                 ＋ Create a Table
               </button>
