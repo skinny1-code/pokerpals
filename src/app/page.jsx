@@ -318,10 +318,20 @@ export default function LobbyPage() {
   const serverBase = wsHttpUrl();
   useEffect(() => {
     const poll = () =>
-      fetch(`${serverBase}/tables`)
-        .then(r => r.json())
-        .then(d => { setTableList(d.tables || []); setServerOnline(true); })
-        .catch(() => setServerOnline(false));
+      fetch(`${serverBase}/tables`, { cache: 'no-store' })
+        .then(r => {
+          if (!r.ok) throw new Error(`Lobby request failed: ${r.status}`);
+          return r.json();
+        })
+        .then(d => {
+          if (!d || !Array.isArray(d.tables)) throw new Error('Invalid lobby response');
+          setTableList(d.tables);
+          setServerOnline(true);
+        })
+        .catch(() => {
+          setServerOnline(false);
+          setTableList([]);
+        });
     poll();
     const t = setInterval(poll, 8000);
     return () => clearInterval(t);
