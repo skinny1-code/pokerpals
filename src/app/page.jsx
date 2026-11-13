@@ -488,12 +488,12 @@ export default function LobbyPage() {
                 animation: serverOnline ? 'live-dot 2s infinite' : 'none',
               }} />
               <span style={{ fontWeight:700 }}>
-                {serverOnline ? 'Live' : mounted && address ? 'Connecting…' : 'Offline'}
+                {serverOnline ? 'Live' : 'Offline'}
               </span>
             </div>
 
             {mounted && address ? (
-              <button onClick={() => setShowCreate(true)} className="btn btn-gold" style={{ padding:'8px 16px', fontSize:12 }}>
+              <button onClick={() => setShowCreate(true)} disabled={!serverOnline} title={!serverOnline ? 'Table creation is unavailable while the game server is offline' : undefined} className="btn btn-gold" style={{ padding:'8px 16px', fontSize:12 }}>
                 ＋ New Table
               </button>
             ) : (
