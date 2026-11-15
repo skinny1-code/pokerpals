@@ -24,7 +24,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - name: Verify preinstalled Android SDK
+        run: |
+          test -d "$ANDROID_HOME" || { echo 'Android SDK missing'; exit 1; }
+          echo "Android SDK: $ANDROID_HOME"
       - name: Install mobile dependencies
         working-directory: mobile
         run: npm install --no-audit --no-fund
