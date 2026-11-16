@@ -34,7 +34,7 @@ Use Xcode to choose an Apple development team, then build to a device or simulat
 
 ## Environment and restrictions
 
-- The default web host is `https://pokervsplayer.xyz`; set `POKERPALS_MOBILE_URL=https://staging.example.org` and `POKERPALS_ALLOW_STAGING_HOST=true` for an explicitly approved HTTPS staging host. Staging must **not** permit redeemable real-value wagering without the appropriate controls.
+- The prototype uses a fixed `https://pokervsplayer.xyz` HTTPS origin in `capacitor.config.json`. To use controlled staging, change the origin in a separate development build and verify its identity; do not introduce production secrets. Staging must **not** permit redeemable real-value wagering without appropriate controls.
 - This approach uses Capacitor's remote server URL solely to accelerate **device testing**. It may not meet Apple's minimum-functionality requirement, and injected WalletConnect flows, external-wallet return routes, Android app links and iOS universal links still need implementation and real-device testing.
 - Do **not** embed RPC secrets, operator/deployer keys, or signing keys in the mobile app.
 - Do **not** enable cash-equivalent buy-ins for public app store users without verified operator licensing, geography/age controls, responsible-gaming compliance, and platform approval. A client-side hide button is not a security control: enforce eligibility server-side before action and contract use where feasible.
