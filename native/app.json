@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "PokerPals",
+    "slug": "pokerpals-native",
+    "scheme": "pokerpals",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "com.rawagon.pokerpals.nativeapp",
+      "edgeToEdgeEnabled": true
+    },
+    "ios": {
+      "bundleIdentifier": "com.rawagon.pokerpals.nativeapp",
+      "supportsTablet": true
+    },
+    "plugins": []
+  }
+}
