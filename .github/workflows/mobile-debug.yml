@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - name: Verify preinstalled Android SDK
         run: |
           test -d "$ANDROID_HOME" || { echo 'Android SDK missing'; exit 1; }
