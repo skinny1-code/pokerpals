@@ -42,6 +42,16 @@ jobs:
       - name: Build debug APK
         working-directory: mobile/android
         run: bash ./gradlew --no-daemon assembleDebug
+      - name: Compile unsigned release AAB for packaging validation
+        working-directory: mobile/android
+        run: bash ./gradlew --no-daemon bundleRelease
+      - name: Upload unsigned release AAB (NOT store-submittable)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokerpals-android-release-unsigned-aab
+          path: mobile/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload debug APK for device tests
         uses: actions/upload-artifact@v4
         with:
