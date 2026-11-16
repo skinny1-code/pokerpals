@@ -4,7 +4,11 @@ This directory adds **mobile development targets** without changing the Next.js 
 
 ## Prerequisites
 
-Node 22, Java 17 and Android SDK for Android. For iOS, macOS with Xcode, CocoaPods as required, and Apple code signing. A current WalletConnect project ID and reachable production/staging WebSocket backend are needed for end-to-end tests.
+Node 22, Java 21 and Android SDK for Android. For iOS, macOS with Xcode, CocoaPods as required, and Apple code signing. A current WalletConnect project ID and reachable production/staging WebSocket backend are needed for end-to-end tests.
+
+## Configuration checks
+
+Run `npm test` from `mobile/` to validate app identity, HTTPS origin, build JDK, and absence of deployment commands. These are static tests and do not prove wallet or on-chain functionality. See [RELEASE_AUDIT.md](RELEASE_AUDIT.md) for unresolved blockers.
 
 ## Android debug APK
 
