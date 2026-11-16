@@ -20,7 +20,11 @@ npx cap sync android
 cd android && ./gradlew assembleDebug
 ```
 
-Output: `mobile/android/app/build/outputs/apk/debug/app-debug.apk`. For Google Play, create a **signed release AAB** after compliance and device testing; debug APKs are not Play Store artifacts.
+Output: `mobile/android/app/build/outputs/apk/debug/app-debug.apk`. For Google Play, create a **signed release AAB** after compliance and device testing; debug APKs are not Play Store artifacts. CI also attempts an **unsigned release AAB** to validate the Google Play packaging format; this is not a signed or submittable release.
+
+## Android AAB validation
+
+The Android GitHub Actions workflow runs `bundleRelease` and uploads an unsigned `pokerpals-android-release-unsigned-aab` artifact. It must be signed with an authorized release key and pass device testing, policy review, Play Console requirements, and internal-track review before any release.
 
 ## iOS simulator/dev build
 
