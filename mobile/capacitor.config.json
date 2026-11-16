@@ -1,0 +1,12 @@
+{
+  "appId": "com.rawagon.pokerpals",
+  "appName": "PokerPals",
+  "webDir": "www",
+  "server": {
+    "url": "https://pokervsplayer.xyz",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
