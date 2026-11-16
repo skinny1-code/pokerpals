@@ -8,7 +8,8 @@
     "ios:init": "cap add ios",
     "android:sync": "cap sync android",
     "ios:sync": "cap sync ios",
-    "doctor": "cap doctor"
+    "doctor": "cap doctor",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^7.4.0",
