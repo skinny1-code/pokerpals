@@ -25,6 +25,9 @@ test('remote app shell is HTTPS-only and pinned to known origin', () => {
 test('debug build uses Java 21 and never publishes to stores', () => {
   assert.match(workflow, /java-version:\s*'21'/);
   assert.match(workflow, /assembleDebug/);
+  assert.match(workflow, /bundleRelease/);
+  assert.match(workflow, /release-unsigned-aab/);
+  assert.doesNotMatch(workflow, /signingConfig|keystorePassword|PLAY_SERVICE_ACCOUNT/);
   assert.doesNotMatch(workflow, /publish-google-play|upload-app-store|deploy:mainnet|store-upload/);
 });
 test('mobile scripts never deploy contracts', () => {
