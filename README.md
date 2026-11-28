@@ -16,7 +16,7 @@ PokerVsPlayer is a trustless PvP card game platform where:
 - **All funds** are locked in a smart contract — not held by the house
 - **Every hand** is settled onchain via operator-signed payouts
 - **Every player** is verified human before they can sit at a table
-- **All rake** flows directly to the owner wallet — no middlemen
+- **Rake distribution** is governed by the deployed contract configuration
 
 Supported games: **Texas Hold'em** · Omaha Hi · Short Deck · Pineapple OFC *(last 3 coming soon)*
 
@@ -29,7 +29,7 @@ Player Wallet           WebSocket Server          Arbitrum Chain
 ─────────────          ─────────────────          ──────────────
 Connect (wagmi)  ──▶  AUTH via wallet sig
 Verify Human     ──▶  Gitcoin Passport   ──▶  escrow.markHuman()
-Approve PPP      ──────────────────────  ──▶  PPPToken.approve()
+Approve CHIPS      ──────────────────────  ──▶  ChipsToken.approve()
 Buy In           ──────────────────────  ──▶  PokerEscrow.buyIn()
 Play Hand        ──▶  Game state machine
                        Sign result        ──▶  operator.signMessage()
@@ -43,9 +43,9 @@ Settle           ─────────────────────
 
 | Contract | Purpose |
 |----------|---------|
-| `CHIPSToken.sol` | ERC-20 native token (1B supply) |
+| `ChipsToken.sol` | ERC-20 native token (1B supply) |
 | `PokerEscrow.sol` | Buy-in lock + signed settlement + seat fees + VIP rake tiers |
-| `CHIPSStaking.sol` | Stake CHIPS for lower rake + APR yield |
+| `ChipsStaking.sol` | Stake CHIPS for lower rake + APR yield |
 | `TournamentManager.sol` | Scheduled tournaments with entry fee rake |
 | `ReferralRegistry.sol` | Onchain referral codes + 20% rake split |
 
@@ -72,8 +72,8 @@ Settle           ─────────────────────
 | Chain | Arbitrum One (EVM) |
 | Game Server | Node.js + WebSocket (`ws`) |
 | Anti-Bot | Gitcoin Passport + Alchemy + BehaviorMonitor |
-| Frontend | Next.js 14 + wagmi v2 + viem |
-| Deploy | Vercel (frontend) + Railway (game server) |
+| Frontend | Next.js 16 + wagmi v3 + viem |
+| Deploy | Next.js frontend + separately hosted Node.js game server (deployment target must be verified) |
 
 ---
 
@@ -188,3 +188,10 @@ MIT — see [LICENSE](LICENSE)
 ---
 
 *PokerVsPlayer — All edge belongs to the players*
+
+## Repository maintenance
+
+- `main` is the release baseline. Make cleanup changes on a branch and require passing CI before merge.
+- Keep deployment manifests, persistent-storage configuration, smart-contract deployment scripts, and generated ABIs until their consumers and live deployment dependencies are verified.
+- Use `npm ci`, `npm test`, `npm run test:contracts`, and `npm run build` as regression gates. Do not treat a skipped test job as evidence that its suite passed.
+- Confirm current on-chain addresses and hosting configuration before changing production integrations. Documentation is not deployment evidence.

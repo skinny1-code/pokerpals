@@ -471,3 +471,28 @@ code, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
 /* Pot pulse when it grows / is won */
 @keyframes pot-bump { 0%,100% { transform: scale(1); } 40% { transform: scale(1.14); } }
 .pot-bump { animation: pot-bump .4s ease; }
+
+/* Professional interaction and accessibility polish */
+.dot-offline {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d7a46d;
+  box-shadow: 0 0 0 3px rgba(215,164,109,.12);
+}
+button, a, input { -webkit-tap-highlight-color: transparent; }
+button:disabled { cursor: not-allowed !important; opacity: .48; }
+button:focus-visible, a:focus-visible, input:focus-visible {
+  outline: 2px solid #f0e6cf;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+  .animate-up, .animate-in, .pop-in { opacity: 1 !important; transform: none !important; }
+}
