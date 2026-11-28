@@ -1,0 +1,43 @@
+name: Net Forge PokerPals practice integration
+on:
+  push:
+    branches: [chore/repository-cleanup-20261109]
+    paths:
+      - 'integrations/netforge/**'
+      - '.github/workflows/netforge-pokerpals.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  practice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Core rules assertions
+        run: node integrations/netforge/pokerpals.mjs --test
+      - name: Scaffold isolated Net Forge cards installation
+        run: node integrations/netforge/pokerpals.mjs "$RUNNER_TEMP/pokerpals-netforge"
+      - name: Install isolated browser test tooling
+        working-directory: ${{ runner.temp }}/pokerpals-netforge
+        run: |
+          npm install --no-save --package-lock=false playwright
+          npx playwright install --with-deps chromium
+      - name: Launch and verify two-player practice hand
+        working-directory: ${{ runner.temp }}/pokerpals-netforge
+        run: |
+          npm test
+          npm run play -- --no-open > "$RUNNER_TEMP/netforge-room.log" 2>&1 &
+          HOST_PID=$!
+          trap 'kill "$HOST_PID" 2>/dev/null || true; cat "$RUNNER_TEMP/netforge-room.log"' EXIT
+          for i in $(seq 1 120); do
+            if curl --fail --silent http://127.0.0.1:4663/ > /dev/null; then break; fi
+            if ! kill -0 "$HOST_PID" 2>/dev/null; then exit 1; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4663/ > /dev/null
+          cp "$GITHUB_WORKSPACE/integrations/netforge/browser-test.mjs" ./browser-test.mjs
+          node browser-test.mjs
