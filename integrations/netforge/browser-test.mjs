@@ -12,11 +12,12 @@ try {
  for(const p of [p1,p2])await p.waitForFunction(()=>document.querySelector("#table")?.textContent?.includes("PREFLOP"),{},{timeout:30000});
  for(const p of [p1,p2])assert.equal(await p.locator(".seat").first().locator(".card.back").count(),2);
  for(let i=0;i<8;i++){
-  const active=await Promise.race([p1,p2].map(async p=>{await p.waitForFunction(()=>document.querySelector("#notice")?.textContent?.startsWith("Your turn"),{},{timeout:10000});return p}));
-  const previous=await active.locator("#notice").innerText();
-  assert.match(previous,/Your turn/);
+  const rev=await p1.locator("#app").getAttribute("data-rev");
+  await p2.waitForFunction(rev=>document.querySelector("#app")?.getAttribute("data-rev")===rev,rev,{timeout:10000});
+  const active=(await p1.locator("#notice").innerText()).startsWith("Your turn")?p1:p2;
+  assert.match(await active.locator("#notice").innerText(),/Your turn/);
   await active.locator('button[data-act="2"]').click();
-  await active.waitForFunction(()=>!document.querySelector("#notice")?.textContent?.startsWith("Your turn"),{},{timeout:10000});
+  for(const p of [p1,p2])await p.waitForFunction(rev=>document.querySelector("#app")?.getAttribute("data-rev")!==rev,rev,{timeout:10000});
  }
  for(const p of [p1,p2]){await p.waitForFunction(()=>document.querySelector("#table")?.textContent?.includes("RESULT"),{},{timeout:10000});assert.equal(await p.locator(".felt .card").count(),5);assert.equal(await p.locator(".seat .card.back").count(),0);}
  assert.deepEqual(errors,[]);
